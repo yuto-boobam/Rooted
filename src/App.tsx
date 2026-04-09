@@ -25,6 +25,17 @@ function App() {
     },
   ]);
 
+  // setCardsを利用してカードを生成する関数
+  const addCard = () => {
+    const newCard: CardData = {
+      id: Date.now().toString(),
+      title: "新しいカード",
+      content: "新しいカードの内容",
+      updatedAt: new Date(),
+    };
+    setCards([...cards, newCard]);
+  }
+
   return (
     <div className="p-8"> {/* 全体の余白 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> {/* グリッドの設定 */}
@@ -40,7 +51,10 @@ function App() {
             </div>
           </div>
         ))}
-        {/* setCardsを利用して、新しいカードを追加する関数を作成する */}
+        {/* addCardを利用して、新しいカードを追加する関数を作成する */}
+        <button onClick={addCard} className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
+          新しいカードを追加
+        </button>
 
 
       </div>

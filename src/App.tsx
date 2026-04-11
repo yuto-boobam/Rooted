@@ -40,7 +40,14 @@ function App() {
     <div className="p-8"> {/* 全体の余白 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> {/* グリッドの設定 */}
 
-        {/* 課題：ここで cards.map を使い、カードを生成してください */}
+        <button className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-4 h-full">
+          {/* アイコン用の＋ */}
+          <span className="text-2xl text-blue-500 font-bold">＋</span>
+          {/* テキスト */}
+          <span className="text-slate-600 font-medium">ノートブックを新規作成</span>
+        </button>
+
+
         {/* card.mapを利用し、カードにcards内の要素をどのように表示するのかを決める */}
         {cards.map((card) => (
           <div key={card.id} className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
@@ -51,10 +58,6 @@ function App() {
             </div>
           </div>
         ))}
-        {/* addCardを利用して、新しいカードを追加する関数を作成する */}
-        <button onClick={addCard} className="p-6 bg-white rounded-xl shadow-md border border-gray-200">
-          新しいカードを追加
-        </button>
 
 
       </div>

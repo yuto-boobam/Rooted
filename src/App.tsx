@@ -10,20 +10,7 @@ type CardData = {
 function App() {
   // stateについて、状態関数と交信関数を定義する
   // CardData以外は入れてはいけない空の配列を作成する
-  const [cards, setCards] = useState<CardData[]>([
-    {
-      id: "1",
-      title: "カード1",
-      content: "カード1の内容",
-      updatedAt: new Date(),
-    },
-    {
-      id: "2",
-      title: "カード2",
-      content: "カード2の内容",
-      updatedAt: new Date(),
-    },
-  ]);
+  const [cards, setCards] = useState<CardData[]>([]);
 
   // setCardsを利用してカードを生成する関数
   const addCard = () => {
@@ -40,7 +27,7 @@ function App() {
     <div className="p-8"> {/* 全体の余白 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> {/* グリッドの設定 */}
 
-        <button className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-4 h-full">
+        <button onClick={addCard} className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-4 h-full hover:bg-slate-200 transition-colors">
           {/* アイコン用の＋ */}
           <span className="text-2xl text-blue-500 font-bold">＋</span>
           {/* テキスト */}

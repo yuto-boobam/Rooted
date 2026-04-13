@@ -18,6 +18,12 @@ function App() {
   // CardData以外は入れてはいけない空の配列を作成する
   const [cards, setCards] = useState<CardData[]>([]);
 
+  // モーダル用のステート、デフォルトをfalseにする
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // inputTextのステート
+  const [inputText, setInputText] = useState("");
+
   // setCardsを利用してカードを生成する関数
   const addCard = () => {
     const newCard: CardData = {
@@ -33,12 +39,23 @@ function App() {
     <div className="p-8"> {/* 全体の余白 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> {/* グリッドの設定 */}
 
-        <button onClick={addCard} className={addCardButtonStyle}>
+        <button onClick={() => setIsModalOpen(true)} className={addCardButtonStyle}>
           {/* アイコン用の＋ */}
           <span className="text-2xl text-blue-500 font-bold group-hover:scale-125 transition-transform">＋</span>
-          {/* テキスト */}
           <span className="text-slate-600 font-medium">ノートブックを新規作成</span>
         </button>
+
+        {/* ボタンをクリックしたら、まずモーダルをオープンする */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+            <div className="bg-white p-8 rounded-2xl shadow-xl">
+              <h2>新しいノートのタイトルを入力</h2>
+              {/* ここに後で input などを追加します */}
+              <button onClick={() => setIsModalOpen(false)}>キャンセル</button>
+            </div>
+          </div>
+        )}
+
 
 
         {/* card.mapを利用し、カードにcards内の要素をどのように表示するのかを決める */}

@@ -47,11 +47,14 @@ function App() {
 
         {/* ボタンをクリックしたら、まずモーダルをオープンする */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          // モーダルを開いている時の背景
+          < div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-black/50 flex items-center justify-center">
+            {/* モーダルの本体 */}
             <div className="bg-white p-8 rounded-2xl shadow-xl">
               <h2>新しいノートのタイトルを入力</h2>
               {/* ここに後で input などを追加します */}
-              <button onClick={() => setIsModalOpen(false)}>キャンセル</button>
+              <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} />
+              <button onClick={() => setIsModalOpen(false)}>作成</button>
             </div>
           </div>
         )}
@@ -71,7 +74,7 @@ function App() {
 
 
       </div>
-    </div>
+    </div >
   );
 
 }

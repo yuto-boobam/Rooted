@@ -28,7 +28,7 @@ function App() {
   const addCard = () => {
     const newCard: CardData = {
       id: Date.now().toString(),
-      title: "新しいカード",
+      title: inputText,
       additional: "追加情報",
       updatedAt: new Date(),
     };
@@ -48,13 +48,21 @@ function App() {
         {/* ボタンをクリックしたら、まずモーダルをオープンする */}
         {isModalOpen && (
           // モーダルを開いている時の背景
-          < div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-black/50 flex items-center justify-center">
-            {/* モーダルの本体 */}
-            <div className="bg-white p-8 rounded-2xl shadow-xl">
+          <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-black/50 flex items-center justify-center">
+            {/* モーダルの本体：ここをクリックしても背景にイベントを伝えないようにする */}
+            <div onClick={(e) => e.stopPropagation()} className="bg-white p-8 rounded-2xl shadow-xl">
               <h2>新しいノートのタイトルを入力</h2>
               {/* ここに後で input などを追加します */}
               <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} />
-              <button onClick={() => setIsModalOpen(false)}>作成</button>
+              {/* クリックすることでaddCardを呼び出し、モーダルを閉じる */}
+              <button
+                disabled={inputText.length < 3} // 👈 3文字未満なら無効
+                onClick={() => {
+                  addCard();
+                  setIsModalOpen(false);
+                  setInputText(""); // 👈 次回のために中身を空にするのがおすすめです
+                }}>作成
+              </button>
             </div>
           </div>
         )}

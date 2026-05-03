@@ -1,0 +1,313 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { Project, TaskNode, View } from './types';
+import { PROJECT_COLORS, PROJECT_ICONS } from './types';
+import { calcProgress } from './utils/calcProgress';
+
+// ── ヘルパー関数 ────────────────────────────────────────────────────────────
+
+/** ユニークなIDを生成する */
+export const makeId = (): string =>
+  Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+/** 新しいタスクノードを作成する */
+export const makeNode = (title = '新しいタスク'): TaskNode => ({
+  id: makeId(),
+  title,
+  memo: '',
+  completed: false,
+  children: [],
+});
+
+/** 新しいプロジェクトを作成する（ランダムな色とアイコンを割り当て） */
+const makeProject = (title: string, description: string): Project => {
+  const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
+  const icon = PROJECT_ICONS[Math.floor(Math.random() * PROJECT_ICONS.length)];
+  return {
+    id: makeId(),
+    title,
+    description,
+    icon,
+    color,
+    starred: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    progress: 0,
+    rootTask: makeNode(title),
+  };
+};
+
+// ── ツリー操作ヘルパー ────────────────────────────────────────────────────
+
+/**
+ * ツリーを再帰的に走査し、指定IDのノードを fn で変換した新しいツリーを返す。
+ * イミュータブルな更新のため、常に新しいオブジェクトを返す。
+ */
+function mapNode(
+  node: TaskNode,
+  targetId: string,
+  fn: (n: TaskNode) => TaskNode
+): TaskNode {
+  if (node.id === targetId) return fn(node);
+  return { ...node, children: node.children.map((c) => mapNode(c, targetId, fn)) };
+}
+
+/**
+ * 指定IDのノードの「親ノード」と「親の中でのインデックス」を返す。
+ * ルートノードには親がないため null を返す。
+ */
+function findParent(
+  node: TaskNode,
+  targetId: string
+): { parent: TaskNode; index: number } | null {
+  const idx = node.children.findIndex((c) => c.id === targetId);
+  if (idx !== -1) return { parent: node, index: idx };
+  for (const child of node.children) {
+    const result = findParent(child, targetId);
+    if (result) return result;
+  }
+  return null;
+}
+
+/** 指定IDのノードをツリーから削除した新しいツリーを返す */
+function removeNode(root: TaskNode, targetId: string): TaskNode {
+  return {
+    ...root,
+    children: root.children
+      .filter((c) => c.id !== targetId)
+      .map((c) => removeNode(c, targetId)),
+  };
+}
+
+/** ルートから targetId までのIDパスを返す。見つからなければ null */
+function buildPath(node: TaskNode, targetId: string, path: string[] = []): string[] | null {
+  if (node.id === targetId) return [...path, node.id];
+  for (const child of node.children) {
+    const result = buildPath(child, targetId, [...path, node.id]);
+    if (result) return result;
+  }
+  return null;
+}
+
+// ── Zustand ストアの型定義 ────────────────────────────────────────────────
+
+type AppState = {
+  projects: Project[];
+  view: View;
+  currentProjectId: string | null;
+  /**
+   * selectedPath: ルートから現在選択中ノードまでのIDの配列。
+   * 例: [rootId, nodeA_id, nodeB_id]
+   * これをもとに列ビューを生成する。
+   */
+  selectedPath: string[];
+
+  // プロジェクト操作
+  addProject: (title: string, description: string) => void;
+  deleteProject: (id: string) => void;
+  toggleStar: (id: string) => void;
+  openProject: (id: string) => void;
+  goToDashboard: () => void;
+
+  // ノード操作
+  addChildNode: (projectId: string, parentId: string) => string;
+  addSiblingNode: (projectId: string, nodeId: string) => string;
+  deleteNode: (projectId: string, nodeId: string) => void;
+  toggleComplete: (projectId: string, nodeId: string) => void;
+  updateNodeTitle: (projectId: string, nodeId: string, title: string) => void;
+  updateNodeMemo: (projectId: string, nodeId: string, memo: string) => void;
+  reorderNodes: (
+    projectId: string,
+    parentId: string,
+    fromIndex: number,
+    toIndex: number
+  ) => void;
+
+  // 進捗更新（更新ボタン用）
+  refreshProgress: () => void;
+
+  // ナビゲーション
+  selectNode: (nodeId: string) => void;
+  navigateToPath: (path: string[]) => void;
+};
+
+// ── ストア本体 ─────────────────────────────────────────────────────────────
+
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      projects: [],
+      view: 'dashboard',
+      currentProjectId: null,
+      selectedPath: [],
+
+      // ──── プロジェクト操作 ────────────────────────────────────────────
+
+      addProject: (title, description) => {
+        const project = makeProject(title, description);
+        set((s) => ({ projects: [...s.projects, project] }));
+      },
+
+      deleteProject: (id) => {
+        set((s) => ({
+          projects: s.projects.filter((p) => p.id !== id),
+          // 現在開いているプロジェクトを削除した場合はダッシュボードへ
+          view: s.currentProjectId === id ? 'dashboard' : s.view,
+          currentProjectId: s.currentProjectId === id ? null : s.currentProjectId,
+        }));
+      },
+
+      toggleStar: (id) => {
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id ? { ...p, starred: !p.starred } : p
+          ),
+        }));
+      },
+
+      openProject: (id) => {
+        const project = get().projects.find((p) => p.id === id);
+        if (!project) return;
+        set({
+          view: 'tree',
+          currentProjectId: id,
+          selectedPath: [project.rootTask.id],
+        });
+      },
+
+      goToDashboard: () => {
+        set({ view: 'dashboard', currentProjectId: null, selectedPath: [] });
+      },
+
+      // ──── ノード操作 ─────────────────────────────────────────────────
+
+      addChildNode: (projectId, parentId) => {
+        const newNode = makeNode();
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const newRoot = mapNode(p.rootTask, parentId, (n) => ({
+              ...n,
+              children: [...n.children, newNode],
+            }));
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+        return newNode.id;
+      },
+
+      addSiblingNode: (projectId, nodeId) => {
+        const newNode = makeNode();
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            // ルートノードには兄弟を追加できない
+            if (p.rootTask.id === nodeId) return p;
+            const parentInfo = findParent(p.rootTask, nodeId);
+            if (!parentInfo) return p;
+            const { parent, index } = parentInfo;
+            const newRoot = mapNode(p.rootTask, parent.id, (n) => {
+              const newChildren = [...n.children];
+              newChildren.splice(index + 1, 0, newNode);
+              return { ...n, children: newChildren };
+            });
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+        return newNode.id;
+      },
+
+      deleteNode: (projectId, nodeId) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            // ルートノードは削除不可
+            if (p.rootTask.id === nodeId) return p;
+            const newRoot = removeNode(p.rootTask, nodeId);
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+          // 削除されたノードが selectedPath に含まれていたら、そのノード以降を切り捨て
+          selectedPath: s.selectedPath.includes(nodeId)
+            ? s.selectedPath.slice(0, s.selectedPath.indexOf(nodeId))
+            : s.selectedPath,
+        }));
+      },
+
+      toggleComplete: (projectId, nodeId) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const newRoot = mapNode(p.rootTask, nodeId, (n) => ({
+              ...n,
+              completed: !n.completed,
+            }));
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+      },
+
+      updateNodeTitle: (projectId, nodeId, title) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const newRoot = mapNode(p.rootTask, nodeId, (n) => ({ ...n, title }));
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+      },
+
+      updateNodeMemo: (projectId, nodeId, memo) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const newRoot = mapNode(p.rootTask, nodeId, (n) => ({ ...n, memo }));
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+      },
+
+      reorderNodes: (projectId, parentId, fromIndex, toIndex) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const newRoot = mapNode(p.rootTask, parentId, (n) => {
+              const children = [...n.children];
+              const [moved] = children.splice(fromIndex, 1);
+              children.splice(toIndex, 0, moved);
+              return { ...n, children };
+            });
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+      },
+
+      // ──── 進捗更新 ────────────────────────────────────────────────────
+
+      refreshProgress: () => {
+        set((s) => ({
+          projects: s.projects.map((p) => ({
+            ...p,
+            progress: calcProgress(p.rootTask),
+          })),
+        }));
+      },
+
+      // ──── ナビゲーション ──────────────────────────────────────────────
+
+      selectNode: (nodeId) => {
+        const { projects, currentProjectId } = get();
+        const project = projects.find((p) => p.id === currentProjectId);
+        if (!project) return;
+        const path = buildPath(project.rootTask, nodeId);
+        if (path) set({ selectedPath: path });
+      },
+
+      navigateToPath: (path) => {
+        set({ selectedPath: path });
+      },
+    }),
+    {
+      name: 'rooted-storage', // localStorage のキー名
+    }
+  )
+);

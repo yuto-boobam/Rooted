@@ -1,22 +1,31 @@
 import { useState } from 'react';
 
+type Mode = 'child' | 'sibling';
+
 type Props = {
-  onConfirm: (title: string, description: string) => void;
+  /** 'child' = 子タスク追加 / 'sibling' = 兄弟タスク追加 */
+  mode: Mode;
+  onConfirm: (title: string, memo: string) => void;
   onClose: () => void;
 };
 
-export function NewProjectModal({ onConfirm, onClose }: Props) {
+export function NewTaskModal({ mode, onConfirm, onClose }: Props) {
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [memo, setMemo]   = useState('');
 
-  const canSubmit = title.trim().length >= 3;
+  const canSubmit = title.trim().length >= 1;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    onConfirm(title.trim(), description.trim());
+    onConfirm(title.trim(), memo.trim());
     onClose();
   };
+
+  const heading = mode === 'child' ? '子タスクを追加' : '兄弟タスクを追加';
+  const placeholder = mode === 'child'
+    ? '例: データ収集、レポート作成...'
+    : '例: テスト実施、デプロイ...';
 
   return (
     /* オーバーレイ背景 */
@@ -34,9 +43,9 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
         {/* ヘッダー */}
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>
-            新しいプロジェクト
+            {heading}
           </h2>
-          <button id="close-modal" className="btn-icon" onClick={onClose} title="閉じる">
+          <button id="close-task-modal" className="btn-icon" onClick={onClose} title="閉じる">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -51,20 +60,14 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
               タイトル <span style={{ color: 'var(--danger)' }}>*</span>
             </label>
             <input
-              id="new-project-title"
+              id="new-task-title"
               type="text"
               className="input-field"
-              placeholder="例: 卒業研究、Webサイト開発..."
+              placeholder={placeholder}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
             />
-            {/* バリデーションメッセージ */}
-            {title.length > 0 && title.trim().length < 3 && (
-              <p className="text-xs" style={{ color: 'var(--danger)' }}>
-                3文字以上入力してください（現在: {title.trim().length}文字）
-              </p>
-            )}
           </div>
 
           {/* 概要入力 */}
@@ -73,12 +76,12 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
               概要 <span style={{ color: 'var(--text-muted)' }}>(任意)</span>
             </label>
             <textarea
-              id="new-project-description"
+              id="new-task-memo"
               className="input-field"
-              placeholder="プロジェクトの目的や概要を入力..."
+              placeholder="タスクの内容や目的を入力..."
               rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
               style={{ resize: 'none' }}
             />
           </div>
@@ -89,7 +92,7 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
               キャンセル
             </button>
             <button
-              id="confirm-new-project"
+              id="confirm-new-task"
               type="submit"
               className="btn-primary"
               disabled={!canSubmit}
@@ -98,7 +101,7 @@ export function NewProjectModal({ onConfirm, onClose }: Props) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              作成する
+              追加する
             </button>
           </div>
         </form>

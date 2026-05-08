@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import type { TaskNode } from '../types';
-import { calcNodeProgress } from '../utils/calcProgress';
 
 type Props = {
   node: TaskNode;
@@ -47,7 +46,8 @@ export function TaskNodeCard({
   const memoRef = useRef<HTMLInputElement>(null);
 
   const isLeaf = node.children.length === 0;
-  const progress = isLeaf ? (node.completed ? 100 : 0) : calcNodeProgress(node);
+  // progress は refreshProgress ボタン押下時のみ更新される（node.progress をそのまま参照）
+  const progress = node.progress;
 
   // ── キーボード操作（タイトル編集中）
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -84,13 +84,13 @@ export function TaskNodeCard({
         onDrop();
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col gap-2 p-3 rounded-xl cursor-pointer transition-all duration-150 select-none"
+      className="animate-fadeIn flex flex-col gap-3 p-4 rounded-xl cursor-pointer transition-all duration-150 select-none"
       style={{
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
-        minHeight: isRoot ? 140 : 'auto',
-        width: isRoot ? 200 : '100%',
+        minHeight: isRoot ? 160 : 120,
+        width: isRoot ? 240 : '100%',
       }}
     >
       {/* ── 上部：チェックボックス＋タイトル＋削除ボタン */}

@@ -11,11 +11,12 @@ export const makeId = (): string =>
   Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /** 新しいタスクノードを作成する */
-export const makeNode = (title = '新しいタスク'): TaskNode => ({
+export const makeNode = (title = '新しいタスク', memo = ''): TaskNode => ({
   id: makeId(),
   title,
-  memo: '',
+  memo,
   completed: false,
+  progress: 0,
   children: [],
 });
 
@@ -110,8 +111,8 @@ type AppState = {
   goToDashboard: () => void;
 
   // ノード操作
-  addChildNode: (projectId: string, parentId: string) => string;
-  addSiblingNode: (projectId: string, nodeId: string) => string;
+  addChildNode: (projectId: string, parentId: string, title?: string, memo?: string) => string;
+  addSiblingNode: (projectId: string, nodeId: string, title?: string, memo?: string) => string;
   deleteNode: (projectId: string, nodeId: string) => void;
   toggleComplete: (projectId: string, nodeId: string) => void;
   updateNodeTitle: (projectId: string, nodeId: string, title: string) => void;
@@ -181,8 +182,8 @@ export const useAppStore = create<AppState>()(
 
       // ──── ノード操作 ─────────────────────────────────────────────────
 
-      addChildNode: (projectId, parentId) => {
-        const newNode = makeNode();
+      addChildNode: (projectId, parentId, title?, memo?) => {
+        const newNode = makeNode(title, memo);
         set((s) => ({
           projects: s.projects.map((p) => {
             if (p.id !== projectId) return p;
@@ -196,8 +197,8 @@ export const useAppStore = create<AppState>()(
         return newNode.id;
       },
 
-      addSiblingNode: (projectId, nodeId) => {
-        const newNode = makeNode();
+      addSiblingNode: (projectId, nodeId, title?, memo?) => {
+        const newNode = makeNode(title, memo);
         set((s) => ({
           projects: s.projects.map((p) => {
             if (p.id !== projectId) return p;
@@ -284,11 +285,27 @@ export const useAppStore = create<AppState>()(
       // ──── 進捗更新 ────────────────────────────────────────────────────
 
       refreshProgress: () => {
+        /** ノードのprogressを再帰的に計算してツリーを再構成する */
+        function recalcNode(node: TaskNode): TaskNode {
+          if (node.children.length === 0) {
+            return { ...node, progress: node.completed ? 100 : 0 };
+          }
+          const recalcedChildren = node.children.map(recalcNode);
+          const avg =
+            recalcedChildren.reduce((sum, c) => sum + c.progress, 0) /
+            recalcedChildren.length;
+          return { ...node, children: recalcedChildren, progress: Math.round(avg) };
+        }
+
         set((s) => ({
-          projects: s.projects.map((p) => ({
-            ...p,
-            progress: calcProgress(p.rootTask),
-          })),
+          projects: s.projects.map((p) => {
+            const newRoot = recalcNode(p.rootTask);
+            return {
+              ...p,
+              rootTask: newRoot,
+              progress: newRoot.progress,
+            };
+          }),
         }));
       },
 

@@ -84,7 +84,7 @@ export function TaskNodeCard({
         onDrop();
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col gap-3 p-4 rounded-xl cursor-pointer transition-all duration-150 select-none"
+      className="animate-fadeIn flex flex-col gap-3 py-5 px-6 rounded-xl cursor-pointer transition-all duration-150 select-none"
       style={{
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
@@ -94,7 +94,7 @@ export function TaskNodeCard({
       }}
     >
       {/* ── 上部：チェックボックス＋タイトル＋削除ボタン */}
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-3">
         {/* チェックボックス（leafのみ有効） */}
         <button
           className="mt-0.5 flex-shrink-0 w-4 h-4 rounded flex items-center justify-center transition-all"

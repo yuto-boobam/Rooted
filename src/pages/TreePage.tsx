@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
+import { NewTaskModal } from '../components/NewTaskModal';
 import type { TaskNode } from '../types';
 
 /** ノードIDからノードを再帰的に検索する */
@@ -13,6 +14,11 @@ function findNode(root: TaskNode, id: string): TaskNode | null {
   }
   return null;
 }
+
+// ── タスク追加モーダルの状態型
+type ModalState =
+  | { open: false }
+  | { open: true; mode: 'child' | 'sibling'; targetId: string };
 
 export function TreePage() {
   const {
@@ -40,9 +46,58 @@ export function TreePage() {
 
   // ── ドラッグ&ドロップの状態（UIのみなのでuseRefで管理）
   const dragFrom = useRef<number>(-1);
-  const dragTo = useRef<number>(-1);
+  const dragTo   = useRef<number>(-1);
 
-  // ── パンくずリスト用：selectedPath の各IDに対してノードを取得
+  // ── タスク追加モーダルの状態
+  const [modal, setModal] = useState<ModalState>({ open: false });
+
+  // モーダルを開くヘルパー
+  const openChildModal   = useCallback((targetId: string) => setModal({ open: true, mode: 'child',   targetId }), []);
+  const openSiblingModal = useCallback((targetId: string) => setModal({ open: true, mode: 'sibling', targetId }), []);
+  const closeModal       = useCallback(() => setModal({ open: false }), []);
+
+  // モーダル確定ハンドラ
+  const handleModalConfirm = useCallback((title: string, memo: string) => {
+    if (!modal.open) return;
+    if (modal.mode === 'child') {
+      const newId = addChildNode(project.id, modal.targetId, title, memo);
+      selectNode(newId);
+    } else {
+      const newId = addSiblingNode(project.id, modal.targetId, title, memo);
+      selectNode(newId);
+    }
+  }, [modal, project.id, addChildNode, addSiblingNode, selectNode]);
+
+  // ── グローバルキーボードショートカット（モーダルが閉じているときだけ有効）
+  const lastSelectedId = selectedPath[selectedPath.length - 1];
+
+  useEffect(() => {
+    if (modal.open) return; // モーダル表示中はスキップ
+
+    const handler = (e: KeyboardEvent) => {
+      // テキスト入力中（textarea / input）はスキップ
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+
+      if (!lastSelectedId) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        openChildModal(lastSelectedId);
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        // ルートノードには兄弟を追加しない
+        if (lastSelectedId === root.id) return;
+        openSiblingModal(lastSelectedId);
+      }
+    };
+
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [modal.open, lastSelectedId, root.id, openChildModal, openSiblingModal]);
+
+  // ── パンくずリスト用
   const breadcrumbItems = selectedPath
     .map((id) => {
       const node = findNode(root, id);
@@ -51,10 +106,6 @@ export function TreePage() {
     .filter(Boolean) as { id: string; title: string }[];
 
   // ── 列（カラム）の構築
-  // selectedPath = [rootId, A_id, B_id] の場合:
-  //   column[0] = root の children（rootIdの子）
-  //   column[1] = A の children（A_idの子）
-  //   以降は最後に選択したノードまで
   const columns: { parentId: string; nodes: TaskNode[]; depth: number }[] = [];
   for (let i = 0; i < selectedPath.length; i++) {
     const nodeId = selectedPath[i];
@@ -64,13 +115,8 @@ export function TreePage() {
     }
   }
 
-  const lastSelectedId = selectedPath[selectedPath.length - 1];
-  const lastNode = findNode(root, lastSelectedId);
-
-  // ── ノード選択時：selectedPath を nodeId までに更新
-  const handleSelectNode = (nodeId: string) => {
-    selectNode(nodeId);
-  };
+  // ── ルートノードと第1列の接続線のY座標計算用
+  // （SVGは固定サイズで描画し、列間コネクターはCSSで整列させる）
 
   return (
     <div
@@ -100,15 +146,12 @@ export function TreePage() {
           </span>
         </button>
 
-        {/* 区切り */}
         <span style={{ color: 'var(--text-muted)' }}>›</span>
 
-        {/* プロジェクト名 */}
         <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
           {project.title}
         </span>
 
-        {/* パンくずリスト */}
         {breadcrumbItems.length > 0 && (
           <>
             <span style={{ color: 'var(--text-muted)' }}>›</span>
@@ -119,7 +162,6 @@ export function TreePage() {
           </>
         )}
 
-        {/* スペーサー */}
         <div className="flex-1" />
 
         {/* 進捗更新ボタン */}
@@ -149,157 +191,139 @@ export function TreePage() {
       </div>
 
       {/* ── ツリービュー本体（横スクロール） */}
-      <div className="flex-1 flex overflow-x-auto overflow-y-hidden">
+      <div className="flex-1 flex overflow-x-auto overflow-y-hidden items-center p-12 gap-0">
 
         {/* 左端：ルートノードカード */}
-        <div className="flex-shrink-0 p-4 flex items-start" style={{ width: 220 }}>
-          <div className="w-full">
-            <TaskNodeCard
-              node={root}
-              isSelected={selectedPath[selectedPath.length - 1] === root.id}
-              isRoot
-              accentColor={accentColor}
-              onClick={() => handleSelectNode(root.id)}
-              onToggleComplete={() => toggleComplete(project.id, root.id)}
-              onUpdateTitle={(t) => updateNodeTitle(project.id, root.id, t)}
-              onUpdateMemo={(m) => updateNodeMemo(project.id, root.id, m)}
-              onAddChild={() => {
-                const newId = addChildNode(project.id, root.id);
-                selectNode(newId);
-              }}
-              onAddSibling={() => {}} // rootには兄弟なし
-              onDelete={() => {}}    // rootは削除不可
-              dragIndex={0}
-              onDragStart={() => {}}
-              onDragOver={() => {}}
-              onDrop={() => {}}
-            />
-          </div>
+        <div className="flex-shrink-0 flex items-center py-8">
+          <TaskNodeCard
+            node={root}
+            isSelected={selectedPath[selectedPath.length - 1] === root.id}
+            isRoot
+            accentColor={accentColor}
+            onClick={() => selectNode(root.id)}
+            onToggleComplete={() => toggleComplete(project.id, root.id)}
+            onUpdateTitle={(t) => updateNodeTitle(project.id, root.id, t)}
+            onUpdateMemo={(m) => updateNodeMemo(project.id, root.id, m)}
+            onAddChild={() => openChildModal(root.id)}
+            onAddSibling={() => {}} // rootには兄弟なし
+            onDelete={() => {}}     // rootは削除不可
+            dragIndex={0}
+            onDragStart={() => {}}
+            onDragOver={() => {}}
+            onDrop={() => {}}
+          />
         </div>
 
-        {/* 列区切りの矢印 */}
-        {columns.length > 0 && (
-          <div className="flex-shrink-0 flex items-start pt-6">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </div>
-        )}
-
-        {/* 各列 */}
+        {/* 各列とコネクター */}
         {columns.map((column, colIndex) => {
           const isLastColumn = colIndex === columns.length - 1;
+          const nodeCount = column.nodes.length;
 
           return (
-            <div key={column.parentId} className="flex gap-2">
-              {/* ノード列 */}
+            <div key={column.parentId} className="flex flex-shrink-0 items-stretch">
+              {/* ── SVGコネクター（親→子リストを線でつなぐ） */}
+              <TreeConnector count={nodeCount} accentColor={accentColor} />
+
+              {/* ── ノード列 */}
               <div
-                className="flex-shrink-0 overflow-y-auto py-4 px-2 flex flex-col gap-2"
-                style={{ width: 240, maxHeight: '100%' }}
+                className="flex-shrink-0 flex flex-col justify-center gap-6 py-8"
+                style={{ width: 260 }}
               >
-                {column.nodes.map((node, nodeIndex) => {
-                  const isSelected =
-                    selectedPath.includes(node.id) &&
-                    selectedPath.indexOf(node.id) === selectedPath.length - 1 - (columns.length - 1 - colIndex);
-
-                  return (
-                    <TaskNodeCard
-                      key={node.id}
-                      node={node}
-                      isSelected={selectedPath.includes(node.id)}
-                      accentColor={accentColor}
-                      onClick={() => handleSelectNode(node.id)}
-                      onToggleComplete={() => toggleComplete(project.id, node.id)}
-                      onUpdateTitle={(t) => updateNodeTitle(project.id, node.id, t)}
-                      onUpdateMemo={(m) => updateNodeMemo(project.id, node.id, m)}
-                      onAddChild={() => {
-                        const newId = addChildNode(project.id, node.id);
-                        selectNode(newId);
-                      }}
-                      onAddSibling={() => {
-                        const newId = addSiblingNode(project.id, node.id);
-                        selectNode(newId);
-                      }}
-                      onDelete={() => {
-                        if (confirm(`「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`)) {
-                          deleteNode(project.id, node.id);
-                        }
-                      }}
-                      dragIndex={nodeIndex}
-                      onDragStart={(i) => { dragFrom.current = i; }}
-                      onDragOver={(i) => { dragTo.current = i; }}
-                      onDrop={() => {
-                        if (dragFrom.current !== -1 && dragTo.current !== -1 && dragFrom.current !== dragTo.current) {
-                          reorderNodes(project.id, column.parentId, dragFrom.current, dragTo.current);
-                        }
-                        dragFrom.current = -1;
-                        dragTo.current = -1;
-                      }}
-                    />
-                  );
-                })}
-
-                {/* 新しいタスクを追加ボタン */}
-                <button
-                  className="btn-ghost w-full text-xs justify-start gap-1.5 mt-1"
-                  onClick={() => {
-                    const newId = addChildNode(project.id, column.parentId);
-                    selectNode(newId);
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  新しいタスクを追加
-                </button>
+                {column.nodes.map((node, nodeIndex) => (
+                  <TaskNodeCard
+                    key={node.id}
+                    node={node}
+                    isSelected={selectedPath.includes(node.id)}
+                    accentColor={accentColor}
+                    onClick={() => selectNode(node.id)}
+                    onToggleComplete={() => toggleComplete(project.id, node.id)}
+                    onUpdateTitle={(t) => updateNodeTitle(project.id, node.id, t)}
+                    onUpdateMemo={(m) => updateNodeMemo(project.id, node.id, m)}
+                    onAddChild={() => openChildModal(node.id)}
+                    onAddSibling={() => openSiblingModal(node.id)}
+                    onDelete={() => {
+                      if (confirm(`「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`)) {
+                        deleteNode(project.id, node.id);
+                      }
+                    }}
+                    dragIndex={nodeIndex}
+                    onDragStart={(i) => { dragFrom.current = i; }}
+                    onDragOver={(i) => { dragTo.current = i; }}
+                    onDrop={() => {
+                      if (dragFrom.current !== -1 && dragTo.current !== -1 && dragFrom.current !== dragTo.current) {
+                        reorderNodes(project.id, column.parentId, dragFrom.current, dragTo.current);
+                      }
+                      dragFrom.current = -1;
+                      dragTo.current = -1;
+                    }}
+                  />
+                ))}
               </div>
-
-              {/* 列間の矢印（最後の列以外） */}
-              {!isLastColumn && (
-                <div className="flex-shrink-0 flex items-start pt-6">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-muted)' }}>
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-              )}
             </div>
           );
         })}
-
-        {/* 末端：子タスクなしの場合の追加エリア */}
-        {lastNode && lastNode.children.length === 0 && (
-          <div className="flex-shrink-0 flex items-start pt-4 px-4">
-            <div
-              className="flex flex-col items-center justify-center gap-2 rounded-xl p-4 cursor-pointer transition-all"
-              style={{
-                width: 180,
-                border: '1.5px dashed var(--border)',
-                color: 'var(--text-muted)',
-                minHeight: 100,
-              }}
-              onClick={() => {
-                const newId = addChildNode(project.id, lastSelectedId);
-                selectNode(newId);
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget as HTMLElement;
-                el.style.borderColor = accentColor;
-                el.style.color = accentColor;
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget as HTMLElement;
-                el.style.borderColor = 'var(--border)';
-                el.style.color = 'var(--text-muted)';
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <span className="text-xs text-center">子タスクを追加<br/>（Enter）</span>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* ── タスク追加モーダル */}
+      {modal.open && (
+        <NewTaskModal
+          mode={modal.mode}
+          onConfirm={handleModalConfirm}
+          onClose={closeModal}
+        />
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// SVGコネクター: 親ノードの右端から、count個の子ノードを縦に並べた線
+// ────────────────────────────────────────────────────────────
+const CARD_HEIGHT   = 120; // Increased to match new padding
+const CARD_GAP      = 24;  // gap-6 = 24px
+const CONNECTOR_W   = 60;  // Wider connector for better curves
+
+function TreeConnector({ count, accentColor }: { count: number; accentColor: string }) {
+  if (count === 0) return null;
+
+  const totalHeight = count * CARD_HEIGHT + (count - 1) * CARD_GAP;
+  const midY = totalHeight / 2;
+
+  // 各子ノードの中心Y
+  const childCenters = Array.from({ length: count }, (_, i) =>
+    i * (CARD_HEIGHT + CARD_GAP) + CARD_HEIGHT / 2
+  );
+
+  return (
+    <div
+      className="flex-shrink-0 flex items-center"
+      style={{ width: CONNECTOR_W, height: totalHeight, position: 'relative' }}
+    >
+      <svg
+        width={CONNECTOR_W}
+        height={totalHeight}
+        viewBox={`0 0 ${CONNECTOR_W} ${totalHeight}`}
+        style={{ display: 'block', overflow: 'visible' }}
+      >
+        {childCenters.map((cy, i) => {
+          // Curved path from middle-left to child node's middle-left
+          // We start from x=0, y=midY and end at x=CONNECTOR_W, y=cy
+          const cp1x = CONNECTOR_W / 2;
+          const cp2x = CONNECTOR_W / 2;
+          const pathData = `M 0 ${midY} C ${cp1x} ${midY}, ${cp2x} ${cy}, ${CONNECTOR_W} ${cy}`;
+          
+          return (
+            <path
+              key={i}
+              d={pathData}
+              fill="none"
+              stroke={accentColor}
+              strokeWidth="2"
+              strokeOpacity="0.5"
+            />
+          );
+        })}
+      </svg>
     </div>
   );
 }

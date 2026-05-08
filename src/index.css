@@ -25,10 +25,10 @@
   --warning:  #eab308;
   --danger:   #ef4444;
 
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
 }
 
 /* ── リセット & ベース ──────────────────────────────────────── */
@@ -100,7 +100,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 10px 20px;
   background: var(--accent);
   color: #fff;
   font-size: 14px;
@@ -121,7 +121,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 16px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
@@ -172,7 +172,7 @@ body {
 /* フォームインプット */
 .input-field {
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

@@ -53,6 +53,16 @@ function mapNode(
   return { ...node, children: node.children.map((c) => mapNode(c, targetId, fn)) };
 }
 
+/** 指定IDのノードを検索して返す */
+function findNode(node: TaskNode, targetId: string): TaskNode | null {
+  if (node.id === targetId) return node;
+  for (const child of node.children) {
+    const found = findNode(child, targetId);
+    if (found) return found;
+  }
+  return null;
+}
+
 /**
  * 指定IDのノードの「親ノード」と「親の中でのインデックス」を返す。
  * ルートノードには親がないため null を返す。
@@ -122,6 +132,12 @@ type AppState = {
     parentId: string,
     fromIndex: number,
     toIndex: number
+  ) => void;
+  moveNode: (
+    projectId: string,
+    nodeId: string,
+    targetParentId: string,
+    toIndex?: number
   ) => void;
 
   // 進捗更新（更新ボタン用）
@@ -280,6 +296,65 @@ export const useAppStore = create<AppState>()(
             return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
           }),
         }));
+      },
+
+      moveNode: (projectId, nodeId, targetParentId, toIndex) => {
+        set((s) => {
+          const project = s.projects.find((p) => p.id === projectId);
+          if (!project) return s;
+          if (project.rootTask.id === nodeId) return s; // ルートは移動不可
+
+          const draggedNode = findNode(project.rootTask, nodeId);
+          if (!draggedNode) return s;
+
+          const draggedParentInfo = findParent(project.rootTask, nodeId);
+          const isSameParent = draggedParentInfo && draggedParentInfo.parent.id === targetParentId;
+          const oldIndex = draggedParentInfo ? draggedParentInfo.index : -1;
+
+          // 循環参照チェック: ターゲット親が自分自身、または自分の子孫であれば移動不可
+          const checkCyclic = (n: TaskNode): boolean => {
+            if (n.id === targetParentId) return true;
+            return n.children.some(checkCyclic);
+          };
+          if (checkCyclic(draggedNode)) return s;
+
+          const targetParent = findNode(project.rootTask, targetParentId);
+          if (!targetParent) return s;
+
+          // 元の親から削除
+          let newRoot = removeNode(project.rootTask, nodeId);
+
+          // 新しい親に追加
+          newRoot = mapNode(newRoot, targetParentId, (n) => {
+            const newChildren = [...n.children];
+            if (toIndex !== undefined) {
+              let insertIndex = toIndex;
+              if (isSameParent && oldIndex !== -1 && oldIndex < insertIndex) {
+                insertIndex -= 1;
+              }
+              newChildren.splice(insertIndex, 0, draggedNode);
+            } else {
+              newChildren.push(draggedNode);
+            }
+            return { ...n, children: newChildren };
+          });
+
+          const newProjects = s.projects.map((p) =>
+            p.id === projectId
+              ? { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() }
+              : p
+          );
+
+          // 移動によって selectedPath が切断された場合、再構築する
+          let newSelectedPath = s.selectedPath;
+          if (s.currentProjectId === projectId && s.selectedPath.length > 0) {
+            const currentSelectedId = s.selectedPath[s.selectedPath.length - 1];
+            const rebuiltPath = buildPath(newRoot, currentSelectedId);
+            newSelectedPath = rebuiltPath || [newRoot.id];
+          }
+
+          return { ...s, projects: newProjects, selectedPath: newSelectedPath };
+        });
       },
 
       // ──── 進捗更新 ────────────────────────────────────────────────────

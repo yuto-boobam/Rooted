@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
@@ -35,6 +35,7 @@ export function TreePage() {
     updateNodeTitle,
     updateNodeMemo,
     reorderNodes,
+    moveNode,
     refreshProgress,
   } = useAppStore();
 
@@ -43,10 +44,6 @@ export function TreePage() {
 
   const root = project.rootTask;
   const accentColor = project.color;
-
-  // ── ドラッグ&ドロップの状態（UIのみなのでuseRefで管理）
-  const dragFrom = useRef<number>(-1);
-  const dragTo   = useRef<number>(-1);
 
   // ── タスク追加モーダルの状態
   const [modal, setModal] = useState<ModalState>({ open: false });
@@ -148,19 +145,10 @@ export function TreePage() {
 
         <span style={{ color: 'var(--text-muted)' }}>›</span>
 
-        <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-          {project.title}
-        </span>
-
-        {breadcrumbItems.length > 0 && (
-          <>
-            <span style={{ color: 'var(--text-muted)' }}>›</span>
-            <Breadcrumb
-              items={breadcrumbItems}
-              onNavigate={(path) => navigateToPath(path)}
-            />
-          </>
-        )}
+        <Breadcrumb
+          items={breadcrumbItems}
+          onNavigate={(path) => navigateToPath(path)}
+        />
 
         <div className="flex-1" />
 
@@ -191,77 +179,94 @@ export function TreePage() {
       </div>
 
       {/* ── ツリービュー本体（横スクロール） */}
-      <div className="flex-1 flex overflow-x-auto overflow-y-hidden items-center p-12 gap-0">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ position: 'relative' }}>
+        <div className="min-w-max min-h-full flex items-center p-12 gap-[60px] relative">
+          
+          <ConnectionsOverlay root={root} columns={columns} accentColor={accentColor} />
 
-        {/* 左端：ルートノードカード */}
-        <div className="flex-shrink-0 flex items-center py-8">
-          <TaskNodeCard
-            node={root}
-            isSelected={selectedPath[selectedPath.length - 1] === root.id}
-            isRoot
-            accentColor={accentColor}
-            onClick={() => selectNode(root.id)}
-            onToggleComplete={() => toggleComplete(project.id, root.id)}
-            onUpdateTitle={(t) => updateNodeTitle(project.id, root.id, t)}
-            onUpdateMemo={(m) => updateNodeMemo(project.id, root.id, m)}
-            onAddChild={() => openChildModal(root.id)}
-            onAddSibling={() => {}} // rootには兄弟なし
-            onDelete={() => {}}     // rootは削除不可
-            dragIndex={0}
-            onDragStart={() => {}}
-            onDragOver={() => {}}
-            onDrop={() => {}}
-          />
-        </div>
+          {/* 左端：ルートノードカード */}
+          <div className="flex-shrink-0 flex items-center py-8" style={{ paddingLeft: '40px' }}>
+            <TaskNodeCard
+              node={root}
+              isSelected={selectedPath[selectedPath.length - 1] === root.id}
+              isRoot
+              accentColor={accentColor}
+              onClick={() => selectNode(root.id)}
+              onToggleComplete={() => toggleComplete(project.id, root.id)}
+              onUpdateTitle={(t) => updateNodeTitle(project.id, root.id, t)}
+              onUpdateMemo={(m) => updateNodeMemo(project.id, root.id, m)}
+              onAddChild={() => openChildModal(root.id)}
+              onAddSibling={() => {}} // rootには兄弟なし
+              onDelete={() => {}}     // rootは削除不可
+              parentId={null}
+              dragIndex={0}
+              onDragOver={() => {}}
+              onDrop={(draggedData) => {
+                if (draggedData.id === root.id) return;
+                // ルートにドロップした場合は常にルートの子になる
+                moveNode(project.id, draggedData.id, root.id);
+              }}
+            />
+          </div>
 
-        {/* 各列とコネクター */}
-        {columns.map((column, colIndex) => {
-          const isLastColumn = colIndex === columns.length - 1;
-          const nodeCount = column.nodes.length;
-
-          return (
-            <div key={column.parentId} className="flex flex-shrink-0 items-stretch">
-              {/* ── SVGコネクター（親→子リストを線でつなぐ） */}
-              <TreeConnector count={nodeCount} accentColor={accentColor} />
-
-              {/* ── ノード列 */}
+          {/* 各列 */}
+          {columns.map((column, colIndex) => {
+            return (
               <div
-                className="flex-shrink-0 flex flex-col justify-center gap-6 py-8"
+                key={column.parentId}
+                className="flex-shrink-0 flex flex-col justify-center py-8"
                 style={{ width: 260 }}
               >
+                {/* カラム先頭（一番上）へのドロップ */}
+                <DropZone
+                  accentColor={accentColor}
+                  onDrop={(data) => {
+                    if (data.id === column.parentId) return;
+                    moveNode(project.id, data.id, column.parentId, 0);
+                  }}
+                />
+
                 {column.nodes.map((node, nodeIndex) => (
-                  <TaskNodeCard
-                    key={node.id}
-                    node={node}
-                    isSelected={selectedPath.includes(node.id)}
-                    accentColor={accentColor}
-                    onClick={() => selectNode(node.id)}
-                    onToggleComplete={() => toggleComplete(project.id, node.id)}
-                    onUpdateTitle={(t) => updateNodeTitle(project.id, node.id, t)}
-                    onUpdateMemo={(m) => updateNodeMemo(project.id, node.id, m)}
-                    onAddChild={() => openChildModal(node.id)}
-                    onAddSibling={() => openSiblingModal(node.id)}
-                    onDelete={() => {
-                      if (confirm(`「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`)) {
-                        deleteNode(project.id, node.id);
-                      }
-                    }}
-                    dragIndex={nodeIndex}
-                    onDragStart={(i) => { dragFrom.current = i; }}
-                    onDragOver={(i) => { dragTo.current = i; }}
-                    onDrop={() => {
-                      if (dragFrom.current !== -1 && dragTo.current !== -1 && dragFrom.current !== dragTo.current) {
-                        reorderNodes(project.id, column.parentId, dragFrom.current, dragTo.current);
-                      }
-                      dragFrom.current = -1;
-                      dragTo.current = -1;
-                    }}
-                  />
+                  <React.Fragment key={node.id}>
+                    <TaskNodeCard
+                      node={node}
+                      isSelected={selectedPath.includes(node.id)}
+                      accentColor={accentColor}
+                      onClick={() => selectNode(node.id)}
+                      onToggleComplete={() => toggleComplete(project.id, node.id)}
+                      onUpdateTitle={(t) => updateNodeTitle(project.id, node.id, t)}
+                      onUpdateMemo={(m) => updateNodeMemo(project.id, node.id, m)}
+                      onAddChild={() => openChildModal(node.id)}
+                      onAddSibling={() => openSiblingModal(node.id)}
+                      onDelete={() => {
+                        if (confirm(`「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`)) {
+                          deleteNode(project.id, node.id);
+                        }
+                      }}
+                      parentId={column.parentId}
+                      dragIndex={nodeIndex}
+                      onDragOver={(i) => {}}
+                      onDrop={(draggedData) => {
+                        if (draggedData.id === node.id) return;
+                        // カードの上へのドロップは常に「子タスク」として追加
+                        moveNode(project.id, draggedData.id, node.id);
+                      }}
+                    />
+
+                    {/* カード直後（兄弟間、または一番下）へのドロップ */}
+                    <DropZone
+                      accentColor={accentColor}
+                      onDrop={(data) => {
+                        if (data.id === column.parentId) return;
+                        moveNode(project.id, data.id, column.parentId, nodeIndex + 1);
+                      }}
+                    />
+                  </React.Fragment>
                 ))}
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* ── タスク追加モーダル */}
@@ -277,53 +282,177 @@ export function TreePage() {
 }
 
 // ────────────────────────────────────────────────────────────
-// SVGコネクター: 親ノードの右端から、count個の子ノードを縦に並べた線
+// ドロップゾーン: カードの間に配置し、兄弟タスクとしてドロップできる領域
 // ────────────────────────────────────────────────────────────
-const CARD_HEIGHT   = 120; // Increased to match new padding
-const CARD_GAP      = 24;  // gap-6 = 24px
-const CONNECTOR_W   = 60;  // Wider connector for better curves
-
-function TreeConnector({ count, accentColor }: { count: number; accentColor: string }) {
-  if (count === 0) return null;
-
-  const totalHeight = count * CARD_HEIGHT + (count - 1) * CARD_GAP;
-  const midY = totalHeight / 2;
-
-  // 各子ノードの中心Y
-  const childCenters = Array.from({ length: count }, (_, i) =>
-    i * (CARD_HEIGHT + CARD_GAP) + CARD_HEIGHT / 2
-  );
+function DropZone({ accentColor, onDrop }: { accentColor: string; onDrop: (data: { id: string; parentId: string | null; index: number }) => void }) {
+  const [isOver, setIsOver] = useState(false);
 
   return (
     <div
-      className="flex-shrink-0 flex items-center"
-      style={{ width: CONNECTOR_W, height: totalHeight, position: 'relative' }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        setIsOver(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsOver(false);
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('application/json'));
+          if (data && data.id) onDrop(data);
+        } catch (err) {
+          console.error('Drop error', err);
+        }
+      }}
+      className="flex-shrink-0 flex items-center justify-center transition-all duration-150"
+      style={{
+        height: 24, // カード間の隙間（旧 gap-6）と同等の高さを確保
+        width: '100%',
+        position: 'relative',
+        zIndex: 20,
+      }}
     >
-      <svg
-        width={CONNECTOR_W}
-        height={totalHeight}
-        viewBox={`0 0 ${CONNECTOR_W} ${totalHeight}`}
-        style={{ display: 'block', overflow: 'visible' }}
-      >
-        {childCenters.map((cy, i) => {
-          // Curved path from middle-left to child node's middle-left
-          // We start from x=0, y=midY and end at x=CONNECTOR_W, y=cy
-          const cp1x = CONNECTOR_W / 2;
-          const cp2x = CONNECTOR_W / 2;
-          const pathData = `M 0 ${midY} C ${cp1x} ${midY}, ${cp2x} ${cy}, ${CONNECTOR_W} ${cy}`;
-          
-          return (
-            <path
-              key={i}
-              d={pathData}
-              fill="none"
-              stroke={accentColor}
-              strokeWidth="2"
-              strokeOpacity="0.5"
-            />
-          );
-        })}
-      </svg>
+      {/* 橙色の横線（ドラッグオーバー時のみ表示） */}
+      <div
+        className="w-full rounded-full transition-all duration-150 pointer-events-none"
+        style={{
+          height: isOver ? 4 : 0,
+          background: accentColor,
+          boxShadow: isOver ? `0 0 8px ${accentColor}` : 'none',
+        }}
+      />
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// SVGコネクター: 各ノードのDOM座標を監視し、動的にベジェ曲線を描画
+// ドラッグ&ドロップやテキスト入力によるレイアウト変更に即座に追従します
+// ────────────────────────────────────────────────────────────
+function ConnectionsOverlay({
+  root,
+  columns,
+  accentColor,
+}: {
+  root: TaskNode;
+  columns: { parentId: string; nodes: TaskNode[] }[];
+  accentColor: string;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [paths, setPaths] = useState<{ id: string; d: string }[]>([]);
+
+  useEffect(() => {
+    let animationFrameId: number;
+    const lastPositions = new Map<string, string>();
+
+    const updateLines = () => {
+      const svg = svgRef.current;
+      if (!svg) {
+        animationFrameId = requestAnimationFrame(updateLines);
+        return;
+      }
+      
+      const svgRect = svg.getBoundingClientRect();
+      const newPaths: { id: string; d: string }[] = [];
+      let changed = false;
+
+      // 描画すべきすべての「親 → 子」のペアをリスト化
+      const links: { parentId: string; childId: string }[] = [];
+      if (columns.length > 0) {
+        links.push(...columns[0].nodes.map((node) => ({ parentId: root.id, childId: node.id })));
+        for (let i = 1; i < columns.length; i++) {
+          const col = columns[i];
+          links.push(...col.nodes.map((node) => ({ parentId: col.parentId, childId: node.id })));
+        }
+      }
+
+      links.forEach((link) => {
+        const parentEl = document.getElementById(`node-${link.parentId}`);
+        const childEl = document.getElementById(`node-${link.childId}`);
+
+        if (parentEl && childEl) {
+          const pRect = parentEl.getBoundingClientRect();
+          const cRect = childEl.getBoundingClientRect();
+
+          // 親の右端中央
+          const startX = pRect.right - svgRect.left;
+          const startY = pRect.top + pRect.height / 2 - svgRect.top;
+
+          // 子の左端中央
+          const endX = cRect.left - svgRect.left;
+          const endY = cRect.top + cRect.height / 2 - svgRect.top;
+
+          // 滑らかなベジェ曲線の制御点（距離に応じて曲がり具合を調整）
+          const distanceX = Math.max((endX - startX) / 2, 20);
+          const cp1x = startX + distanceX;
+          const cp1y = startY;
+          const cp2x = endX - distanceX;
+          const cp2y = endY;
+
+          const d = `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`;
+          const id = `${link.parentId}-${link.childId}`;
+          newPaths.push({ id, d });
+
+          if (lastPositions.get(id) !== d) {
+            changed = true;
+            lastPositions.set(id, d);
+          }
+        }
+      });
+
+      // 削除されたノードなどの検知（パスの数が変わった場合）
+      if (changed || newPaths.length !== lastPositions.size) {
+        if (newPaths.length !== lastPositions.size) {
+          const newKeys = new Set(newPaths.map((p) => p.id));
+          for (const key of lastPositions.keys()) {
+            if (!newKeys.has(key)) lastPositions.delete(key);
+          }
+          changed = true;
+        }
+
+        if (changed) {
+          setPaths(newPaths);
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(updateLines);
+    };
+
+    animationFrameId = requestAnimationFrame(updateLines);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [root, columns]);
+
+  return (
+    <svg
+      ref={svgRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none', // マウスイベントを下のノードに貫通させる
+        zIndex: 0,             // ノードの背面に描画
+        overflow: 'visible',
+      }}
+    >
+      {paths.map((path) => (
+        <path
+          key={path.id}
+          d={path.d}
+          fill="none"
+          stroke={accentColor}
+          strokeWidth="2"
+          strokeOpacity="0.5"
+        />
+      ))}
+    </svg>
   );
 }

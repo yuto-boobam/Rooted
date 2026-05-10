@@ -16,10 +16,10 @@ type Props = {
   onDelete: () => void;
 
   // ドラッグ&ドロップ用
+  parentId: string | null;
   dragIndex: number;
-  onDragStart: (index: number) => void;
   onDragOver: (index: number) => void;
-  onDrop: () => void;
+  onDrop: (draggedData: { id: string; parentId: string | null; index: number }) => void;
 };
 
 export function TaskNodeCard({
@@ -34,8 +34,8 @@ export function TaskNodeCard({
   onAddChild,
   onAddSibling,
   onDelete,
+  parentId,
   dragIndex,
-  onDragStart,
   onDragOver,
   onDrop,
 }: Props) {
@@ -71,21 +71,38 @@ export function TaskNodeCard({
 
   return (
     <div
+      id={`node-${node.id}`}
       draggable={!isRoot}
-      onDragStart={() => onDragStart(dragIndex)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(
+          'application/json',
+          JSON.stringify({ id: node.id, parentId, index: dragIndex })
+        );
+        e.dataTransfer.effectAllowed = 'move';
+      }}
       onDragOver={(e) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         setIsDragOver(true);
         onDragOver(dragIndex);
       }}
       onDragLeave={() => setIsDragOver(false)}
-      onDrop={() => {
+      onDrop={(e) => {
+        e.preventDefault();
         setIsDragOver(false);
-        onDrop();
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('application/json'));
+          if (data && data.id) {
+            onDrop(data);
+          }
+        } catch (err) {
+          console.error('Drop error', err);
+        }
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col gap-3 py-5 px-6 rounded-xl cursor-pointer transition-all duration-150 select-none"
+      className="animate-fadeIn flex flex-col gap-3 rounded-xl cursor-pointer transition-all duration-150 select-none relative z-10"
       style={{
+        padding: '20px 24px',
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,

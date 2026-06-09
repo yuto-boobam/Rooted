@@ -34,7 +34,6 @@ export function TreePage() {
     toggleComplete,
     updateNodeTitle,
     updateNodeMemo,
-    reorderNodes,
     moveNode,
     refreshProgress,
   } = useAppStore();
@@ -210,7 +209,7 @@ export function TreePage() {
           </div>
 
           {/* 各列 */}
-          {columns.map((column, colIndex) => {
+          {columns.map((column) => {
             return (
               <div
                 key={column.parentId}
@@ -245,7 +244,7 @@ export function TreePage() {
                       }}
                       parentId={column.parentId}
                       dragIndex={nodeIndex}
-                      onDragOver={(i) => {}}
+                      onDragOver={() => {}}
                       onDrop={(draggedData) => {
                         if (draggedData.id === node.id) return;
                         // カードの上へのドロップは常に「子タスク」として追加

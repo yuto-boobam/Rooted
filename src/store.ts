@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { User } from '@supabase/supabase-js';
 import type { Project, TaskNode, View } from './types';
 import { PROJECT_COLORS, PROJECT_ICONS } from './types';
-import { calcProgress } from './utils/calcProgress';
 
 // ── ヘルパー関数 ────────────────────────────────────────────────────────────
 
@@ -103,6 +103,8 @@ function buildPath(node: TaskNode, targetId: string, path: string[] = []): strin
 // ── Zustand ストアの型定義 ────────────────────────────────────────────────
 
 type AppState = {
+  user: User | null;
+  setUser: (user: User | null) => void;
   projects: Project[];
   view: View;
   currentProjectId: string | null;
@@ -153,6 +155,8 @@ type AppState = {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      user: null,
+      setUser: (user) => set({ user }),
       projects: [],
       view: 'dashboard',
       currentProjectId: null,
@@ -400,6 +404,13 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'rooted-storage', // localStorage のキー名
+      partialize: (state) => ({
+        projects: state.projects,
+        view: state.view,
+        currentProjectId: state.currentProjectId,
+        selectedPath: state.selectedPath,
+      }),
     }
+
   )
 );

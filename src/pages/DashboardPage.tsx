@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../store';
 import { ProjectCard } from '../components/ProjectCard';
 import { NewProjectModal } from '../components/NewProjectModal';
+import { NicknameDisplay } from '../components/NicknameDisplay';
 
 export function DashboardPage() {
   const { projects, addProject, deleteProject, toggleStar, openProject, refreshProgress } =
@@ -32,6 +33,7 @@ export function DashboardPage() {
           <span className="font-bold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>
             Rooted
           </span>
+          <NicknameDisplay />
         </div>
 
         {/* 右側ボタン群 */}

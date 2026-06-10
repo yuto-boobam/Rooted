@@ -6,6 +6,7 @@ export function AuthPage() {
   const setUser = useAppStore((s) => s.setUser);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
+  const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +22,9 @@ export function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: { nickname: nickname.trim() },
+          },
         });
         if (error) throw error;
         alert('アカウント登録リクエストを送信しました！確認メールが届いているか受信箱をご確認ください。（※Supabase側でメール確認設定がオフの場合は、そのまま自動でログインされます）');
@@ -124,6 +128,24 @@ export function AuthPage() {
               disabled={isLoading}
             />
           </div>
+
+          {/* ニックネーム欄（新規登録時のみ表示） */}
+          {isSignUp && (
+            <div className="animate-fadeIn">
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                ニックネーム
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="あなたの表示名（最大20文字）"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                maxLength={20}
+                disabled={isLoading}
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>

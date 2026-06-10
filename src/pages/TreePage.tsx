@@ -3,6 +3,7 @@ import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
 import { NewTaskModal } from '../components/NewTaskModal';
+import { NicknameDisplay } from '../components/NicknameDisplay';
 import type { TaskNode } from '../types';
 
 /** ノードIDからノードを再帰的に検索する */
@@ -141,6 +142,8 @@ export function TreePage() {
             Rooted
           </span>
         </button>
+
+        <NicknameDisplay />
 
         <span style={{ color: 'var(--text-muted)' }}>›</span>
 

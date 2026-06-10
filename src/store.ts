@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@supabase/supabase-js';
 import type { Project, TaskNode, View } from './types';
+import { supabase } from './utils/supabaseClient';
 import { PROJECT_COLORS, PROJECT_ICONS } from './types';
 
 // ── ヘルパー関数 ────────────────────────────────────────────────────────────
@@ -105,6 +106,8 @@ function buildPath(node: TaskNode, targetId: string, path: string[] = []): strin
 type AppState = {
   user: User | null;
   setUser: (user: User | null) => void;
+  nickname: string;
+  setNickname: (nickname: string) => Promise<void>;
   projects: Project[];
   view: View;
   currentProjectId: string | null;
@@ -156,7 +159,21 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       user: null,
-      setUser: (user) => set({ user }),
+      setUser: (user) => {
+        const nickname = (user?.user_metadata?.nickname as string) ?? '';
+        set({ user, nickname });
+      },
+      nickname: '',
+      setNickname: async (nickname) => {
+        const { error } = await supabase.auth.updateUser({
+          data: { nickname },
+        });
+        if (error) {
+          console.error('ニックネームの更新に失敗しました:', error.message);
+          throw error;
+        }
+        set({ nickname });
+      },
       projects: [],
       view: 'dashboard',
       currentProjectId: null,

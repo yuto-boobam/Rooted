@@ -19,6 +19,7 @@ export const makeNode = (title = '新しいタスク', memo = ''): TaskNode => (
   completed: false,
   progress: 0,
   children: [],
+  isCollapsed: false,
 });
 
 /** 新しいプロジェクトを作成する（ランダムな色とアイコンを割り当て） */
@@ -132,6 +133,7 @@ type AppState = {
   toggleComplete: (projectId: string, nodeId: string) => void;
   updateNodeTitle: (projectId: string, nodeId: string, title: string) => void;
   updateNodeMemo: (projectId: string, nodeId: string, memo: string) => void;
+  toggleCollapse: (projectId: string, nodeId: string) => void;
   reorderNodes: (
     projectId: string,
     parentId: string,
@@ -299,6 +301,19 @@ export const useAppStore = create<AppState>()(
           projects: s.projects.map((p) => {
             if (p.id !== projectId) return p;
             const newRoot = mapNode(p.rootTask, nodeId, (n) => ({ ...n, memo }));
+            return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
+          }),
+        }));
+      },
+
+      toggleCollapse: (projectId, nodeId) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const newRoot = mapNode(p.rootTask, nodeId, (n) => ({
+              ...n,
+              isCollapsed: !n.isCollapsed,
+            }));
             return { ...p, rootTask: newRoot, updatedAt: new Date().toISOString() };
           }),
         }));

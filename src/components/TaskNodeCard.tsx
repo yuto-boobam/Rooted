@@ -9,6 +9,7 @@ type Props = {
 
   onClick: () => void;
   onToggleComplete: () => void;
+  onToggleCollapse?: () => void;
   onUpdateTitle: (title: string) => void;
   onUpdateMemo: (memo: string) => void;
   onAddChild: () => void;
@@ -29,6 +30,7 @@ export function TaskNodeCard({
   accentColor,
   onClick,
   onToggleComplete,
+  onToggleCollapse,
   onUpdateTitle,
   onUpdateMemo,
   onAddChild,
@@ -245,6 +247,36 @@ export function TaskNodeCard({
             <circle cx="4" cy="6" r="1.5" /><circle cx="10" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
           </svg>
         </div>
+      )}
+
+      {/* ★ 追加：右端の折りたたみ/展開ボタン（子ノードが存在する場合のみ表示） */}
+      {!isLeaf && onToggleCollapse && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation(); // 親カードのクリックイベント（選択処理など）の発生を防ぐ
+            onToggleCollapse();
+          }}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all border shadow-sm"
+          style={{
+            background: 'var(--bg-surface)',
+            borderColor: node.isCollapsed ? accentColor : 'var(--border)',
+            color: node.isCollapsed ? accentColor : 'var(--text-muted)',
+            zIndex: 30, // 接続線や他の要素より上に表示
+          }}
+          title={node.isCollapsed ? '展開する' : '折りたたむ'}
+        >
+          {node.isCollapsed ? (
+            // 折りたたまれている状態 (▶)
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ transform: 'translateX(1px)' }}>
+              <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" />
+            </svg>
+          ) : (
+            // 展開されている状態 (▼)
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ transform: 'translateY(1px)' }}>
+              <polygon points="19 5 12 19 5 5 19 5" fill="currentColor" />
+            </svg>
+          )}
+        </button>
       )}
     </div>
   );

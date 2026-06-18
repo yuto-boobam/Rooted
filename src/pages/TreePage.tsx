@@ -37,6 +37,7 @@ export function TreePage() {
     updateNodeMemo,
     moveNode,
     refreshProgress,
+    toggleCollapse,
   } = useAppStore();
 
   const project = projects.find((p) => p.id === currentProjectId);
@@ -49,9 +50,9 @@ export function TreePage() {
   const [modal, setModal] = useState<ModalState>({ open: false });
 
   // モーダルを開くヘルパー
-  const openChildModal   = useCallback((targetId: string) => setModal({ open: true, mode: 'child',   targetId }), []);
+  const openChildModal = useCallback((targetId: string) => setModal({ open: true, mode: 'child', targetId }), []);
   const openSiblingModal = useCallback((targetId: string) => setModal({ open: true, mode: 'sibling', targetId }), []);
-  const closeModal       = useCallback(() => setModal({ open: false }), []);
+  const closeModal = useCallback(() => setModal({ open: false }), []);
 
   // モーダル確定ハンドラ
   const handleModalConfirm = useCallback((title: string, memo: string) => {
@@ -107,8 +108,14 @@ export function TreePage() {
   for (let i = 0; i < selectedPath.length; i++) {
     const nodeId = selectedPath[i];
     const node = findNode(root, nodeId);
-    if (node && node.children.length > 0) {
-      columns.push({ parentId: node.id, nodes: node.children, depth: i });
+    if (node) {
+      // ★ 追加：もしノードが折りたたまれていたら、その先（右側の子ノード一覧）は表示しない
+      if (node.isCollapsed) {
+        break;
+      }
+      if (node.children.length > 0) {
+        columns.push({ parentId: node.id, nodes: node.children, depth: i });
+      }
     }
   }
 
@@ -183,7 +190,7 @@ export function TreePage() {
       {/* ── ツリービュー本体（横スクロール） */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ position: 'relative' }}>
         <div className="min-w-max min-h-full flex items-center p-12 gap-[60px] relative">
-          
+
           <ConnectionsOverlay root={root} columns={columns} accentColor={accentColor} />
 
           {/* 左端：ルートノードカード */}
@@ -195,14 +202,15 @@ export function TreePage() {
               accentColor={accentColor}
               onClick={() => selectNode(root.id)}
               onToggleComplete={() => toggleComplete(project.id, root.id)}
+              onToggleCollapse={() => toggleCollapse(project.id, root.id)}
               onUpdateTitle={(t) => updateNodeTitle(project.id, root.id, t)}
               onUpdateMemo={(m) => updateNodeMemo(project.id, root.id, m)}
               onAddChild={() => openChildModal(root.id)}
-              onAddSibling={() => {}} // rootには兄弟なし
-              onDelete={() => {}}     // rootは削除不可
+              onAddSibling={() => { }} // rootには兄弟なし
+              onDelete={() => { }}     // rootは削除不可
               parentId={null}
               dragIndex={0}
-              onDragOver={() => {}}
+              onDragOver={() => { }}
               onDrop={(draggedData) => {
                 if (draggedData.id === root.id) return;
                 // ルートにドロップした場合は常にルートの子になる
@@ -236,6 +244,7 @@ export function TreePage() {
                       accentColor={accentColor}
                       onClick={() => selectNode(node.id)}
                       onToggleComplete={() => toggleComplete(project.id, node.id)}
+                      onToggleCollapse={() => toggleCollapse(project.id, node.id)}
                       onUpdateTitle={(t) => updateNodeTitle(project.id, node.id, t)}
                       onUpdateMemo={(m) => updateNodeMemo(project.id, node.id, m)}
                       onAddChild={() => openChildModal(node.id)}
@@ -247,7 +256,7 @@ export function TreePage() {
                       }}
                       parentId={column.parentId}
                       dragIndex={nodeIndex}
-                      onDragOver={() => {}}
+                      onDragOver={() => { }}
                       onDrop={(draggedData) => {
                         if (draggedData.id === node.id) return;
                         // カードの上へのドロップは常に「子タスク」として追加
@@ -360,7 +369,7 @@ function ConnectionsOverlay({
         animationFrameId = requestAnimationFrame(updateLines);
         return;
       }
-      
+
       const svgRect = svg.getBoundingClientRect();
       const newPaths: { id: string; d: string }[] = [];
       let changed = false;

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useAppStore } from '../store';
+
 import { supabase } from '../utils/supabaseClient';
 
 export function AuthPage() {
-  const setUser = useAppStore((s) => s.setUser);
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');

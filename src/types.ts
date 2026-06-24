@@ -8,6 +8,7 @@ export type TaskNode = {
   completed: boolean;  // 完了フラグ（leafのみ有効）
   progress: number;    // 0–100（refreshProgressボタンで再計算、それ以外は変化しない）
   children: TaskNode[];
+  isCollapsed?: boolean;
 };
 
 /** 1つのプロジェクト */

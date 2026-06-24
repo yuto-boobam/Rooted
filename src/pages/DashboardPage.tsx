@@ -19,67 +19,45 @@ export function DashboardPage() {
     >
       {/* ── ヘッダー */}
       <header
-        className="flex items-center justify-between px-8 py-4 flex-shrink-0"
+        className="flex justify-center flex-shrink-0" // 変更：ヘッダー全体を中央揃えにするための設定を追加
         style={{ borderBottom: '1px solid var(--border)' }}
       >
-        {/* ロゴ */}
-        <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
-          >
-            🌱
+        {/* 変更：max-w-6xl(1152px)で幅を制限し、mx-autoで中央寄せにするためのコンテナを追加 */}
+        <div className="flex items-center justify-between w-full max-w-6xl px-8 py-5">
+          {/* ロゴ */}
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+            >
+              🌱
+            </div>
+            <span className="font-bold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              Rooted
+            </span>
+            <NicknameDisplay />
           </div>
-          <span className="font-bold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>
-            Rooted
-          </span>
-          <NicknameDisplay />
-        </div>
 
-        {/* 右側ボタン群 */}
-        <div className="flex items-center gap-2">
-          {/* 進捗更新ボタン */}
-          <button
-            id="refresh-progress"
-            className="btn-ghost"
-            onClick={refreshProgress}
-            title="全プロジェクトの進捗を再計算"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-            進捗を更新
-          </button>
-
-          {/* 新規プロジェクトボタン */}
-          <button
-            id="new-project-btn"
-            className="btn-primary"
-            onClick={() => setIsModalOpen(true)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            新しいプロジェクト
-          </button>
-        </div>
-      </header>
-
-      {/* ── メインコンテンツ */}
-      <main className="flex-1 overflow-y-auto px-8 py-6">
-        {/* プロジェクトが0件のときの空状態 */}
-        {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 animate-fadeIn">
-            <div className="text-6xl">🌱</div>
-            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-              最初のプロジェクトを作成しましょう
-            </h2>
-            <p className="text-sm text-center max-w-xs" style={{ color: 'var(--text-secondary)' }}>
-              「新しいプロジェクト」ボタンをクリックして、タスクツリーを始めましょう。
-            </p>
+          {/* 右側ボタン群 */}
+          <div className="flex items-center gap-2">
+            {/* 進捗更新ボタン */}
             <button
-              className="btn-primary mt-2"
+              id="refresh-progress"
+              className="btn-ghost"
+              onClick={refreshProgress}
+              title="全プロジェクトの進捗を再計算"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              進捗を更新
+            </button>
+
+            {/* 新規プロジェクトボタン */}
+            <button
+              id="new-project-btn"
+              className="btn-primary"
               onClick={() => setIsModalOpen(true)}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -88,55 +66,85 @@ export function DashboardPage() {
               新しいプロジェクト
             </button>
           </div>
-        ) : (
-          <>
-            <h1 className="text-sm font-medium mb-5" style={{ color: 'var(--text-muted)' }}>
-              プロジェクト一覧 — {projects.length} 件
-            </h1>
+        </div>
+      </header>
 
-            {/* プロジェクトグリッド */}
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-              {sorted.map((project) => (
-                <div key={project.id} className="group">
-                  <ProjectCard
-                    project={project}
-                    onOpen={() => openProject(project.id)}
-                    onDelete={() => {
-                      if (confirm(`「${project.title}」を削除しますか？`)) {
-                        deleteProject(project.id);
-                      }
-                    }}
-                    onToggleStar={() => toggleStar(project.id)}
-                  />
-                </div>
-              ))}
-
-              {/* 新規作成カード */}
+      {/* ── メインコンテンツ */}
+      {/* 変更：縦の余白を py-10 に拡張してゆとりを持たせる */}
+      <main className="flex-1 overflow-y-auto py-10">
+        {/* 変更：ヘッダーと横位置をきれいに合わせるための、max-w-6xl コンテナを配置 */}
+        <div className="max-w-6xl mx-auto px-8 h-full flex flex-col">
+          {/* プロジェクトが0件のときの空状態 */}
+          {projects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-4 animate-fadeIn my-auto">
+              <div className="text-6xl">🌱</div>
+              <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                最初のプロジェクトを作成しましょう
+              </h2>
+              <p className="text-sm text-center max-w-xs" style={{ color: 'var(--text-secondary)' }}>
+                「新しいプロジェクト」ボタンをクリックして、タスクツリーを始めましょう。
+              </p>
               <button
-                id="add-project-card"
-                className="flex flex-col items-center justify-center gap-3 rounded-xl cursor-pointer transition-all duration-200"
-                style={{
-                  border: '1.5px dashed var(--border)',
-                  background: 'transparent',
-                  minHeight: 180,
-                  color: 'var(--text-muted)',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)';
-                  (e.currentTarget as HTMLElement).style.color = 'var(--accent)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
-                  (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                }}
+                className="btn-primary mt-2"
                 onClick={() => setIsModalOpen(true)}
               >
-                <span className="text-2xl">＋</span>
-                <span className="text-sm font-medium">プロジェクトを追加</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                新しいプロジェクト
               </button>
             </div>
-          </>
-        )}
+          ) : (
+            <>
+              <h1 className="text-sm font-medium mb-6" style={{ color: 'var(--text-muted)' }}>
+                プロジェクト一覧 — {projects.length} 件
+              </h1>
+
+              {/* プロジェクトグリッド */}
+              {/* 変更：gap-4 から gap-6 に広げ、カード同士の間隔を広げます */}
+              <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+                {sorted.map((project) => (
+                  <div key={project.id} className="group">
+                    <ProjectCard
+                      project={project}
+                      onOpen={() => openProject(project.id)}
+                      onDelete={() => {
+                        if (confirm(`「${project.title}」を削除しますか？`)) {
+                          deleteProject(project.id);
+                        }
+                      }}
+                      onToggleStar={() => toggleStar(project.id)}
+                    />
+                  </div>
+                ))}
+
+                {/* 新規作成カード */}
+                <button
+                  id="add-project-card"
+                  className="flex flex-col items-center justify-center gap-3 rounded-xl cursor-pointer transition-all duration-200"
+                  style={{
+                    border: '1.5px dashed var(--border)',
+                    background: 'transparent',
+                    minHeight: 180,
+                    color: 'var(--text-muted)',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)';
+                    (e.currentTarget as HTMLElement).style.color = 'var(--accent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                    (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                  }}
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  <span className="text-2xl">＋</span>
+                  <span className="text-sm font-medium">プロジェクトを追加</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </main>
 
       {/* ── 新規プロジェクトモーダル */}

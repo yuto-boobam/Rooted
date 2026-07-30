@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
 import { NewTaskModal } from '../components/NewTaskModal';
-import { NicknameDisplay } from '../components/NicknameDisplay';
+import Header from '../components/Header';
 import type { TaskNode } from '../types';
 
 /** ノードIDからノードを再帰的に検索する */
@@ -120,54 +120,17 @@ export function TreePage() {
       className="flex flex-col h-full overflow-hidden"
       style={{ background: 'var(--bg-base)' }}
     >
-      {/* ── ヘッダー */}
-      <header
-        className="flex items-center gap-4 px-6 py-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
-        {/* ロゴ（クリックでダッシュボードへ） */}
-        <button
-          id="back-to-dashboard"
-          className="flex items-center gap-2 btn-ghost"
-          onClick={goToDashboard}
-          title="プロジェクト一覧へ戻る"
-        >
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center text-sm"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
-          >
-            🌱
-          </div>
-          <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-            Rooted
-          </span>
-        </button>
-
-        <NicknameDisplay />
-
-        <span style={{ color: 'var(--text-muted)' }}>›</span>
-
-        <Breadcrumb
-          items={breadcrumbItems}
-          onNavigate={(path) => navigateToPath(path)}
-        />
-
-        <div className="flex-1" />
-
-        {/* 進捗更新ボタン */}
-        <button
-          id="refresh-progress-tree"
-          className="btn-ghost"
-          onClick={refreshProgress}
-          title="全ノードの進捗率を再計算します"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="23 4 23 10 17 10" />
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-          </svg>
-          進捗を更新
-        </button>
-      </header>
+      {/* ── 共通ヘッダー */}
+      <Header
+        onLogoClick={goToDashboard}
+        onRefreshProgress={refreshProgress}
+        breadcrumbsSlot={
+          <Breadcrumb
+            items={breadcrumbItems}
+            onNavigate={(path) => navigateToPath(path)}
+          />
+        }
+      />
 
       {/* ── 操作ガイド */}
       <div

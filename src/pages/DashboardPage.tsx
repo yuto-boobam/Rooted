@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useAppStore } from '../store';
 import { ProjectCard } from '../components/ProjectCard';
 import { NewProjectModal } from '../components/NewProjectModal';
-import { NicknameDisplay } from '../components/NicknameDisplay';
+import Header from '../components/Header'; // ★ 追加：共通Headerコンポーネント
 
 export function DashboardPage() {
-  const { projects, addProject, deleteProject, toggleStar, openProject, refreshProgress } =
+  console.log('★ DashboardPageがレンダリングされました');
+  const { projects, addProject, deleteProject, toggleStar, openProject, refreshProgress, nickname } =
     useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -17,54 +18,35 @@ export function DashboardPage() {
       className="flex flex-col h-full overflow-hidden"
       style={{ background: 'var(--bg-base)' }}
     >
-      {/* ── ヘッダー */}
-      <header
-        className="flex items-center justify-between px-8 py-4 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
-        {/* ロゴ */}
-        <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
-          >
-            🌱
-          </div>
-          <span className="font-bold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>
-            Rooted
-          </span>
-          <NicknameDisplay />
-        </div>
-
-        {/* 右側ボタン群 */}
-        <div className="flex items-center gap-2">
-          {/* 進捗更新ボタン */}
-          <button
-            id="refresh-progress"
-            className="btn-ghost"
-            onClick={refreshProgress}
-            title="全プロジェクトの進捗を再計算"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-            進捗を更新
-          </button>
-
-          {/* 新規プロジェクトボタン */}
+      {/* ── 共通ヘッダー（パッチノートボタン＆モーダル内包） */}
+      <Header
+        nickname={nickname}
+        onRefreshProgress={refreshProgress}
+        rightSlot={
           <button
             id="new-project-btn"
             className="btn-primary"
             onClick={() => setIsModalOpen(true)}
+            style={{
+              height: 34,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 12px',
+              fontSize: 12,
+              fontWeight: 700,
+              borderRadius: 11,
+              cursor: 'pointer',
+            }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             新しいプロジェクト
           </button>
-        </div>
-      </header>
+        }
+      />
 
       {/* ── メインコンテンツ */}
       <main className="flex-1 overflow-y-auto px-8 py-6">

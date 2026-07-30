@@ -1,0 +1,32 @@
+[
+  {
+    "id": "2026-07-30-patch-notes-json",
+    "date": "2026-07-30",
+    "version": "v1.2.0",
+    "type": "feature",
+    "title": "JSON管理型パッチノート機能を追加",
+    "description": "Why / 変更理由:\nSupabaseのDBに依存せず、GitHubのPR内容を下書きにしながら更新履歴をJSONファイルとして管理・提示できるようにするため。",
+    "beforeImageUrl": null,
+    "afterImageUrl": null
+  },
+  {
+    "id": "2026-07-30-tree-four-tabs",
+    "date": "2026-07-30",
+    "version": "v1.1.0",
+    "type": "feature",
+    "title": "木構造タスク画面に四つのタブ準備タスクを追加",
+    "description": "Why / 変更理由:\nXMind風のカード型ノードで、ポートフォリオ作成タスクを段階的に分解して管理できるようにするため。",
+    "beforeImageUrl": "https://www.genspark.ai/api/files/s/tq5grpFH",
+    "afterImageUrl": "https://www.genspark.ai/api/files/s/i1E1YOjc"
+  },
+  {
+    "id": "2026-07-30-dashboard-project-list",
+    "date": "2026-07-30",
+    "version": "v1.0.0",
+    "type": "feature",
+    "title": "プロジェクト一覧と進捗カードの初期画面を追加",
+    "description": "Why / 変更理由:\n面接官やユーザーがアプリを開いた直後に、現在のプロジェクト数・進捗率・最終更新日時をすぐ把握できるようにするため。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "https://www.genspark.ai/api/files/s/tq5grpFH"
+  }
+]

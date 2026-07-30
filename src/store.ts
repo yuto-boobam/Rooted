@@ -151,6 +151,13 @@ type AppState = {
   // ナビゲーション
   selectNode: (nodeId: string) => void;
   navigateToPath: (path: string[]) => void;
+
+  // パッチノートモーダル関連
+  isPatchNotesModalOpen: boolean;
+  selectedPatchNoteDate: string | null;
+  openPatchNotesModal: (date?: string) => void;
+  closePatchNotesModal: () => void;
+  setSelectedPatchNoteDate: (date: string | null) => void;
 };
 
 // ── ストア本体 ─────────────────────────────────────────────────────────────
@@ -417,6 +424,26 @@ export const useAppStore = create<AppState>()(
 
       navigateToPath: (path) => {
         set({ selectedPath: path });
+      },
+
+      // ──── パッチノートモーダル ─────────────────────────────────────────
+      isPatchNotesModalOpen: false,
+      selectedPatchNoteDate: null,
+
+      openPatchNotesModal: (date) => {
+        set({
+          isPatchNotesModalOpen: true,
+          // 引数 date が渡された場合のみ selectedPatchNoteDate を更新する
+          ...(date !== undefined ? { selectedPatchNoteDate: date } : {}),
+        });
+      },
+
+      closePatchNotesModal: () => {
+        set({ isPatchNotesModalOpen: false });
+      },
+
+      setSelectedPatchNoteDate: (date) => {
+        set({ selectedPatchNoteDate: date });
       },
     }),
     {

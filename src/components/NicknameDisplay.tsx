@@ -8,7 +8,11 @@ import { useAppStore } from '../store';
  * 編集時: inputフィールドに切り替わる
  * Enter / blur で保存、Escでキャンセル
  */
-export function NicknameDisplay() {
+interface NicknameDisplayProps {
+  showDivider?: boolean;
+}
+
+export function NicknameDisplay({ showDivider = true }: NicknameDisplayProps) {
   const nickname = useAppStore((s) => s.nickname);
   const setNickname = useAppStore((s) => s.setNickname);
 
@@ -80,14 +84,16 @@ export function NicknameDisplay() {
       style={{ marginLeft: 8 }}
     >
       {/* 区切り線 */}
-      <div
-        style={{
-          width: 1,
-          height: 20,
-          background: 'var(--border)',
-          marginRight: 4,
-        }}
-      />
+      {showDivider && (
+        <div
+          style={{
+            width: 1,
+            height: 20,
+            background: 'var(--border)',
+            marginRight: 4,
+          }}
+        />
+      )}
 
       {isEditing ? (
         /* ── 編集モード ── */

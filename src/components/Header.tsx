@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useAppStore } from '../store';
 import PatchNotesModal from './patchNotes/PatchNotesModal';
+import { NicknameDisplay } from './NicknameDisplay';
 
 export type HeaderBreadcrumbItem =
   | string
@@ -11,24 +12,24 @@ export type HeaderBreadcrumbItem =
 
 interface HeaderProps {
   appName?: string;
-  nickname?: string | null;
+  onLogoClick?: () => void;
+  breadcrumbsSlot?: ReactNode;
   title?: string;
   subtitle?: string;
   breadcrumbs?: HeaderBreadcrumbItem[];
   rightSlot?: ReactNode;
-  onNicknameClick?: () => void;
   onRefreshProgress?: () => void;
   showRefreshButton?: boolean;
 }
 
 export default function Header({
   appName = 'Rooted',
-  nickname = 'ニックネーム未設定',
+  onLogoClick,
+  breadcrumbsSlot,
   title,
   subtitle,
   breadcrumbs,
   rightSlot,
-  onNicknameClick,
   onRefreshProgress,
   showRefreshButton,
 }: HeaderProps) {
@@ -37,7 +38,6 @@ export default function Header({
   const openPatchNotesModal = useAppStore((state) => state.openPatchNotesModal);
   const closePatchNotesModal = useAppStore((state) => state.closePatchNotesModal);
 
-  const nicknameLabel = nickname?.trim() || 'ニックネーム未設定';
   const breadcrumbItems = breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : title ? [title] : [];
   const shouldShowRefreshButton = showRefreshButton ?? Boolean(onRefreshProgress);
 
@@ -45,50 +45,66 @@ export default function Header({
     <>
       <header style={styles.header}>
         <div style={styles.leftArea}>
-          <div style={styles.brand} title={appName}>
-            <span style={styles.brandIcon}>🌱</span>
-            <strong style={styles.brandText}>{appName}</strong>
-          </div>
+          {onLogoClick ? (
+            <button
+              type="button"
+              onClick={onLogoClick}
+              style={{
+                ...styles.brand,
+                cursor: 'pointer',
+              }}
+              title="プロジェクト一覧へ戻る"
+            >
+              <span style={styles.brandIcon}>🌱</span>
+              <strong style={styles.brandText}>{appName}</strong>
+            </button>
+          ) : (
+            <div style={styles.brand} title={appName}>
+              <span style={styles.brandIcon}>🌱</span>
+              <strong style={styles.brandText}>{appName}</strong>
+            </div>
+          )}
 
           <div style={styles.divider} />
 
-          <button
-            type="button"
-            style={{
-              ...styles.nicknameButton,
-              cursor: onNicknameClick ? 'pointer' : 'default',
-            }}
-            onClick={onNicknameClick}
-            title={nicknameLabel}
-          >
-            <span style={styles.nicknameText}>{nicknameLabel}</span>
-            {onNicknameClick && <span style={styles.editIcon}>✎</span>}
-          </button>
+          <NicknameDisplay showDivider={false} />
 
-          {breadcrumbItems.length > 0 && (
-            <nav style={styles.breadcrumbs} aria-label="現在位置">
-              {breadcrumbItems.map((item, index) => {
-                const label = typeof item === 'string' ? item : item.label;
-                const onClick = typeof item === 'string' ? undefined : item.onClick;
+          {breadcrumbsSlot ? (
+            <>
+              <span style={styles.breadcrumbSeparator}>›</span>
+              {breadcrumbsSlot}
+            </>
+          ) : (
+            <>
+              {breadcrumbItems.length > 0 && (
+                <>
+                  <span style={styles.breadcrumbSeparator}>›</span>
+                  <nav style={styles.breadcrumbs} aria-label="現在位置">
+                    {breadcrumbItems.map((item, index) => {
+                      const label = typeof item === 'string' ? item : item.label;
+                      const onClick = typeof item === 'string' ? undefined : item.onClick;
 
-                return (
-                  <span key={`${label}-${index}`} style={styles.breadcrumbItem}>
-                    {index > 0 && <span style={styles.breadcrumbSeparator}>›</span>}
+                      return (
+                        <span key={`${label}-${index}`} style={styles.breadcrumbItem}>
+                          {index > 0 && <span style={styles.breadcrumbSeparator}>›</span>}
 
-                    {onClick ? (
-                      <button type="button" style={styles.breadcrumbButton} onClick={onClick}>
-                        {label}
-                      </button>
-                    ) : (
-                      <span style={styles.breadcrumbCurrent}>{label}</span>
-                    )}
-                  </span>
-                );
-              })}
-            </nav>
+                          {onClick ? (
+                            <button type="button" style={styles.breadcrumbButton} onClick={onClick}>
+                              {label}
+                            </button>
+                          ) : (
+                            <span style={styles.breadcrumbCurrent}>{label}</span>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </nav>
+                </>
+              )}
+
+              {subtitle && <span style={styles.subtitle}>{subtitle}</span>}
+            </>
           )}
-
-          {subtitle && <span style={styles.subtitle}>{subtitle}</span>}
         </div>
 
         <div style={styles.actions}>

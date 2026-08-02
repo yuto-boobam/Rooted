@@ -6,9 +6,9 @@ import { NicknameDisplay } from './NicknameDisplay';
 export type HeaderBreadcrumbItem =
   | string
   | {
-      label: string;
-      onClick?: () => void;
-    };
+    label: string;
+    onClick?: () => void;
+  };
 
 interface HeaderProps {
   appName?: string;
@@ -38,105 +38,130 @@ export default function Header({
   const openPatchNotesModal = useAppStore((state) => state.openPatchNotesModal);
   const closePatchNotesModal = useAppStore((state) => state.closePatchNotesModal);
 
-  const breadcrumbItems = breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : title ? [title] : [];
+  const isRightPanelOpen = useAppStore((state) => state.rightPanel.isOpen);
+  const toggleRightPanel = useAppStore((state) => state.toggleRightPanel);
+
+  const breadcrumbItems =
+    breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : title ? [title] : [];
+
   const shouldShowRefreshButton = showRefreshButton ?? Boolean(onRefreshProgress);
+
+  const hasSecondRow =
+    Boolean(breadcrumbsSlot) || breadcrumbItems.length > 0 || Boolean(subtitle);
 
   return (
     <>
       <header style={styles.header}>
-        <div style={styles.leftArea}>
-          {onLogoClick ? (
+        <div style={styles.topRow}>
+          <div style={styles.leftArea}>
+            {onLogoClick ? (
+              <button
+                type="button"
+                onClick={onLogoClick}
+                style={{ ...styles.brand, cursor: 'pointer' }}
+                title="プロジェクト一覧へ戻る"
+              >
+                <span style={styles.brandIcon}>🌱</span>
+                <strong style={styles.brandText}>{appName}</strong>
+              </button>
+            ) : (
+              <div style={styles.brand} title={appName}>
+                <span style={styles.brandIcon}>🌱</span>
+                <strong style={styles.brandText}>{appName}</strong>
+              </div>
+            )}
+
+            <div style={styles.divider} />
+
+            <NicknameDisplay showDivider={false} />
+          </div>
+
+          <div style={styles.actions}>
+            {rightSlot}
+
             <button
               type="button"
-              onClick={onLogoClick}
-              style={{
-                ...styles.brand,
-                cursor: 'pointer',
-              }}
-              title="プロジェクト一覧へ戻る"
+              style={styles.patchNotesButton}
+              onClick={() => openPatchNotesModal()}
+              title="パッチノートを開く"
             >
-              <span style={styles.brandIcon}>🌱</span>
-              <strong style={styles.brandText}>{appName}</strong>
+              <span>📜</span>
+              <span style={styles.compactButtonText}>パッチノート</span>
             </button>
-          ) : (
-            <div style={styles.brand} title={appName}>
-              <span style={styles.brandIcon}>🌱</span>
-              <strong style={styles.brandText}>{appName}</strong>
-            </div>
-          )}
 
-          <div style={styles.divider} />
+            {shouldShowRefreshButton && (
+              <button
+                type="button"
+                style={{
+                  ...styles.refreshButton,
+                  opacity: onRefreshProgress ? 1 : 0.5,
+                  cursor: onRefreshProgress ? 'pointer' : 'not-allowed',
+                }}
+                onClick={onRefreshProgress}
+                disabled={!onRefreshProgress}
+                title="進捗を更新"
+              >
+                <span>↻</span>
+                <span style={styles.compactButtonText}>進捗を更新</span>
+              </button>
+            )}
 
-          <NicknameDisplay showDivider={false} />
+            <button
+              type="button"
+              style={{
+                ...styles.rightPanelButton,
+                ...(isRightPanelOpen ? styles.rightPanelButtonActive : {}),
+              }}
+              onClick={toggleRightPanel}
+              title="右側パネルを開閉"
+              aria-pressed={isRightPanelOpen}
+            >
+              <span>⚡</span>
+              <span style={styles.compactButtonText}>
+                {isRightPanelOpen ? 'パネル閉じる' : '新パネル'}
+              </span>
+            </button>
+          </div>
+        </div>
 
-          {breadcrumbsSlot ? (
-            <>
-              <span style={styles.breadcrumbSeparator}>›</span>
-              {breadcrumbsSlot}
-            </>
-          ) : (
-            <>
-              {breadcrumbItems.length > 0 && (
-                <>
-                  <span style={styles.breadcrumbSeparator}>›</span>
-                  <nav style={styles.breadcrumbs} aria-label="現在位置">
-                    {breadcrumbItems.map((item, index) => {
-                      const label = typeof item === 'string' ? item : item.label;
-                      const onClick = typeof item === 'string' ? undefined : item.onClick;
+        {hasSecondRow && (
+          <div style={styles.secondRow}>
+            <div style={styles.breadcrumbLabel}>現在位置</div>
 
-                      return (
-                        <span key={`${label}-${index}`} style={styles.breadcrumbItem}>
-                          {index > 0 && <span style={styles.breadcrumbSeparator}>›</span>}
+            <div style={styles.breadcrumbContent}>
+              {breadcrumbsSlot ? (
+                breadcrumbsSlot
+              ) : (
+                <nav style={styles.breadcrumbs} aria-label="現在位置">
+                  {breadcrumbItems.map((item, index) => {
+                    const label = typeof item === 'string' ? item : item.label;
+                    const onClick = typeof item === 'string' ? undefined : item.onClick;
 
-                          {onClick ? (
-                            <button type="button" style={styles.breadcrumbButton} onClick={onClick}>
-                              {label}
-                            </button>
-                          ) : (
-                            <span style={styles.breadcrumbCurrent}>{label}</span>
-                          )}
-                        </span>
-                      );
-                    })}
-                  </nav>
-                </>
+                    return (
+                      <span key={`${label}-${index}`} style={styles.breadcrumbItem}>
+                        {index > 0 && <span style={styles.breadcrumbSeparator}>›</span>}
+
+                        {onClick ? (
+                          <button
+                            type="button"
+                            style={styles.breadcrumbButton}
+                            onClick={onClick}
+                          >
+                            {label}
+                          </button>
+                        ) : (
+                          <span style={styles.breadcrumbCurrent}>{label}</span>
+                        )}
+                      </span>
+                    );
+                  })}
+
+                  {subtitle && <span style={styles.subtitle}>{subtitle}</span>}
+                </nav>
               )}
-
-              {subtitle && <span style={styles.subtitle}>{subtitle}</span>}
-            </>
-          )}
-        </div>
-
-        <div style={styles.actions}>
-          {rightSlot}
-
-          <button
-            type="button"
-            style={styles.patchNotesButton}
-            onClick={() => openPatchNotesModal()}
-            title="パッチノートを開く"
-          >
-            <span>📜</span>
-            <span style={styles.compactButtonText}>パッチノート</span>
-          </button>
-
-          {shouldShowRefreshButton && (
-            <button
-              type="button"
-              style={{
-                ...styles.refreshButton,
-                opacity: onRefreshProgress ? 1 : 0.5,
-                cursor: onRefreshProgress ? 'pointer' : 'not-allowed',
-              }}
-              onClick={onRefreshProgress}
-              disabled={!onRefreshProgress}
-              title="進捗を更新"
-            >
-              <span>↻</span>
-              <span style={styles.compactButtonText}>進捗を更新</span>
-            </button>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </header>
 
       <PatchNotesModal
@@ -150,16 +175,21 @@ export default function Header({
 
 const styles: Record<string, CSSProperties> = {
   header: {
-    height: 52,
-    minHeight: 52,
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    borderBottom: '1px solid rgba(148, 163, 184, 0.14)',
+    background: 'rgba(3, 7, 18, 0.94)',
+    color: '#e5e7eb',
+    boxSizing: 'border-box',
+  },
+  topRow: {
+    minHeight: 48,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    padding: '0 10px',
-    borderBottom: '1px solid rgba(148, 163, 184, 0.14)',
-    background: 'rgba(3, 7, 18, 0.92)',
-    color: '#e5e7eb',
+    padding: '7px 10px',
     boxSizing: 'border-box',
   },
   leftArea: {
@@ -172,7 +202,7 @@ const styles: Record<string, CSSProperties> = {
   },
   brand: {
     flex: '0 0 auto',
-    display: 'flex',
+    display: 'inline-flex',
     alignItems: 'center',
     gap: 7,
     height: 34,
@@ -180,6 +210,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     border: '1px solid rgba(148, 163, 184, 0.16)',
     background: 'rgba(15, 23, 42, 0.72)',
+    color: '#f8fafc',
   },
   brandIcon: {
     fontSize: 18,
@@ -196,39 +227,99 @@ const styles: Record<string, CSSProperties> = {
     height: 22,
     background: 'rgba(148, 163, 184, 0.15)',
   },
-  nicknameButton: {
-    flex: '0 1 auto',
-    minWidth: 0,
+  actions: {
+    flex: '0 0 auto',
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    maxWidth: 150,
-    border: 0,
-    background: 'transparent',
-    color: '#94a3b8',
-    padding: '4px 2px',
-    fontSize: 12,
+    justifyContent: 'flex-end',
+    gap: 7,
+    overflowX: 'auto',
+    maxWidth: '72vw',
   },
-  nicknameText: {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+  patchNotesButton: {
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 11,
+    border: '1px solid rgba(250, 204, 21, 0.32)',
+    background: 'rgba(250, 204, 21, 0.1)',
+    color: '#fde68a',
+    padding: '0 9px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
-  editIcon: {
-    color: '#64748b',
+  refreshButton: {
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 11,
+    border: '1px solid rgba(148, 163, 184, 0.2)',
+    background: 'rgba(15, 23, 42, 0.85)',
+    color: '#e5e7eb',
+    padding: '0 9px',
     fontSize: 12,
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+  },
+  rightPanelButton: {
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 11,
+    border: '1px solid rgba(96, 165, 250, 0.32)',
+    background: 'rgba(37, 99, 235, 0.12)',
+    color: '#bfdbfe',
+    padding: '0 9px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  rightPanelButtonActive: {
+    borderColor: 'rgba(251, 113, 133, 0.48)',
+    background: 'rgba(251, 113, 133, 0.16)',
+    color: '#fecdd3',
+  },
+  compactButtonText: {
+    lineHeight: 1,
+  },
+  secondRow: {
+    minHeight: 34,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '5px 12px 8px',
+    borderTop: '1px solid rgba(148, 163, 184, 0.08)',
+    boxSizing: 'border-box',
+  },
+  breadcrumbLabel: {
+    flex: '0 0 auto',
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  breadcrumbContent: {
+    minWidth: 0,
+    flex: '1 1 auto',
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    whiteSpace: 'nowrap',
+    paddingBottom: 1,
   },
   breadcrumbs: {
     minWidth: 0,
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    overflow: 'hidden',
     color: '#94a3b8',
     fontSize: 12,
   },
   breadcrumbItem: {
-    minWidth: 0,
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
@@ -245,60 +336,12 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
   },
   breadcrumbCurrent: {
-    minWidth: 0,
     color: '#e5e7eb',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     fontWeight: 750,
   },
   subtitle: {
-    flex: '0 1 auto',
-    minWidth: 0,
     color: '#60a5fa',
     fontSize: 12,
     fontWeight: 800,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-  actions: {
-    flex: '0 0 auto',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 7,
-  },
-  patchNotesButton: {
-    height: 34,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 11,
-    border: '1px solid rgba(250, 204, 21, 0.32)',
-    background: 'rgba(250, 204, 21, 0.1)',
-    color: '#fde68a',
-    padding: '0 10px',
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
-  refreshButton: {
-    height: 34,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 11,
-    border: '1px solid rgba(148, 163, 184, 0.2)',
-    background: 'rgba(15, 23, 42, 0.85)',
-    color: '#e5e7eb',
-    padding: '0 10px',
-    fontSize: 12,
-    fontWeight: 800,
-    whiteSpace: 'nowrap',
-  },
-  compactButtonText: {
-    lineHeight: 1,
   },
 };

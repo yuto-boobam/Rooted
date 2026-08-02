@@ -12,17 +12,26 @@ export const makeId = (): string =>
   Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 /** 新しいタスクノードを作成する */
-export const makeNode = (title = '新しいタスク', memo = ''): TaskNode => ({
+export const makeNode = (title = '新しいタスク', memo = '', createdBy = ''): TaskNode => ({
   id: makeId(),
   title,
   memo,
+  detailMemo: '',
   completed: false,
   progress: 0,
+  isPriority: false,
+  priorityOrder: null,
+  borderColor: null,
+  dueDate: null,
+  backgroundColor: null,
+  createdBy,
+  createdAt: new Date().toISOString(),
+  completedAt: null,
   children: [],
 });
 
 /** 新しいプロジェクトを作成する（ランダムな色とアイコンを割り当て） */
-const makeProject = (title: string, description: string): Project => {
+const makeProject = (title: string, description: string, createdBy: string): Project => {
   const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
   const icon = PROJECT_ICONS[Math.floor(Math.random() * PROJECT_ICONS.length)];
   return {
@@ -32,10 +41,11 @@ const makeProject = (title: string, description: string): Project => {
     icon,
     color,
     starred: false,
+    createdBy,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     progress: 0,
-    rootTask: makeNode(title),
+    rootTask: makeNode(title, '', createdBy),
   };
 };
 
@@ -189,7 +199,8 @@ export const useAppStore = create<AppState>()(
       // ──── プロジェクト操作 ────────────────────────────────────────────
 
       addProject: (title, description) => {
-        const project = makeProject(title, description);
+        const { nickname } = get();
+        const project = makeProject(title, description, nickname);
         set((s) => ({ projects: [...s.projects, project] }));
       },
 
@@ -227,7 +238,8 @@ export const useAppStore = create<AppState>()(
       // ──── ノード操作 ─────────────────────────────────────────────────
 
       addChildNode: (projectId, parentId, title?, memo?) => {
-        const newNode = makeNode(title, memo);
+        const { nickname } = get();
+        const newNode = makeNode(title, memo, nickname);
         set((s) => ({
           projects: s.projects.map((p) => {
             if (p.id !== projectId) return p;
@@ -242,7 +254,8 @@ export const useAppStore = create<AppState>()(
       },
 
       addSiblingNode: (projectId, nodeId, title?, memo?) => {
-        const newNode = makeNode(title, memo);
+        const { nickname } = get();
+        const newNode = makeNode(title, memo, nickname);
         set((s) => ({
           projects: s.projects.map((p) => {
             if (p.id !== projectId) return p;

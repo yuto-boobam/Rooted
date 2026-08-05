@@ -214,6 +214,17 @@ export function TaskNodeCard({
         </p>
       )}
 
+      {/* ── 期限表示 */}
+      {node.dueDate && (
+        <div
+          className="flex items-center gap-1 text-xs"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <span>📅</span>
+          <span>期限: {formatDueDate(node.dueDate)}</span>
+        </div>
+      )}
+
       {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
       {!isLeaf && (
         <div className="flex flex-col gap-1 mt-1">
@@ -248,4 +259,12 @@ export function TaskNodeCard({
       )}
     </div>
   );
+}
+
+/** 期限日（YYYY-MM-DD）を "M/D" 表記に変換する */
+function formatDueDate(dueDate: string): string {
+  const [, month, day] = dueDate.split('-');
+  if (!month || !day) return dueDate;
+
+  return `${Number(month)}/${Number(day)}`;
 }

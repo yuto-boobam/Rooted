@@ -1,3 +1,5 @@
+// src/components/RightDrawerPanel.tsx
+
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useAppStore } from '../store';
@@ -11,11 +13,13 @@ type FlatTask = {
     pathTitles: string[];
 };
 
-type CalendarDay = {
-    date: string;
-    day: number;
-    completedCount: number;
-} | null;
+type CalendarDay =
+    | {
+        date: string;
+        day: number;
+        completedCount: number;
+    }
+    | null;
 
 const WEEK_DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -35,6 +39,9 @@ export default function RightDrawerPanel() {
 
     const selectNode = useAppStore((state) => state.selectNode);
     const updateNodeDueDate = useAppStore((state) => state.updateNodeDueDate);
+    const updateNodeDetailMemo = useAppStore(
+        (state) => state.updateNodeDetailMemo,
+    );
     const toggleNodePriority = useAppStore((state) => state.toggleNodePriority);
     const setNodeCompletion = useAppStore((state) => state.setNodeCompletion);
     const completeNodeAfterDelay = useAppStore(
@@ -65,9 +72,7 @@ export default function RightDrawerPanel() {
     useEffect(() => {
         setPendingCompleteIds((previous) => {
             const activeIds = new Set(
-                tasks
-                    .filter((task) => !task.node.completed)
-                    .map((task) => task.node.id),
+                tasks.filter((task) => !task.node.completed).map((task) => task.node.id),
             );
 
             const next = new Set<string>();
@@ -104,7 +109,9 @@ export default function RightDrawerPanel() {
                 .sort((a, b) => {
                     const orderA = a.node.priorityOrder ?? Number.MAX_SAFE_INTEGER;
                     const orderB = b.node.priorityOrder ?? Number.MAX_SAFE_INTEGER;
-                    return orderA - orderB || a.node.createdAt.localeCompare(b.node.createdAt);
+                    return (
+                        orderA - orderB || a.node.createdAt.localeCompare(b.node.createdAt)
+                    );
                 }),
         [tasks],
     );
@@ -157,29 +164,32 @@ export default function RightDrawerPanel() {
                 style={{
                     ...styles.drawer,
                     transform: rightPanel.isOpen ? 'translateX(0)' : 'translateX(105%)',
+                    pointerEvents: rightPanel.isOpen ? 'auto' : 'none',
                 }}
                 aria-hidden={!rightPanel.isOpen}
             >
                 <header style={styles.drawerHeader}>
-                    <div>
-                        <h2 style={styles.drawerTitle}>⚡ タスク集中パネル</h2>
-                        <p style={styles.drawerSubtitle}>
-                            期限・優先順位・達成履歴をまとめて確認
-                        </p>
-                    </div>
+                    <h2 style={styles.drawerTitle}>⚡ タスク集中パネル</h2>
 
-                    <button type="button" style={styles.closeButton} onClick={closeRightPanel}>
+                    <button
+                        type="button"
+                        style={styles.closeButton}
+                        onClick={closeRightPanel}
+                        aria-label="タスク集中パネルを閉じる"
+                    >
                         ×
                     </button>
                 </header>
 
                 {!currentProject ? (
-                    <div style={styles.emptyBox}>
-                        <div style={styles.emptyIcon}>📂</div>
-                        <p style={styles.emptyTitle}>プロジェクトが選択されていません</p>
-                        <p style={styles.emptyText}>
-                            ツリー画面でプロジェクトを開くと、期限・優先タスクを表示できます。
-                        </p>
+                    <div style={styles.drawerBody}>
+                        <div style={styles.emptyBox}>
+                            <div style={styles.emptyIcon}>📂</div>
+                            <p style={styles.emptyTitle}>プロジェクトが選択されていません</p>
+                            <p style={styles.emptyText}>
+                                ツリー画面でプロジェクトを開くと、期限・優先タスクを表示できます。
+                            </p>
+                        </div>
                     </div>
                 ) : (
                     <div style={styles.drawerBody}>
@@ -191,7 +201,19 @@ export default function RightDrawerPanel() {
                             }}
                             onChangeDueDate={(dueDate) => {
                                 if (!selectedTask) return;
-                                updateNodeDueDate(selectedTask.projectId, selectedTask.node.id, dueDate);
+                                updateNodeDueDate(
+                                    selectedTask.projectId,
+                                    selectedTask.node.id,
+                                    dueDate,
+                                );
+                            }}
+                            onChangeDetailMemo={(detailMemo) => {
+                                if (!selectedTask) return;
+                                updateNodeDetailMemo(
+                                    selectedTask.projectId,
+                                    selectedTask.node.id,
+                                    detailMemo,
+                                );
                             }}
                             onComplete={() => {
                                 if (!selectedTask) return;
@@ -249,11 +271,13 @@ export default function RightDrawerPanel() {
                                             onDragOver={(event) => event.preventDefault()}
                                             onDrop={() => {
                                                 if (!draggedPriorityId) return;
+
                                                 reorderPriorityTasks(
                                                     task.projectId,
                                                     draggedPriorityId,
                                                     task.node.id,
                                                 );
+
                                                 setDraggedPriorityId(null);
                                             }}
                                             onDragEnd={() => setDraggedPriorityId(null)}
@@ -286,21 +310,29 @@ export default function RightDrawerPanel() {
                                                 <button
                                                     type="button"
                                                     style={styles.miniButton}
-                                                    onClick={() => movePriorityTask(task.projectId, task.node.id, 'up')}
+                                                    onClick={() =>
+                                                        movePriorityTask(task.projectId, task.node.id, 'up')
+                                                    }
                                                     disabled={index === 0}
                                                 >
                                                     ↑
                                                 </button>
+
                                                 <button
                                                     type="button"
                                                     style={styles.miniButton}
                                                     onClick={() =>
-                                                        movePriorityTask(task.projectId, task.node.id, 'down')
+                                                        movePriorityTask(
+                                                            task.projectId,
+                                                            task.node.id,
+                                                            'down',
+                                                        )
                                                     }
                                                     disabled={index === priorityTasks.length - 1}
                                                 >
                                                     ↓
                                                 </button>
+
                                                 <button
                                                     type="button"
                                                     style={styles.miniButton}
@@ -335,6 +367,7 @@ export default function RightDrawerPanel() {
                                 >
                                     週間
                                 </button>
+
                                 <button
                                     type="button"
                                     style={{
@@ -378,12 +411,14 @@ function SelectedTaskEditor({
     isPending,
     onTogglePriority,
     onChangeDueDate,
+    onChangeDetailMemo,
     onComplete,
 }: {
     task: FlatTask | null;
     isPending: boolean;
     onTogglePriority: () => void;
     onChangeDueDate: (dueDate: string | null) => void;
+    onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
 }) {
     if (!task) {
@@ -398,7 +433,7 @@ function SelectedTaskEditor({
     return (
         <section style={styles.selectedBox}>
             <div style={styles.selectedHeader}>
-                <div>
+                <div style={styles.selectedTitleGroup}>
                     <div style={styles.selectedTitle}>選択中タスク</div>
                     <div style={styles.selectedTaskName}>{task.node.title}</div>
                 </div>
@@ -424,20 +459,33 @@ function SelectedTaskEditor({
                     />
                 </label>
 
-                <button type="button" style={styles.secondaryButton} onClick={onTogglePriority}>
-                    {task.node.isPriority ? '優先から外す' : '優先に追加'}
-                </button>
+                <label style={styles.inputLabel}>
+                    詳細メモ
+                    <textarea
+                        value={task.node.detailMemo}
+                        style={styles.detailTextarea}
+                        placeholder="具体的な手順・仕様・補足メモを入力..."
+                        rows={4}
+                        onChange={(event) => onChangeDetailMemo(event.target.value)}
+                    />
+                </label>
 
-                {!task.node.completed && (
-                    <button
-                        type="button"
-                        style={styles.completeButton}
-                        disabled={isPending}
-                        onClick={onComplete}
-                    >
-                        {isPending ? '完了処理中...' : '完了にする'}
+                <div style={styles.selectedButtonGrid}>
+                    <button type="button" style={styles.secondaryButton} onClick={onTogglePriority}>
+                        {task.node.isPriority ? '優先から外す' : '優先に追加'}
                     </button>
-                )}
+
+                    {!task.node.completed && (
+                        <button
+                            type="button"
+                            style={styles.completeButton}
+                            disabled={isPending}
+                            onClick={onComplete}
+                        >
+                            {isPending ? '完了処理中...' : '完了にする'}
+                        </button>
+                    )}
+                </div>
             </div>
         </section>
     );
@@ -501,11 +549,14 @@ function TaskRow({
             </label>
 
             <div style={styles.taskMeta}>
-                {task.node.dueDate ? `期限: ${formatDateLabel(task.node.dueDate)}` : '期限未設定'}
+                {task.node.dueDate
+                    ? `期限: ${formatDateLabel(task.node.dueDate)}`
+                    : '期限未設定'}
             </div>
 
             <div style={styles.taskFooter}>
                 <span style={styles.pathText}>{task.pathTitles.join(' / ')}</span>
+
                 <button type="button" style={styles.textButton} onClick={onSelect}>
                     選択
                 </button>
@@ -533,7 +584,9 @@ function WeeklyCalendar({
         <div style={styles.weeklyList}>
             {groups.map((group) => (
                 <section key={group.date} style={styles.weeklyDay}>
-                    <div style={styles.weeklyDayTitle}>{formatDateWithWeekday(group.date)}</div>
+                    <div style={styles.weeklyDayTitle}>
+                        {formatDateWithWeekday(group.date)}
+                    </div>
 
                     <div style={styles.taskList}>
                         {group.tasks.map((task) => (
@@ -565,6 +618,7 @@ function MonthlyCalendar({
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth(), 1);
     });
+
     const [selectedDate, setSelectedDate] = useState(todayDateKey());
 
     const completedCountByDate = useMemo(() => {
@@ -573,6 +627,7 @@ function MonthlyCalendar({
         tasks.forEach((task) => {
             const date = task.node.completedAt?.slice(0, 10);
             if (!date) return;
+
             map.set(date, (map.get(date) ?? 0) + 1);
         });
 
@@ -616,14 +671,20 @@ function MonthlyCalendar({
 
     const moveMonth = (amount: number) => {
         setMonthCursor(
-            (current) => new Date(current.getFullYear(), current.getMonth() + amount, 1),
+            (current) =>
+                new Date(current.getFullYear(), current.getMonth() + amount, 1),
         );
     };
 
     return (
         <div>
             <div style={styles.monthHeader}>
-                <button type="button" style={styles.monthButton} onClick={() => moveMonth(-1)}>
+                <button
+                    type="button"
+                    style={styles.monthButton}
+                    onClick={() => moveMonth(-1)}
+                    aria-label="前の月"
+                >
                     ‹
                 </button>
 
@@ -631,7 +692,12 @@ function MonthlyCalendar({
                     {monthCursor.getFullYear()}年 {monthCursor.getMonth() + 1}月
                 </div>
 
-                <button type="button" style={styles.monthButton} onClick={() => moveMonth(1)}>
+                <button
+                    type="button"
+                    style={styles.monthButton}
+                    onClick={() => moveMonth(1)}
+                    aria-label="次の月"
+                >
                     ›
                 </button>
             </div>
@@ -662,6 +728,7 @@ function MonthlyCalendar({
                             onClick={() => setSelectedDate(cell.date)}
                         >
                             <span>{cell.day}</span>
+
                             {cell.completedCount > 0 && (
                                 <span style={styles.monthCount}>{cell.completedCount}</span>
                             )}
@@ -691,11 +758,15 @@ function MonthlyCalendar({
                                             }
                                         }}
                                     />
+
                                     <span style={styles.taskTitle}>{task.node.title}</span>
                                 </label>
 
                                 <div style={styles.taskFooter}>
-                                    <span style={styles.pathText}>{task.pathTitles.join(' / ')}</span>
+                                    <span style={styles.pathText}>
+                                        {task.pathTitles.join(' / ')}
+                                    </span>
+
                                     <button
                                         type="button"
                                         style={styles.textButton}
@@ -754,12 +825,14 @@ function toDateKey(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
+
     return `${year}-${month}-${day}`;
 }
 
 function formatDateLabel(dateKey: string): string {
     const [year, month, day] = dateKey.split('-');
     if (!year || !month || !day) return dateKey;
+
     return `${year}/${Number(month)}/${Number(day)}`;
 }
 
@@ -767,6 +840,7 @@ function formatDateWithWeekday(dateKey: string): string {
     const [year, month, day] = dateKey.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     const weekday = WEEK_DAY_LABELS[date.getDay()];
+
     return `${Number(month)}/${Number(day)} (${weekday})`;
 }
 
@@ -779,6 +853,7 @@ const styles: Record<string, CSSProperties> = {
         background: 'rgba(2, 6, 23, 0.22)',
         cursor: 'default',
     },
+
     drawer: {
         position: 'fixed',
         top: 0,
@@ -794,69 +869,86 @@ const styles: Record<string, CSSProperties> = {
         transition: 'transform 220ms ease',
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
     },
+
     drawerHeader: {
         flexShrink: 0,
         display: 'flex',
         justifyContent: 'space-between',
-        gap: 12,
-        padding: '16px 16px 14px',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 12px',
+        minHeight: 50,
         borderBottom: '1px solid rgba(148, 163, 184, 0.16)',
     },
+
     drawerTitle: {
         margin: 0,
         color: '#f8fafc',
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 900,
+        lineHeight: 1.2,
     },
-    drawerSubtitle: {
-        margin: '5px 0 0',
-        color: '#94a3b8',
-        fontSize: 12,
-    },
+
     closeButton: {
         flex: '0 0 auto',
-        width: 34,
-        height: 34,
-        borderRadius: 12,
+        width: 30,
+        height: 30,
+        borderRadius: 10,
         border: '1px solid rgba(148, 163, 184, 0.2)',
         background: 'rgba(30, 41, 59, 0.75)',
         color: '#e5e7eb',
         cursor: 'pointer',
-        fontSize: 22,
+        fontSize: 20,
         lineHeight: 1,
     },
+
     drawerBody: {
         flex: '1 1 auto',
+        minHeight: 0,
+        maxHeight: 'calc(100vh - 50px)',
         overflowY: 'auto',
-        padding: 14,
+        overscrollBehavior: 'contain',
+        padding: 12,
         display: 'grid',
-        gap: 12,
+        alignContent: 'start',
+        gap: 10,
     },
+
     selectedBox: {
         border: '1px solid rgba(96, 165, 250, 0.24)',
-        borderRadius: 16,
-        padding: 12,
-        background: 'rgba(37, 99, 235, 0.1)',
+        borderRadius: 15,
+        padding: 11,
+        background: 'rgba(37, 99, 235, 0.10)',
     },
+
     selectedHeader: {
         display: 'flex',
         justifyContent: 'space-between',
         gap: 10,
         alignItems: 'flex-start',
     },
+
+    selectedTitleGroup: {
+        minWidth: 0,
+    },
+
     selectedTitle: {
         color: '#bfdbfe',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 900,
     },
+
     selectedTaskName: {
-        marginTop: 5,
+        marginTop: 4,
         color: '#f8fafc',
         fontSize: 14,
         fontWeight: 850,
-        lineHeight: 1.4,
+        lineHeight: 1.35,
+        overflowWrap: 'anywhere',
     },
+
     priorityBadge: {
         border: '1px solid rgba(251, 113, 133, 0.42)',
         background: 'rgba(251, 113, 133, 0.14)',
@@ -867,11 +959,13 @@ const styles: Record<string, CSSProperties> = {
         fontWeight: 900,
         whiteSpace: 'nowrap',
     },
+
     selectedControls: {
         display: 'grid',
         gap: 8,
-        marginTop: 12,
+        marginTop: 10,
     },
+
     inputLabel: {
         display: 'grid',
         gap: 5,
@@ -879,6 +973,7 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 12,
         fontWeight: 800,
     },
+
     dateInput: {
         border: '1px solid rgba(148, 163, 184, 0.22)',
         background: '#020617',
@@ -886,7 +981,28 @@ const styles: Record<string, CSSProperties> = {
         borderRadius: 10,
         padding: '8px 10px',
         fontSize: 13,
+        colorScheme: 'dark',
     },
+
+    detailTextarea: {
+        border: '1px solid rgba(148, 163, 184, 0.22)',
+        background: '#020617',
+        color: '#f8fafc',
+        borderRadius: 10,
+        padding: '9px 10px',
+        fontSize: 13,
+        lineHeight: 1.55,
+        resize: 'vertical',
+        minHeight: 96,
+        outline: 'none',
+    },
+
+    selectedButtonGrid: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 8,
+    },
+
     secondaryButton: {
         border: '1px solid rgba(148, 163, 184, 0.22)',
         background: 'rgba(30, 41, 59, 0.72)',
@@ -897,6 +1013,7 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 12,
         fontWeight: 850,
     },
+
     completeButton: {
         border: '1px solid rgba(34, 197, 94, 0.35)',
         background: 'rgba(22, 163, 74, 0.16)',
@@ -907,12 +1024,14 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 12,
         fontWeight: 900,
     },
+
     section: {
         border: '1px solid rgba(148, 163, 184, 0.18)',
-        borderRadius: 16,
+        borderRadius: 14,
         background: 'rgba(15, 23, 42, 0.62)',
         overflow: 'hidden',
     },
+
     sectionHeader: {
         width: '100%',
         display: 'flex',
@@ -922,9 +1041,11 @@ const styles: Record<string, CSSProperties> = {
         border: 0,
         background: 'rgba(30, 41, 59, 0.55)',
         color: '#e5e7eb',
-        padding: '11px 12px',
+        padding: '9px 11px',
+        minHeight: 40,
         cursor: 'pointer',
     },
+
     sectionTitle: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -932,14 +1053,16 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 13,
         fontWeight: 900,
     },
+
     sectionRight: {
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 8,
+        gap: 7,
     },
+
     countBadge: {
-        minWidth: 22,
-        height: 20,
+        minWidth: 21,
+        height: 19,
         borderRadius: 999,
         display: 'inline-grid',
         placeItems: 'center',
@@ -948,23 +1071,28 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 11,
         fontWeight: 900,
     },
+
     chevron: {
         color: '#94a3b8',
-        fontSize: 14,
+        fontSize: 13,
     },
+
     sectionBody: {
-        padding: 12,
+        padding: 10,
     },
+
     taskList: {
         display: 'grid',
         gap: 8,
     },
+
     taskRow: {
         border: '1px solid rgba(148, 163, 184, 0.14)',
-        borderRadius: 13,
-        padding: 10,
+        borderRadius: 12,
+        padding: 9,
         background: 'rgba(2, 6, 23, 0.38)',
     },
+
     checkboxRow: {
         display: 'flex',
         alignItems: 'center',
@@ -974,23 +1102,27 @@ const styles: Record<string, CSSProperties> = {
         fontWeight: 850,
         lineHeight: 1.4,
     },
+
     taskTitle: {
         minWidth: 0,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
     },
+
     taskMeta: {
-        marginTop: 6,
+        marginTop: 5,
         color: '#94a3b8',
         fontSize: 11,
     },
+
     taskFooter: {
-        marginTop: 8,
+        marginTop: 7,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 8,
     },
+
     pathText: {
         color: '#64748b',
         fontSize: 11,
@@ -998,6 +1130,7 @@ const styles: Record<string, CSSProperties> = {
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
     },
+
     textButton: {
         border: 0,
         background: 'transparent',
@@ -1007,35 +1140,40 @@ const styles: Record<string, CSSProperties> = {
         fontWeight: 800,
         whiteSpace: 'nowrap',
     },
+
     priorityItem: {
         display: 'grid',
-        gridTemplateColumns: '32px minmax(0, 1fr) auto',
-        gap: 9,
+        gridTemplateColumns: '30px minmax(0, 1fr) auto',
+        gap: 8,
         alignItems: 'center',
         border: '1px solid rgba(251, 113, 133, 0.24)',
-        borderRadius: 14,
-        padding: 10,
+        borderRadius: 13,
+        padding: 9,
         background: 'rgba(127, 29, 29, 0.12)',
         cursor: 'grab',
     },
+
     priorityRank: {
-        width: 28,
-        height: 28,
+        width: 26,
+        height: 26,
         display: 'grid',
         placeItems: 'center',
-        borderRadius: 10,
+        borderRadius: 9,
         background: 'rgba(251, 113, 133, 0.18)',
         color: '#fecdd3',
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 950,
     },
+
     priorityContent: {
         minWidth: 0,
     },
+
     priorityActions: {
         display: 'grid',
-        gap: 5,
+        gap: 4,
     },
+
     miniButton: {
         border: '1px solid rgba(148, 163, 184, 0.18)',
         background: 'rgba(30, 41, 59, 0.72)',
@@ -1046,12 +1184,14 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 11,
         fontWeight: 800,
     },
+
     calendarTabs: {
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: 8,
-        marginBottom: 12,
+        marginBottom: 10,
     },
+
     calendarTab: {
         border: '1px solid rgba(148, 163, 184, 0.18)',
         background: 'rgba(15, 23, 42, 0.8)',
@@ -1062,36 +1202,40 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 12,
         fontWeight: 900,
     },
+
     calendarTabActive: {
         borderColor: 'rgba(96, 165, 250, 0.42)',
         background: 'rgba(37, 99, 235, 0.18)',
         color: '#bfdbfe',
     },
+
     weeklyList: {
         display: 'grid',
-        gap: 12,
-        maxHeight: 360,
-        overflowY: 'auto',
+        gap: 10,
     },
+
     weeklyDay: {
         display: 'grid',
-        gap: 8,
+        gap: 7,
     },
+
     weeklyDayTitle: {
         color: '#fde68a',
         fontSize: 12,
         fontWeight: 900,
     },
+
     monthHeader: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 8,
-        marginBottom: 10,
+        marginBottom: 9,
     },
+
     monthButton: {
-        width: 32,
-        height: 32,
+        width: 30,
+        height: 30,
         borderRadius: 10,
         border: '1px solid rgba(148, 163, 184, 0.2)',
         background: 'rgba(30, 41, 59, 0.75)',
@@ -1099,34 +1243,40 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 18,
     },
+
     monthTitle: {
         color: '#f8fafc',
         fontSize: 14,
         fontWeight: 900,
     },
+
     weekLabels: {
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
         gap: 5,
         marginBottom: 5,
     },
+
     weekLabel: {
         textAlign: 'center',
         color: '#64748b',
         fontSize: 11,
         fontWeight: 900,
     },
+
     monthGrid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
         gap: 5,
     },
+
     monthEmptyCell: {
-        minHeight: 38,
+        minHeight: 36,
     },
+
     monthCell: {
         position: 'relative',
-        minHeight: 38,
+        minHeight: 36,
         borderRadius: 10,
         border: '1px solid rgba(148, 163, 184, 0.12)',
         background: 'rgba(2, 6, 23, 0.38)',
@@ -1134,14 +1284,17 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 12,
     },
+
     monthCellSelected: {
         borderColor: 'rgba(250, 204, 21, 0.54)',
         background: 'rgba(250, 204, 21, 0.12)',
         color: '#fde68a',
     },
+
     monthCellHasCompleted: {
         borderColor: 'rgba(34, 197, 94, 0.38)',
     },
+
     monthCount: {
         position: 'absolute',
         right: 3,
@@ -1155,39 +1308,45 @@ const styles: Record<string, CSSProperties> = {
         lineHeight: '15px',
         fontWeight: 900,
     },
+
     completedListBox: {
-        marginTop: 14,
+        marginTop: 12,
         borderTop: '1px solid rgba(148, 163, 184, 0.14)',
-        paddingTop: 12,
+        paddingTop: 10,
     },
+
     completedListTitle: {
         color: '#e5e7eb',
         fontSize: 12,
         fontWeight: 900,
         marginBottom: 8,
     },
+
     emptyBox: {
-        margin: 14,
         padding: 20,
         textAlign: 'center',
         border: '1px dashed rgba(148, 163, 184, 0.22)',
         borderRadius: 16,
         background: 'rgba(15, 23, 42, 0.52)',
     },
+
     emptyIcon: {
         fontSize: 34,
     },
+
     emptyTitle: {
         margin: '10px 0 0',
         color: '#f8fafc',
         fontWeight: 900,
     },
+
     emptyText: {
         margin: '8px 0 0',
         color: '#94a3b8',
         fontSize: 12,
         lineHeight: 1.6,
     },
+
     emptyMessage: {
         margin: 0,
         color: '#64748b',

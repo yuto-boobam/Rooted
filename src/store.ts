@@ -12,13 +12,11 @@ import type {
 } from './types';
 import { PROJECT_COLORS, PROJECT_ICONS } from './types';
 import { supabase } from './utils/supabaseClient';
+import { getDueUrgencyColors } from './utils/dueDateColor';
 
 // ── UI用定数 ─────────────────────────────────────────────────────────────
 
 export const PRIORITY_TASK_BORDER_COLOR = '#fb7185';
-export const DUE_SOON_BACKGROUND_COLOR = 'rgba(88, 28, 135, 0.46)';
-export const DUE_TODAY_BACKGROUND_COLOR = 'rgba(127, 29, 29, 0.50)';
-export const DUE_OVERDUE_BACKGROUND_COLOR = 'rgba(136, 19, 55, 0.56)';
 
 const DEFAULT_RIGHT_PANEL_STATE: RightPanelState = {
   isOpen: false,
@@ -80,12 +78,7 @@ function getDueBackgroundColor(
   if (!dueDate || completed) return null;
 
   const diff = daysFromToday(dueDate);
-
-  if (diff < 0) return DUE_OVERDUE_BACKGROUND_COLOR;
-  if (diff === 0) return DUE_TODAY_BACKGROUND_COLOR;
-  if (diff <= 7) return DUE_SOON_BACKGROUND_COLOR;
-
-  return null;
+  return getDueUrgencyColors(diff)?.background ?? null;
 }
 
 function clampProgress(value: unknown): number {

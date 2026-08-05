@@ -295,11 +295,7 @@ export function TreePage() {
         style={{ position: 'relative' }}
       >
         <div className="min-w-max min-h-full flex items-center p-12 gap-[60px] relative">
-          <ConnectionsOverlay
-            root={root}
-            columns={columns}
-            accentColor={accentColor}
-          />
+          <ConnectionsOverlay root={root} columns={columns} />
 
           {/* 左端：ルートノードカード */}
           <div
@@ -586,11 +582,9 @@ function DropZone({
 function ConnectionsOverlay({
   root,
   columns,
-  accentColor,
 }: {
   root: TaskNode;
   columns: TreeColumn[];
-  accentColor: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [paths, setPaths] = useState<{ id: string; d: string }[]>([]);
@@ -717,7 +711,7 @@ function ConnectionsOverlay({
           key={path.id}
           d={path.d}
           fill="none"
-          stroke={accentColor}
+          stroke="var(--text-primary)"
           strokeWidth="2"
           strokeOpacity="0.5"
         />

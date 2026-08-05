@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import type { TaskNode } from '../types';
+import { getDueUrgencyColors } from '../utils/dueDateColor';
 
 type Props = {
   node: TaskNode;
@@ -66,7 +67,21 @@ export function TaskNodeCard({
     }
   };
 
-  const borderColor = isSelected ? accentColor : 'var(--border)';
+  // 期限が7日以内（当日・超過含む）なら橙色→赤色→深紅のグラデーションで警告表示。
+  // 完了済みノードは対象外。未完了で期限に余裕がある／未設定の場合は
+  // ノード同士を結ぶ線と同じ見た目になるよう、半透明の白
+  // （var(--text-primary)。ライトモード実装時は黒に切り替わる想定）にする。
+  const dueUrgency =
+    !node.completed && node.dueDate
+      ? getDueUrgencyColors(daysUntil(node.dueDate))
+      : null;
+  const DEFAULT_BORDER_COLOR = 'color-mix(in srgb, var(--text-primary) 50%, transparent)';
+
+  const borderColor = isSelected
+    ? accentColor
+    : node.completed
+      ? 'var(--border)'
+      : (dueUrgency?.accent ?? DEFAULT_BORDER_COLOR);
   const glowStyle = isSelected ? `0 0 0 1px ${accentColor}40` : 'none';
 
   return (
@@ -217,8 +232,12 @@ export function TaskNodeCard({
       {/* ── 期限表示 */}
       {node.dueDate && (
         <div
-          className="flex items-center gap-1 text-xs"
-          style={{ color: 'var(--text-muted)' }}
+          className="flex items-center gap-1 text-xs font-medium"
+          style={{
+            color: node.completed
+              ? 'var(--text-muted)'
+              : (dueUrgency?.accent ?? 'var(--text-primary)'),
+          }}
         >
           <span>📅</span>
           <span>期限: {formatDueDate(node.dueDate)}</span>
@@ -232,7 +251,14 @@ export function TaskNodeCard({
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
               📋 {node.children.length}
             </span>
-            <span className="text-xs font-medium" style={{ color: accentColor }}>
+            <span
+              className="text-xs font-medium"
+              style={{
+                color: isSelected
+                  ? accentColor
+                  : (dueUrgency?.accent ?? 'var(--text-primary)'),
+              }}
+            >
               {progress}%
             </span>
           </div>
@@ -259,6 +285,17 @@ export function TaskNodeCard({
       )}
     </div>
   );
+}
+
+/** 期限日（YYYY-MM-DD）までの残り日数（0 = 当日、負の値 = 超過）を返す */
+function daysUntil(dueDate: string): number {
+  const [year, month, day] = dueDate.split('-').map(Number);
+  const target = new Date(year, month - 1, day).getTime();
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  return Math.round((target - today) / (24 * 60 * 60 * 1000));
 }
 
 /** 期限日（YYYY-MM-DD）を "M/D" 表記に変換する */

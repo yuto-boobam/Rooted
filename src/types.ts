@@ -1,12 +1,41 @@
-// アプリ全体で使用するTypeScriptの型定義
+// src/types.ts
+// アプリ全体で使用する TypeScript の型定義
+
+/** 優先度の数値（1位, 2位, 3位...）または未設定 */
+export type PriorityOrder = number | null;
+
+/** カレンダーの表示モード */
+export type CalendarViewMode = 'weekly' | 'monthly';
+
+/** 表示するページ */
+export type View = 'dashboard' | 'tree';
 
 /** 1つのタスクノード（木の節 or 葉） */
 export type TaskNode = {
+  // --- 基本情報 ---
   id: string;
   title: string;
-  memo: string;        // 1行概要メモ
-  completed: boolean;  // 完了フラグ（leafのみ有効）
-  progress: number;    // 0–100（refreshProgressボタンで再計算、それ以外は変化しない）
+  memo: string; // 概要メモ（1行ほどの短い説明）
+  detailMemo: string; // 詳細メモ（具体的な手順・内容など）
+
+  // --- 進捗・完了フラグ ---
+  completed: boolean;
+  progress: number; // 0–100
+
+  // --- 優先タスク ---
+  isPriority: boolean;
+  priorityOrder: PriorityOrder;
+
+  // --- 期限 ---
+  dueDate: string | null; // YYYY-MM-DD
+  backgroundColor: string | null; // 期限接近時に UI 側で使う背景色
+
+  // --- 日付と登録者管理 ---
+  createdBy: string;
+  createdAt: string;
+  completedAt: string | null;
+
+  // --- 子ノード ---
   children: TaskNode[];
 };
 
@@ -15,29 +44,47 @@ export type Project = {
   id: string;
   title: string;
   description: string;
-  icon: string;        // 絵文字アイコン
-  color: string;       // アクセントカラー (hex)
-  starred: boolean;    // お気に入りフラグ
-  createdAt: string;   // ISO文字列
-  updatedAt: string;   // ISO文字列
-  progress: number;    // 0–100（更新ボタンで再計算）
-  rootTask: TaskNode;  // 木構造のルートノード
+  icon: string;
+  color: string;
+  starred: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  progress: number;
+  rootTask: TaskNode;
 };
 
-/** 表示するページ */
-export type View = 'dashboard' | 'tree';
+/** 右側サイドパネルのトグル UI 状態 */
+export type RightPanelState = {
+  isOpen: boolean;
+  isTodayDueOpen: boolean;
+  isPriorityListOpen: boolean;
+  isCalendarOpen: boolean;
+  calendarMode: CalendarViewMode;
+};
 
 /** プロジェクトカードのカラーパレット */
 export const PROJECT_COLORS = [
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#a855f7', // purple
-  '#f97316', // orange
-  '#ec4899', // pink
-  '#14b8a6', // teal
-  '#eab308', // yellow
-  '#ef4444', // red
+  '#3b82f6',
+  '#22c55e',
+  '#a855f7',
+  '#f97316',
+  '#ec4899',
+  '#14b8a6',
+  '#eab308',
+  '#ef4444',
 ] as const;
 
 /** プロジェクトカードの絵文字アイコン */
-export const PROJECT_ICONS = ['📁', '📚', '🎯', '💻', '🌱', '🔬', '🎨', '📊', '🚀', '💡'] as const;
+export const PROJECT_ICONS = [
+  '📁',
+  '📚',
+  '🎯',
+  '💻',
+  '🌱',
+  '🔬',
+  '🎨',
+  '📊',
+  '🚀',
+  '💡',
+] as const;

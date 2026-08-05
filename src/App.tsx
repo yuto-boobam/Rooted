@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from './store';
 import { DashboardPage } from './pages/DashboardPage';
 import { TreePage } from './pages/TreePage';
@@ -14,8 +14,24 @@ function App() {
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
 
+  // localStorageからの復元（persist middleware）が完了するまで待つ。
+  // 復元が終わる前にsetUser等でstore.set()を呼ぶと、persistミドルウェアが
+  // まだ復元されていない初期状態（projects: [] 等）をlocalStorageへ
+  // 上書き保存してしまい、保存済みデータが消える原因になるため。
+  const [hasHydrated, setHasHydrated] = useState(() =>
+    useAppStore.persist.hasHydrated(),
+  );
+
+  useEffect(() => {
+    if (hasHydrated) return;
+
+    return useAppStore.persist.onFinishHydration(() => setHasHydrated(true));
+  }, [hasHydrated]);
+
   // アプリ起動時およびセッション変更時にSupabaseの認証状態を同期
   useEffect(() => {
+    if (!hasHydrated) return;
+
     // 現在のセッションを一度だけ取得
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -27,7 +43,11 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser]);
+  }, [hasHydrated, setUser]);
+
+  if (!hasHydrated) {
+    return null;
+  }
 
   if (!user) {
     return <AuthPage />;

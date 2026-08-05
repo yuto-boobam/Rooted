@@ -105,14 +105,36 @@ export function TreePage() {
 
   // モーダル確定ハンドラ
   const handleModalConfirm = useCallback(
-    (title: string, memo: string) => {
+    (
+      title: string,
+      memo: string,
+      detailMemo: string,
+      dueDate: string | null,
+      isPriority: boolean,
+    ) => {
       if (!modal.open) return;
       if (!projectId) return;
 
       const newId =
         modal.mode === 'child'
-          ? addChildNode(projectId, modal.targetId, title, memo)
-          : addSiblingNode(projectId, modal.targetId, title, memo);
+          ? addChildNode(
+              projectId,
+              modal.targetId,
+              title,
+              memo,
+              detailMemo,
+              dueDate,
+              isPriority,
+            )
+          : addSiblingNode(
+              projectId,
+              modal.targetId,
+              title,
+              memo,
+              detailMemo,
+              dueDate,
+              isPriority,
+            );
 
       selectNode(newId);
       closeModal();

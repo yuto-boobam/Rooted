@@ -1,4 +1,5 @@
-// アプリ全体で使用するTypeScriptの型定義
+// src/types.ts
+// アプリ全体で使用する TypeScript の型定義
 
 /** 優先度の数値（1位, 2位, 3位...）または未設定 */
 export type PriorityOrder = number | null;
@@ -18,21 +19,21 @@ export type TaskNode = {
   detailMemo: string; // 詳細メモ（具体的な手順・内容など）
 
   // --- 進捗・完了フラグ ---
-  completed: boolean; // 完了フラグ
-  progress: number; // 0–100（進捗率）
+  completed: boolean;
+  progress: number; // 0–100
 
   // --- 優先タスク ---
-  isPriority: boolean; // trueなら枠線色をUI側で変更＆右パネルに表示
-  priorityOrder: PriorityOrder; // 優先タスク内での順位（1, 2, 3...）
+  isPriority: boolean;
+  priorityOrder: PriorityOrder;
 
   // --- 期限 ---
-  dueDate: string | null; // 期限日（YYYY-MM-DD）
-  backgroundColor: string | null; // 期限接近時に変化する「内側の色」
+  dueDate: string | null; // YYYY-MM-DD
+  backgroundColor: string | null; // 期限接近時に UI 側で使う背景色
 
   // --- 日付と登録者管理 ---
-  createdBy: string; // 登録したユーザーのニックネーム
-  createdAt: string; // 作成日時（ISO文字列）
-  completedAt: string | null; // 達成日時
+  createdBy: string;
+  createdAt: string;
+  completedAt: string | null;
 
   // --- 子ノード ---
   children: TaskNode[];
@@ -53,7 +54,7 @@ export type Project = {
   rootTask: TaskNode;
 };
 
-/** 右側サイドパネルのトグルUI状態 */
+/** 右側サイドパネルのトグル UI 状態 */
 export type RightPanelState = {
   isOpen: boolean;
   isTodayDueOpen: boolean;

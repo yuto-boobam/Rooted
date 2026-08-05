@@ -1,3 +1,5 @@
+// src/store.ts
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@supabase/supabase-js';
@@ -26,7 +28,7 @@ const DEFAULT_RIGHT_PANEL_STATE: RightPanelState = {
   calendarMode: 'weekly',
 };
 
-type RightPanelSectionKey =
+export type RightPanelSectionKey =
   | 'isTodayDueOpen'
   | 'isPriorityListOpen'
   | 'isCalendarOpen';
@@ -55,6 +57,7 @@ function isDateKey(value: string | null | undefined): value is string {
 
 function normalizeDateKey(value: string | null | undefined): string | null {
   if (!value) return null;
+
   const trimmed = value.trim();
   return isDateKey(trimmed) ? trimmed : null;
 }
@@ -100,31 +103,44 @@ function safeString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-/** 新しいタスクノードを作成する */
+/**
+ * 新しいタスクノードを作成する
+ *
+ * detailMemo / dueDate / isPriority を追加。
+ * priorityOrder はここでは決めず、prepareRoot() 内の normalizePriorityOrders() で採番する。
+ */
 export const makeNode = (
   title = '新しいタスク',
   memo = '',
   createdBy = '',
-): TaskNode => ({
-  id: makeId(),
-  title,
-  memo,
-  detailMemo: '',
-  completed: false,
-  progress: 0,
+  detailMemo = '',
+  dueDate: string | null = null,
+  isPriority = false,
+): TaskNode => {
+  const normalizedDueDate = normalizeDateKey(dueDate);
+  const normalizedTitle = title.trim() || '新しいタスク';
 
-  isPriority: false,
-  priorityOrder: null,
+  return {
+    id: makeId(),
+    title: normalizedTitle,
+    memo,
+    detailMemo,
+    completed: false,
+    progress: 0,
 
-  dueDate: null,
-  backgroundColor: null,
+    isPriority,
+    priorityOrder: null,
 
-  createdBy,
-  createdAt: new Date().toISOString(),
-  completedAt: null,
+    dueDate: normalizedDueDate,
+    backgroundColor: getDueBackgroundColor(normalizedDueDate, false),
 
-  children: [],
-});
+    createdBy,
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+
+    children: [],
+  };
+};
 
 /** 新しいプロジェクトを作成する */
 const makeProject = (
@@ -308,7 +324,6 @@ function applyPriorityOrder(root: TaskNode, orderedIds: string[]): TaskNode {
   });
 }
 
-
 function movePriorityInRoot(
   root: TaskNode,
   nodeId: string,
@@ -446,7 +461,6 @@ function normalizeTaskNode(
   };
 }
 
-
 function normalizeProject(project: Partial<Project>): Project {
   const createdBy = safeString(project.createdBy, '');
   const title = safeString(project.title, '無題のプロジェクト');
@@ -523,20 +537,30 @@ export type AppState = {
     parentId: string,
     title?: string,
     memo?: string,
+    detailMemo?: string,
+    dueDate?: string | null,
+    isPriority?: boolean,
   ) => string;
+
   addSiblingNode: (
     projectId: string,
     nodeId: string,
     title?: string,
     memo?: string,
+    detailMemo?: string,
+    dueDate?: string | null,
+    isPriority?: boolean,
   ) => string;
+
   deleteNode: (projectId: string, nodeId: string) => void;
   toggleComplete: (projectId: string, nodeId: string) => void;
+
   setNodeCompletion: (
     projectId: string,
     nodeId: string,
     completed: boolean,
   ) => void;
+
   completeNodeAfterDelay: (
     projectId: string,
     nodeId: string,
@@ -548,16 +572,19 @@ export type AppState = {
     nodeId: string,
     title: string,
   ) => void;
+
   updateNodeMemo: (
     projectId: string,
     nodeId: string,
     memo: string,
   ) => void;
+
   updateNodeDetailMemo: (
     projectId: string,
     nodeId: string,
     detailMemo: string,
   ) => void;
+
   updateNodeDueDate: (
     projectId: string,
     nodeId: string,
@@ -565,16 +592,19 @@ export type AppState = {
   ) => void;
 
   toggleNodePriority: (projectId: string, nodeId: string) => void;
+
   setNodePriority: (
     projectId: string,
     nodeId: string,
     isPriority: boolean,
   ) => void;
+
   movePriorityTask: (
     projectId: string,
     nodeId: string,
     direction: 'up' | 'down',
   ) => void;
+
   reorderPriorityTasks: (
     projectId: string,
     activeNodeId: string,
@@ -587,6 +617,7 @@ export type AppState = {
     fromIndex: number,
     toIndex: number,
   ) => void;
+
   moveNode: (
     projectId: string,
     nodeId: string,
@@ -622,12 +653,14 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       user: null,
+
       setUser: (user) => {
         const nickname = (user?.user_metadata?.nickname as string) ?? '';
         set({ user, nickname });
       },
 
       nickname: '',
+
       setNickname: async (nickname) => {
         const { error } = await supabase.auth.updateUser({
           data: { nickname },
@@ -696,9 +729,25 @@ export const useAppStore = create<AppState>()(
 
       // ──── ノード操作 ─────────────────────────────────────────────────
 
-      addChildNode: (projectId, parentId, title, memo) => {
+      addChildNode: (
+        projectId,
+        parentId,
+        title,
+        memo,
+        detailMemo,
+        dueDate,
+        isPriority,
+      ) => {
         const { nickname } = get();
-        const newNode = makeNode(title, memo, nickname);
+
+        const newNode = makeNode(
+          title,
+          memo,
+          nickname,
+          detailMemo,
+          dueDate ?? null,
+          Boolean(isPriority),
+        );
 
         set((state) => ({
           projects: state.projects.map((project) => {
@@ -716,9 +765,25 @@ export const useAppStore = create<AppState>()(
         return newNode.id;
       },
 
-      addSiblingNode: (projectId, nodeId, title, memo) => {
+      addSiblingNode: (
+        projectId,
+        nodeId,
+        title,
+        memo,
+        detailMemo,
+        dueDate,
+        isPriority,
+      ) => {
         const { nickname } = get();
-        const newNode = makeNode(title, memo, nickname);
+
+        const newNode = makeNode(
+          title,
+          memo,
+          nickname,
+          detailMemo,
+          dueDate ?? null,
+          Boolean(isPriority),
+        );
 
         set((state) => ({
           projects: state.projects.map((project) => {
@@ -792,7 +857,6 @@ export const useAppStore = create<AppState>()(
           }),
         }));
       },
-
 
       completeNodeAfterDelay: (projectId, nodeId, delayMs = 1800) => {
         const timerKey = `${projectId}:${nodeId}`;
@@ -1079,7 +1143,7 @@ export const useAppStore = create<AppState>()(
       openPatchNotesModal: (date) => {
         set({
           isPatchNotesModalOpen: true,
-          ...(date !== undefined ? { selectedPatchNoteDate: date } : {}),
+          selectedPatchNoteDate: date ?? null,
         });
       },
 
@@ -1142,6 +1206,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'rooted-storage',
+
       partialize: (state) => ({
         projects: state.projects,
         view: state.view,
@@ -1152,6 +1217,7 @@ export const useAppStore = create<AppState>()(
           isOpen: false,
         },
       }),
+
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AppState> | undefined;
 

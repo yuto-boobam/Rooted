@@ -1,4 +1,4 @@
-export type PatchNoteType = 'feature' | 'bugfix' | 'other';
+export type PatchNoteType = 'feature' | 'bugfix' | 'spec-change' | 'other';
 
 export interface PatchNote {
   id: string;

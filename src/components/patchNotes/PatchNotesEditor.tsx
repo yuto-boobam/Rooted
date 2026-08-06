@@ -204,6 +204,7 @@ export default function PatchNotesEditor({
             >
               <option value="feature">feature / 新機能</option>
               <option value="bugfix">bugfix / バグ修正</option>
+              <option value="spec-change">spec-change / 仕様変更</option>
               <option value="other">other / その他</option>
             </select>
           </label>

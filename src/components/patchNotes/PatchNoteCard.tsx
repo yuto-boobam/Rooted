@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PatchNote, PatchNoteType } from '../../types/patchNote';
 
@@ -26,6 +27,12 @@ const TYPE_META: Record<
     color: '#fecaca',
     background: 'rgba(220, 38, 38, 0.16)',
     border: 'rgba(248, 113, 113, 0.42)',
+  },
+  'spec-change': {
+    label: '仕様変更',
+    color: '#99f6e4',
+    background: 'rgba(13, 148, 136, 0.18)',
+    border: 'rgba(45, 212, 191, 0.42)',
   },
   other: {
     label: 'その他',
@@ -84,6 +91,23 @@ export default function PatchNoteCard({ note, showDate = false }: PatchNoteCardP
 }
 
 function ImageCard({ label, src, title }: { label: string; src: string; title: string }) {
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isLightboxOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsLightboxOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen]);
+
   return (
     <figure style={styles.imageCard}>
       <figcaption style={styles.imageLabel}>{label}</figcaption>
@@ -92,10 +116,35 @@ function ImageCard({ label, src, title }: { label: string; src: string; title: s
         alt={`${title} - ${label}`}
         style={styles.image}
         loading="lazy"
+        onClick={() => setIsLightboxOpen(true)}
         onError={(event) => {
           event.currentTarget.style.opacity = '0.35';
         }}
       />
+
+      {isLightboxOpen && (
+        <div
+          style={styles.lightboxOverlay}
+          role="presentation"
+          onMouseDown={() => setIsLightboxOpen(false)}
+        >
+          <button
+            type="button"
+            style={styles.lightboxCloseButton}
+            aria-label="閉じる"
+            onClick={() => setIsLightboxOpen(false)}
+          >
+            ×
+          </button>
+
+          <img
+            src={src}
+            alt={`${title} - ${label}`}
+            style={styles.lightboxImage}
+            onMouseDown={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
     </figure>
   );
 }
@@ -186,5 +235,38 @@ const styles: Record<string, CSSProperties> = {
     maxHeight: 260,
     objectFit: 'cover',
     background: '#020617',
+    cursor: 'zoom-in',
+  },
+  lightboxOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 2000,
+    display: 'grid',
+    placeItems: 'center',
+    padding: 24,
+    background: 'rgba(2, 6, 23, 0.88)',
+    backdropFilter: 'blur(6px)',
+  },
+  lightboxImage: {
+    display: 'block',
+    maxWidth: '90vw',
+    maxHeight: '90vh',
+    objectFit: 'contain',
+    borderRadius: 12,
+    boxShadow: '0 24px 90px rgba(0, 0, 0, 0.6)',
+  },
+  lightboxCloseButton: {
+    position: 'fixed',
+    top: 24,
+    right: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    border: '1px solid rgba(148, 163, 184, 0.3)',
+    background: 'rgba(30, 41, 59, 0.85)',
+    color: '#e5e7eb',
+    cursor: 'pointer',
+    fontSize: 24,
+    lineHeight: 1,
   },
 };

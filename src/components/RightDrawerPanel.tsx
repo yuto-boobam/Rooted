@@ -28,6 +28,9 @@ export default function RightDrawerPanel() {
     const currentProjectId = useAppStore((state) => state.currentProjectId);
     const selectedPath = useAppStore((state) => state.selectedPath);
 
+    const theme = useAppStore((state) => state.theme);
+    const toggleTheme = useAppStore((state) => state.toggleTheme);
+
     const rightPanel = useAppStore((state) => state.rightPanel);
     const closeRightPanel = useAppStore((state) => state.closeRightPanel);
     const toggleRightPanelSection = useAppStore(
@@ -39,6 +42,10 @@ export default function RightDrawerPanel() {
 
     const selectNode = useAppStore((state) => state.selectNode);
     const updateNodeDueDate = useAppStore((state) => state.updateNodeDueDate);
+    const updateNodeCompletedAt = useAppStore(
+        (state) => state.updateNodeCompletedAt,
+    );
+    const updateNodeMemo = useAppStore((state) => state.updateNodeMemo);
     const updateNodeDetailMemo = useAppStore(
         (state) => state.updateNodeDetailMemo,
     );
@@ -169,7 +176,27 @@ export default function RightDrawerPanel() {
                 aria-hidden={!rightPanel.isOpen}
             >
                 <header style={styles.drawerHeader}>
-                    <h2 style={styles.drawerTitle}>⚡ タスク集中パネル</h2>
+                    <div style={styles.drawerTitleGroup}>
+                        <h2 style={styles.drawerTitle}>⚡ タスク集中パネル</h2>
+
+                        <button
+                            type="button"
+                            style={styles.themeToggleButton}
+                            onClick={toggleTheme}
+                            aria-label={
+                                theme === 'dark'
+                                    ? 'ライトモードに切り替え'
+                                    : 'ダークモードに切り替え'
+                            }
+                            title={
+                                theme === 'dark'
+                                    ? 'ライトモードに切り替え'
+                                    : 'ダークモードに切り替え'
+                            }
+                        >
+                            {theme === 'dark' ? '🌙' : '☀️'}
+                        </button>
+                    </div>
 
                     <button
                         type="button"
@@ -182,7 +209,7 @@ export default function RightDrawerPanel() {
                 </header>
 
                 {!currentProject ? (
-                    <div style={styles.drawerBody}>
+                    <div className="drawer-scroll" style={styles.drawerBody}>
                         <div style={styles.emptyBox}>
                             <div style={styles.emptyIcon}>📂</div>
                             <p style={styles.emptyTitle}>プロジェクトが選択されていません</p>
@@ -192,7 +219,7 @@ export default function RightDrawerPanel() {
                         </div>
                     </div>
                 ) : (
-                    <div style={styles.drawerBody}>
+                    <div className="drawer-scroll" style={styles.drawerBody}>
                         <SelectedTaskEditor
                             task={selectedTask}
                             onTogglePriority={() => {
@@ -205,6 +232,22 @@ export default function RightDrawerPanel() {
                                     selectedTask.projectId,
                                     selectedTask.node.id,
                                     dueDate,
+                                );
+                            }}
+                            onChangeCompletedAt={(completedAt) => {
+                                if (!selectedTask) return;
+                                updateNodeCompletedAt(
+                                    selectedTask.projectId,
+                                    selectedTask.node.id,
+                                    completedAt,
+                                );
+                            }}
+                            onChangeMemo={(memo) => {
+                                if (!selectedTask) return;
+                                updateNodeMemo(
+                                    selectedTask.projectId,
+                                    selectedTask.node.id,
+                                    memo,
                                 );
                             }}
                             onChangeDetailMemo={(detailMemo) => {
@@ -411,6 +454,8 @@ function SelectedTaskEditor({
     isPending,
     onTogglePriority,
     onChangeDueDate,
+    onChangeCompletedAt,
+    onChangeMemo,
     onChangeDetailMemo,
     onComplete,
 }: {
@@ -418,6 +463,8 @@ function SelectedTaskEditor({
     isPending: boolean;
     onTogglePriority: () => void;
     onChangeDueDate: (dueDate: string | null) => void;
+    onChangeCompletedAt: (completedAt: string | null) => void;
+    onChangeMemo: (memo: string) => void;
     onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
 }) {
@@ -450,6 +497,17 @@ function SelectedTaskEditor({
 
             <div style={styles.selectedControls}>
                 <label style={styles.inputLabel}>
+                    概要メモ
+                    <input
+                        type="text"
+                        value={task.node.memo}
+                        placeholder="概要メモを入力..."
+                        style={styles.dateInput}
+                        onChange={(event) => onChangeMemo(event.target.value)}
+                    />
+                </label>
+
+                <label style={styles.inputLabel}>
                     期限
                     <input
                         type="date"
@@ -458,6 +516,20 @@ function SelectedTaskEditor({
                         onChange={(event) => onChangeDueDate(event.target.value || null)}
                     />
                 </label>
+
+                {task.node.completed && (
+                    <label style={styles.inputLabel}>
+                        達成日
+                        <input
+                            type="date"
+                            value={task.node.completedAt ?? ''}
+                            style={styles.dateInput}
+                            onChange={(event) =>
+                                onChangeCompletedAt(event.target.value || null)
+                            }
+                        />
+                    </label>
+                )}
 
                 <label style={styles.inputLabel}>
                     詳細メモ
@@ -861,34 +933,54 @@ const styles: Record<string, CSSProperties> = {
         zIndex: 700,
         width: 'min(420px, 94vw)',
         height: '100vh',
-        background:
-            'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98))',
-        borderLeft: '1px solid rgba(148, 163, 184, 0.22)',
-        color: '#e5e7eb',
+        background: 'linear-gradient(180deg, var(--bg-surface), var(--bg-base))',
+        borderLeft: '1px solid var(--border)',
+        color: 'var(--text-primary)',
         boxShadow: '-24px 0 70px rgba(0, 0, 0, 0.45)',
         transition: 'transform 220ms ease',
-        display: 'flex',
-        flexDirection: 'column',
+        display: 'grid',
+        gridTemplateRows: 'auto minmax(0, 1fr)',
         overflow: 'hidden',
     },
 
     drawerHeader: {
-        flexShrink: 0,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 10,
         padding: '10px 12px',
         minHeight: 50,
-        borderBottom: '1px solid rgba(148, 163, 184, 0.16)',
+        borderBottom: '1px solid var(--border)',
+    },
+
+    drawerTitleGroup: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        minWidth: 0,
     },
 
     drawerTitle: {
         margin: 0,
-        color: '#f8fafc',
+        color: 'var(--text-primary)',
         fontSize: 16,
         fontWeight: 900,
         lineHeight: 1.2,
+    },
+
+    themeToggleButton: {
+        flex: '0 0 auto',
+        width: 28,
+        height: 28,
+        borderRadius: 9,
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        cursor: 'pointer',
+        fontSize: 14,
+        lineHeight: 1,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     closeButton: {
@@ -896,18 +988,17 @@ const styles: Record<string, CSSProperties> = {
         width: 30,
         height: 30,
         borderRadius: 10,
-        border: '1px solid rgba(148, 163, 184, 0.2)',
-        background: 'rgba(30, 41, 59, 0.75)',
-        color: '#e5e7eb',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
         cursor: 'pointer',
         fontSize: 20,
         lineHeight: 1,
     },
 
     drawerBody: {
-        flex: '1 1 auto',
         minHeight: 0,
-        maxHeight: 'calc(100vh - 50px)',
+        minWidth: 0,
         overflowY: 'auto',
         overscrollBehavior: 'contain',
         padding: 12,
@@ -942,8 +1033,8 @@ const styles: Record<string, CSSProperties> = {
 
     selectedTaskName: {
         marginTop: 4,
-        color: '#f8fafc',
-        fontSize: 14,
+        color: 'var(--text-primary)',
+        fontSize: 12,
         fontWeight: 850,
         lineHeight: 1.35,
         overflowWrap: 'anywhere',
@@ -969,28 +1060,28 @@ const styles: Record<string, CSSProperties> = {
     inputLabel: {
         display: 'grid',
         gap: 5,
-        color: '#cbd5e1',
-        fontSize: 12,
+        color: 'var(--text-secondary)',
+        fontSize: 11,
         fontWeight: 800,
     },
 
     dateInput: {
-        border: '1px solid rgba(148, 163, 184, 0.22)',
-        background: '#020617',
-        color: '#f8fafc',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-base)',
+        color: 'var(--text-primary)',
         borderRadius: 10,
         padding: '8px 10px',
-        fontSize: 13,
-        colorScheme: 'dark',
+        fontSize: 12,
+        colorScheme: 'light dark',
     },
 
     detailTextarea: {
-        border: '1px solid rgba(148, 163, 184, 0.22)',
-        background: '#020617',
-        color: '#f8fafc',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-base)',
+        color: 'var(--text-primary)',
         borderRadius: 10,
         padding: '9px 10px',
-        fontSize: 13,
+        fontSize: 12,
         lineHeight: 1.55,
         resize: 'vertical',
         minHeight: 96,
@@ -1004,13 +1095,13 @@ const styles: Record<string, CSSProperties> = {
     },
 
     secondaryButton: {
-        border: '1px solid rgba(148, 163, 184, 0.22)',
-        background: 'rgba(30, 41, 59, 0.72)',
-        color: '#e5e7eb',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
         borderRadius: 10,
         padding: '8px 10px',
         cursor: 'pointer',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 850,
     },
 
@@ -1021,14 +1112,14 @@ const styles: Record<string, CSSProperties> = {
         borderRadius: 10,
         padding: '8px 10px',
         cursor: 'pointer',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 900,
     },
 
     section: {
-        border: '1px solid rgba(148, 163, 184, 0.18)',
+        border: '1px solid var(--border)',
         borderRadius: 14,
-        background: 'rgba(15, 23, 42, 0.62)',
+        background: 'var(--bg-elevated)',
         overflow: 'hidden',
     },
 
@@ -1039,8 +1130,8 @@ const styles: Record<string, CSSProperties> = {
         alignItems: 'center',
         gap: 10,
         border: 0,
-        background: 'rgba(30, 41, 59, 0.55)',
-        color: '#e5e7eb',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
         padding: '9px 11px',
         minHeight: 40,
         cursor: 'pointer',
@@ -1073,7 +1164,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     chevron: {
-        color: '#94a3b8',
+        color: 'var(--text-secondary)',
         fontSize: 13,
     },
 
@@ -1087,17 +1178,17 @@ const styles: Record<string, CSSProperties> = {
     },
 
     taskRow: {
-        border: '1px solid rgba(148, 163, 184, 0.14)',
+        border: '1px solid var(--border)',
         borderRadius: 12,
         padding: 9,
-        background: 'rgba(2, 6, 23, 0.38)',
+        background: 'var(--bg-elevated)',
     },
 
     checkboxRow: {
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        color: '#f8fafc',
+        color: 'var(--text-primary)',
         fontSize: 13,
         fontWeight: 850,
         lineHeight: 1.4,
@@ -1111,7 +1202,7 @@ const styles: Record<string, CSSProperties> = {
 
     taskMeta: {
         marginTop: 5,
-        color: '#94a3b8',
+        color: 'var(--text-secondary)',
         fontSize: 11,
     },
 
@@ -1124,7 +1215,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     pathText: {
-        color: '#64748b',
+        color: 'var(--text-muted)',
         fontSize: 11,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -1175,9 +1266,9 @@ const styles: Record<string, CSSProperties> = {
     },
 
     miniButton: {
-        border: '1px solid rgba(148, 163, 184, 0.18)',
-        background: 'rgba(30, 41, 59, 0.72)',
-        color: '#e5e7eb',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
         borderRadius: 8,
         padding: '4px 7px',
         cursor: 'pointer',
@@ -1193,9 +1284,9 @@ const styles: Record<string, CSSProperties> = {
     },
 
     calendarTab: {
-        border: '1px solid rgba(148, 163, 184, 0.18)',
-        background: 'rgba(15, 23, 42, 0.8)',
-        color: '#64748b',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-muted)',
         borderRadius: 10,
         padding: '8px 10px',
         cursor: 'pointer',
@@ -1237,15 +1328,15 @@ const styles: Record<string, CSSProperties> = {
         width: 30,
         height: 30,
         borderRadius: 10,
-        border: '1px solid rgba(148, 163, 184, 0.2)',
-        background: 'rgba(30, 41, 59, 0.75)',
-        color: '#e5e7eb',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
         cursor: 'pointer',
         fontSize: 18,
     },
 
     monthTitle: {
-        color: '#f8fafc',
+        color: 'var(--text-primary)',
         fontSize: 14,
         fontWeight: 900,
     },
@@ -1259,7 +1350,7 @@ const styles: Record<string, CSSProperties> = {
 
     weekLabel: {
         textAlign: 'center',
-        color: '#64748b',
+        color: 'var(--text-muted)',
         fontSize: 11,
         fontWeight: 900,
     },
@@ -1278,9 +1369,9 @@ const styles: Record<string, CSSProperties> = {
         position: 'relative',
         minHeight: 36,
         borderRadius: 10,
-        border: '1px solid rgba(148, 163, 184, 0.12)',
-        background: 'rgba(2, 6, 23, 0.38)',
-        color: '#cbd5e1',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-secondary)',
         cursor: 'pointer',
         fontSize: 12,
     },
@@ -1311,12 +1402,12 @@ const styles: Record<string, CSSProperties> = {
 
     completedListBox: {
         marginTop: 12,
-        borderTop: '1px solid rgba(148, 163, 184, 0.14)',
+        borderTop: '1px solid var(--border)',
         paddingTop: 10,
     },
 
     completedListTitle: {
-        color: '#e5e7eb',
+        color: 'var(--text-primary)',
         fontSize: 12,
         fontWeight: 900,
         marginBottom: 8,
@@ -1325,9 +1416,9 @@ const styles: Record<string, CSSProperties> = {
     emptyBox: {
         padding: 20,
         textAlign: 'center',
-        border: '1px dashed rgba(148, 163, 184, 0.22)',
+        border: '1px dashed var(--border)',
         borderRadius: 16,
-        background: 'rgba(15, 23, 42, 0.52)',
+        background: 'var(--bg-elevated)',
     },
 
     emptyIcon: {
@@ -1336,20 +1427,20 @@ const styles: Record<string, CSSProperties> = {
 
     emptyTitle: {
         margin: '10px 0 0',
-        color: '#f8fafc',
+        color: 'var(--text-primary)',
         fontWeight: 900,
     },
 
     emptyText: {
         margin: '8px 0 0',
-        color: '#94a3b8',
+        color: 'var(--text-secondary)',
         fontSize: 12,
         lineHeight: 1.6,
     },
 
     emptyMessage: {
         margin: 0,
-        color: '#64748b',
+        color: 'var(--text-muted)',
         fontSize: 12,
         lineHeight: 1.6,
     },

@@ -13,6 +13,12 @@ function App() {
   const view = useAppStore((s) => s.view);
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
+  const theme = useAppStore((s) => s.theme);
+
+  // 配色テーマをHTMLルート要素に反映（CSS変数の切り替えに使う）
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   // localStorageからの復元（persist middleware）が完了するまで待つ。
   // 復元が終わる前にsetUser等でstore.set()を呼ぶと、persistミドルウェアが

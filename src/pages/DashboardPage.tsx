@@ -6,7 +6,7 @@ import Header from '../components/Header'; // ★ 追加：共通Headerコンポ
 
 export function DashboardPage() {
   console.log('★ DashboardPageがレンダリングされました');
-  const { projects, addProject, deleteProject, toggleStar, openProject, refreshProgress } =
+  const { projects, addProject, deleteProject, toggleStar, openProject } =
     useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -20,7 +20,6 @@ export function DashboardPage() {
     >
       {/* ── 共通ヘッダー（パッチノートボタン＆モーダル内包） */}
       <Header
-        onRefreshProgress={refreshProgress}
         rightSlot={
           <button
             id="new-project-btn"

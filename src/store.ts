@@ -60,6 +60,24 @@ function normalizeDateKey(value: string | null | undefined): string | null {
   return isDateKey(trimmed) ? trimmed : null;
 }
 
+/**
+ * 達成日用の正規化。過去に記録されていたISO日時形式（例: 2026-08-06T09:22:10.329Z）も
+ * 日付部分だけを取り出して YYYY-MM-DD に変換する（移行互換用）。
+ */
+function normalizeCompletedAtDateKey(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (isDateKey(trimmed)) return trimmed;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return toDateKey(parsed);
+}
+
 function dateKeyToTime(dateKey: string): number {
   const [year, month, day] = dateKey.split('-').map(Number);
   return new Date(year, month - 1, day).getTime();
@@ -374,34 +392,36 @@ function reorderPriorityInRoot(
 function recalcProgress(root: TaskNode): TaskNode {
   const children = root.children.map(recalcProgress);
 
-  if (root.completed) {
-    return {
-      ...root,
-      children,
-      progress: 100,
-    };
-  }
-
+  // 子タスクを持たないノード（leaf）は達成状態を手動管理する
   if (children.length === 0) {
     return {
       ...root,
       children,
-      progress: 0,
+      progress: root.completed ? 100 : 0,
     };
   }
 
-  const average =
-    children.reduce((sum, child) => sum + child.progress, 0) / children.length;
+  // 親ノードは子タスクの達成率から自動的に導出する（手動チェック不可）
+  const average = Math.round(
+    children.reduce((sum, child) => sum + child.progress, 0) / children.length,
+  );
+  const completed = average === 100;
 
   return {
     ...root,
     children,
-    progress: Math.round(average),
+    progress: average,
+    completed,
+    completedAt: completed
+      ? (root.completed ? root.completedAt : todayDateKey())
+      : null,
+    isPriority: completed ? false : root.isPriority,
+    priorityOrder: completed ? null : root.priorityOrder,
   };
 }
 
 function prepareRoot(root: TaskNode): TaskNode {
-  return recalcProgress(normalizePriorityOrders(refreshDueVisuals(root)));
+  return refreshDueVisuals(normalizePriorityOrders(recalcProgress(root)));
 }
 
 function updateProjectRoot(project: Project, rootTask: TaskNode): Project {
@@ -446,7 +466,9 @@ function normalizeTaskNode(
 
     createdBy,
     createdAt: safeString(node.createdAt, new Date().toISOString()),
-    completedAt: completed ? safeString(node.completedAt, '') || null : null,
+    completedAt: completed
+      ? normalizeCompletedAtDateKey(node.completedAt)
+      : null,
 
     children: Array.isArray(node.children)
       ? node.children.map((child) => normalizeTaskNode(child, createdBy))
@@ -512,10 +534,18 @@ export type AppState = {
   nickname: string;
   setNickname: (nickname: string) => Promise<void>;
 
+  // 配色テーマ（ライト/ダーク）
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
+
   projects: Project[];
   view: View;
   currentProjectId: string | null;
   selectedPath: string[];
+
+  // ノードごとの開閉状態（ここに含まれるノードIDは「閉じている」。未登録なら開いている扱い）
+  collapsedNodeIds: string[];
+  toggleNodeExpanded: (nodeId: string) => void;
 
   // プロジェクト操作
   addProject: (title: string, description: string) => void;
@@ -584,6 +614,12 @@ export type AppState = {
     dueDate: string | null,
   ) => void;
 
+  updateNodeCompletedAt: (
+    projectId: string,
+    nodeId: string,
+    completedAt: string | null,
+  ) => void;
+
   toggleNodePriority: (projectId: string, nodeId: string) => void;
 
   setNodePriority: (
@@ -617,8 +653,6 @@ export type AppState = {
     targetParentId: string,
     toIndex?: number,
   ) => void;
-
-  refreshProgress: () => void;
 
   // ナビゲーション
   selectNode: (nodeId: string) => void;
@@ -667,10 +701,27 @@ export const useAppStore = create<AppState>()(
         set({ nickname });
       },
 
+      theme: 'dark',
+
+      toggleTheme: () => {
+        set((state) => ({
+          theme: state.theme === 'dark' ? 'light' : 'dark',
+        }));
+      },
+
       projects: [],
       view: 'dashboard',
       currentProjectId: null,
       selectedPath: [],
+      collapsedNodeIds: [],
+
+      toggleNodeExpanded: (nodeId) => {
+        set((state) => ({
+          collapsedNodeIds: state.collapsedNodeIds.includes(nodeId)
+            ? state.collapsedNodeIds.filter((id) => id !== nodeId)
+            : [...state.collapsedNodeIds, nodeId],
+        }));
+      },
 
       // ──── プロジェクト操作 ────────────────────────────────────────────
 
@@ -817,6 +868,9 @@ export const useAppStore = create<AppState>()(
           selectedPath: state.selectedPath.includes(nodeId)
             ? state.selectedPath.slice(0, state.selectedPath.indexOf(nodeId))
             : state.selectedPath,
+          collapsedNodeIds: state.collapsedNodeIds.filter(
+            (id) => id !== nodeId,
+          ),
         }));
       },
 
@@ -831,7 +885,7 @@ export const useAppStore = create<AppState>()(
       },
 
       setNodeCompletion: (projectId, nodeId, completed) => {
-        const completedAt = completed ? new Date().toISOString() : null;
+        const completedAt = completed ? todayDateKey() : null;
 
         set((state) => ({
           projects: state.projects.map((project) => {
@@ -926,6 +980,23 @@ export const useAppStore = create<AppState>()(
                 normalizedDueDate,
                 node.completed,
               ),
+            }));
+
+            return updateProjectRoot(project, nextRoot);
+          }),
+        }));
+      },
+
+      updateNodeCompletedAt: (projectId, nodeId, completedAt) => {
+        const normalizedCompletedAt = normalizeDateKey(completedAt);
+
+        set((state) => ({
+          projects: state.projects.map((project) => {
+            if (project.id !== projectId) return project;
+
+            const nextRoot = mapNode(project.rootTask, nodeId, (node) => ({
+              ...node,
+              completedAt: normalizedCompletedAt,
             }));
 
             return updateProjectRoot(project, nextRoot);
@@ -1101,16 +1172,6 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      // ──── 進捗更新 ────────────────────────────────────────────────────
-
-      refreshProgress: () => {
-        set((state) => ({
-          projects: state.projects.map((project) =>
-            updateProjectRoot(project, project.rootTask),
-          ),
-        }));
-      },
-
       // ──── ナビゲーション ──────────────────────────────────────────────
 
       selectNode: (nodeId) => {
@@ -1205,6 +1266,8 @@ export const useAppStore = create<AppState>()(
         view: state.view,
         currentProjectId: state.currentProjectId,
         selectedPath: state.selectedPath,
+        collapsedNodeIds: state.collapsedNodeIds,
+        theme: state.theme,
         rightPanel: {
           ...state.rightPanel,
           isOpen: false,

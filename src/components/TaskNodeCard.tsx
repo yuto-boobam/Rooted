@@ -16,6 +16,10 @@ type Props = {
   onAddSibling: () => void;
   onDelete: () => void;
 
+  // 子ノードの開閉（子を持つノードのみ）
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+
   // ドラッグ&ドロップ用
   parentId: string | null;
   dragIndex: number;
@@ -35,6 +39,8 @@ export function TaskNodeCard({
   onAddChild,
   onAddSibling,
   onDelete,
+  isExpanded = true,
+  onToggleExpand,
   parentId,
   dragIndex,
   onDragOver,
@@ -47,7 +53,6 @@ export function TaskNodeCard({
   const memoRef = useRef<HTMLInputElement>(null);
 
   const isLeaf = node.children.length === 0;
-  // progress は refreshProgress ボタン押下時のみ更新される（node.progress をそのまま参照）
   const progress = node.progress;
 
   // ── キーボード操作（タイトル編集中）
@@ -115,21 +120,62 @@ export function TaskNodeCard({
         }
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col gap-3 rounded-xl cursor-pointer transition-all duration-150 select-none relative z-10"
+      className="animate-fadeIn flex flex-col gap-2 rounded-xl cursor-pointer transition-all duration-150 select-none relative z-10"
       style={{
-        padding: '20px 24px',
+        padding: '12px 14px',
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
-        minHeight: isRoot ? 160 : 120,
-        width: isRoot ? 240 : '100%',
+        minHeight: node.completed ? undefined : isRoot ? 110 : 76,
+        width: isRoot ? 200 : '100%',
       }}
     >
+      {/* ── 開閉トグル（子を持つノードのみ、右端の接続線上に配置） */}
+      {!isLeaf && onToggleExpand && (
+        <button
+          className="flex-shrink-0 flex items-center justify-center transition-all"
+          style={{
+            position: 'absolute',
+            right: -9,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            border: `1.5px solid ${borderColor}`,
+            background: 'var(--bg-surface)',
+            color: 'var(--text-primary)',
+            zIndex: 20,
+            cursor: 'pointer',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          title={isExpanded ? '子タスクを閉じる' : '子タスクを開く'}
+        >
+          <svg
+            width="8"
+            height="8"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            style={{
+              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 150ms',
+            }}
+          >
+            <polyline points="9,6 15,12 9,18" />
+          </svg>
+        </button>
+      )}
+
       {/* ── 上部：チェックボックス＋タイトル＋削除ボタン */}
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2">
         {/* チェックボックス（leafのみ有効） */}
         <button
-          className="mt-0.5 flex-shrink-0 w-4 h-4 rounded flex items-center justify-center transition-all"
+          className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center transition-all"
           style={{
             border: `1.5px solid ${node.completed ? accentColor : 'var(--text-muted)'}`,
             background: node.completed ? accentColor : 'transparent',
@@ -141,7 +187,7 @@ export function TaskNodeCard({
           title={isLeaf ? (node.completed ? '未完了に戻す' : '完了にする') : '子タスクが存在するため直接完了できません'}
         >
           {node.completed && (
-            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
               <polyline points="1.5,5 4,7.5 8.5,2.5" />
             </svg>
           )}
@@ -151,7 +197,7 @@ export function TaskNodeCard({
         {isEditingTitle ? (
           <textarea
             ref={titleRef}
-            className="input-inline text-sm font-medium flex-1"
+            className="input-inline text-xs font-medium flex-1"
             value={node.title}
             autoFocus
             rows={2}
@@ -163,7 +209,7 @@ export function TaskNodeCard({
           />
         ) : (
           <span
-            className="text-sm font-medium flex-1 leading-snug"
+            className="text-xs font-medium flex-1 leading-snug"
             style={{
               color: node.completed ? 'var(--text-muted)' : 'var(--text-primary)',
               textDecoration: node.completed ? 'line-through' : 'none',
@@ -182,106 +228,94 @@ export function TaskNodeCard({
         {!isRoot && (
           <button
             className="btn-icon flex-shrink-0 opacity-0 group-hover:opacity-100"
-            style={{ width: 20, height: 20, opacity: isSelected ? 1 : undefined }}
+            style={{ width: 16, height: 16, opacity: isSelected ? 1 : undefined }}
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
             title="このノードを削除"
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         )}
       </div>
 
-      {/* ── メモ欄 */}
-      {isEditingMemo ? (
-        <input
-          ref={memoRef}
-          type="text"
-          className="input-inline text-xs"
-          placeholder="概要メモを入力..."
-          value={node.memo}
-          autoFocus
-          onChange={(e) => onUpdateMemo(e.target.value)}
-          onBlur={() => setIsEditingMemo(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === 'Escape') setIsEditingMemo(false);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          style={{ color: 'var(--text-secondary)' }}
-        />
-      ) : (
-        <p
-          className="text-xs cursor-text"
-          style={{
-            color: node.memo ? 'var(--text-secondary)' : 'var(--text-muted)',
-            minHeight: 16,
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            setIsEditingMemo(true);
-          }}
-        >
-          {node.memo || '概要メモ（ダブルクリックで編集）'}
-        </p>
-      )}
-
-      {/* ── 期限表示 */}
-      {node.dueDate && (
-        <div
-          className="flex items-center gap-1 text-xs font-medium"
-          style={{
-            color: node.completed
-              ? 'var(--text-muted)'
-              : (dueUrgency?.accent ?? 'var(--text-primary)'),
-          }}
-        >
-          <span>📅</span>
-          <span>期限: {formatDueDate(node.dueDate)}</span>
-        </div>
-      )}
-
-      {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
-      {!isLeaf && (
-        <div className="flex flex-col gap-1 mt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              📋 {node.children.length}
-            </span>
-            <span
-              className="text-xs font-medium"
+      {/* ── 達成済みノードはタイトル＋チェックのみに圧縮（詳細はサイドドロワーで編集） */}
+      {!node.completed && (
+        <>
+          {/* ── メモ欄 */}
+          {isEditingMemo ? (
+            <input
+              ref={memoRef}
+              type="text"
+              className="input-inline text-xs"
+              placeholder="概要メモを入力..."
+              value={node.memo}
+              autoFocus
+              onChange={(e) => onUpdateMemo(e.target.value)}
+              onBlur={() => setIsEditingMemo(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') setIsEditingMemo(false);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ color: 'var(--text-secondary)' }}
+            />
+          ) : (
+            <p
+              className="text-xs cursor-text"
               style={{
-                color: isSelected
-                  ? accentColor
-                  : (dueUrgency?.accent ?? 'var(--text-primary)'),
+                color: node.memo ? 'var(--text-secondary)' : 'var(--text-muted)',
+                minHeight: 16,
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setIsEditingMemo(true);
               }}
             >
-              {progress}%
-            </span>
-          </div>
-          <div className="progress-bar">
-            <div
-              className="progress-bar__fill"
-              style={{ width: `${progress}%`, background: accentColor }}
-            />
-          </div>
-        </div>
-      )}
+              {node.memo || '概要メモ（ダブルクリックで編集）'}
+            </p>
+          )}
 
-      {/* ── ドラッグハンドル（rootは非表示） */}
-      {!isRoot && (
-        <div
-          className="flex items-center justify-center mt-0.5 opacity-20"
-          style={{ cursor: 'grab' }}
-        >
-          <svg width="20" height="8" viewBox="0 0 20 8" fill="currentColor" style={{ color: 'var(--text-muted)' }}>
-            <circle cx="4" cy="2" r="1.5" /><circle cx="10" cy="2" r="1.5" /><circle cx="16" cy="2" r="1.5" />
-            <circle cx="4" cy="6" r="1.5" /><circle cx="10" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
-          </svg>
-        </div>
+          {/* ── 期限表示 */}
+          {node.dueDate && (
+            <div
+              className="flex items-center gap-1 text-xs font-medium"
+              style={{ color: dueUrgency?.accent ?? 'var(--text-primary)' }}
+            >
+              <span>📅</span>
+              <span>期限: {formatDueDate(node.dueDate)}</span>
+            </div>
+          )}
+
+          {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
+          {!isLeaf && (
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  📋 {node.children.length}
+                </span>
+                <span
+                  className="text-xs font-medium"
+                  style={{
+                    color: isSelected
+                      ? accentColor
+                      : (dueUrgency?.accent ?? 'var(--text-primary)'),
+                  }}
+                >
+                  {progress}%
+                </span>
+              </div>
+              <div className="progress-bar">
+                <div
+                  className="progress-bar__fill"
+                  style={{ width: `${progress}%`, background: accentColor }}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,5 +1,55 @@
 [
   {
+    "id": "2026-08-06-a14b4ed6",
+    "date": "2026-08-06",
+    "buildNumber": 10,
+    "type": "feature",
+    "title": "ライトモード実装",
+    "description": "サイドドロワー内にライトモードとの切り替えボタンを配置。ボタンを押すと背景だけでなく、文字やノードの枠線の色にも変化がある。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260806-build10-before.png?v=1786012092063",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260806-build10-after.png?v=1786012086895"
+  },
+  {
+    "id": "2026-08-06-fa4facf8",
+    "date": "2026-08-06",
+    "buildNumber": 9,
+    "type": "spec-change",
+    "title": "達成済みノードの表記変更",
+    "description": "達成済みと未達成のノードが同じ形式で表示されていてスペースを圧迫していたため。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260806-build9-before.png?v=1786012014421",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260806-build9-after.png?v=1786012019573"
+  },
+  {
+    "id": "2026-08-06-3a033d58",
+    "date": "2026-08-06",
+    "buildNumber": 8,
+    "type": "feature",
+    "title": "ドラッグで画面を動かせるように",
+    "description": "中央が常に左上では可視性が低下していると考えた。",
+    "beforeImageUrl": null,
+    "afterImageUrl": null
+  },
+  {
+    "id": "2026-08-06-cf0aaf58",
+    "date": "2026-08-06",
+    "buildNumber": 7,
+    "type": "feature",
+    "title": "ズームバーを実装",
+    "description": "画面がすぐ見切れるため、手作業で縮尺を変える必要が出てきていたから。\n場所はヘッダーに配置した。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/08/20260806-build7-after.png?v=1786010426160"
+  },
+  {
+    "id": "2026-08-06-4fa68674",
+    "date": "2026-08-06",
+    "buildNumber": 6,
+    "type": "spec-change",
+    "title": "ノードの配置を調整",
+    "description": "ノードの意味がめちゃめちゃだったので、高さを元に座標を計算して配置。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260806-build6-before.png?v=1786007655784",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260806-build6-after.png?v=1786007651692"
+  },
+  {
     "id": "2026-08-05-5046a495",
     "date": "2026-08-05",
     "buildNumber": 5,

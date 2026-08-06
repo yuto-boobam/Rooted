@@ -3,7 +3,7 @@ export type PatchNoteType = 'feature' | 'bugfix' | 'other';
 export interface PatchNote {
   id: string;
   date: string; // YYYY-MM-DD
-  version: string; // 例: "v1.2.0"
+  buildNumber: number; // 全パッチノートを通した更新回数（1始まり）
   type: PatchNoteType;
   title: string;
   description: string;

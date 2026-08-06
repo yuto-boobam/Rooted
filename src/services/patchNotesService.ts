@@ -2,6 +2,7 @@ import patchNotesJson from '../data/patchNotes.json';
 import type { PatchNote, PatchNoteType, PatchNotesJson } from '../types/patchNote';
 
 export const PATCH_NOTES_FILE_PATH = 'src/data/patchNotes.json';
+export const PATCH_NOTES_API_ENDPOINT = '/__rooted-api/patch-notes';
 
 const importedPatchNotes = (
   Array.isArray(patchNotesJson) ? patchNotesJson : []
@@ -25,7 +26,7 @@ export function createEmptyPatchNote(date = todayDateKey(), notes: PatchNote[] =
   return {
     id: generatePatchNoteId(safeDate),
     date: safeDate,
-    version: suggestNextVersion(notes),
+    buildNumber: suggestNextBuildNumber(notes),
     type: 'other',
     title: '',
     description: '',
@@ -80,6 +81,21 @@ export function downloadPatchNotesJson(notes: PatchNote[], filename = 'patchNote
   URL.revokeObjectURL(objectUrl);
 }
 
+export async function saveNotesToLocalFile(notes: PatchNote[]): Promise<void> {
+  const response = await fetch(PATCH_NOTES_API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: toPatchNotesJson(notes),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(
+      errorText || `ローカルファイルへの保存に失敗しました。(status: ${response.status})`,
+    );
+  }
+}
+
 export function normalizePatchNote(note: Partial<PatchNote>): PatchNote {
   const rawDate = safeString(note.date);
   const date = isDateKey(rawDate) ? rawDate : todayDateKey();
@@ -87,7 +103,7 @@ export function normalizePatchNote(note: Partial<PatchNote>): PatchNote {
   return {
     id: safeString(note.id) || generatePatchNoteId(date),
     date,
-    version: safeString(note.version) || 'v0.1.0',
+    buildNumber: normalizeBuildNumber(note.buildNumber),
     type: isPatchNoteType(note.type) ? note.type : 'other',
     title: safeString(note.title) || '無題のパッチノート',
     description: safeString(note.description) || 'Why / 変更理由:\n変更理由を記入してください。',
@@ -104,22 +120,17 @@ export function sortPatchNotes(notes: PatchNote[]): PatchNote[] {
       return dateDiff;
     }
 
-    return compareVersionDesc(a.version, b.version);
+    return b.buildNumber - a.buildNumber;
   });
 }
 
-export function suggestNextVersion(notes: PatchNote[]): string {
-  const versions = notes
-    .map((note) => parseSemver(note.version))
-    .filter((version): version is [number, number, number] => version !== null)
-    .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
+export function suggestNextBuildNumber(notes: PatchNote[]): number {
+  const maxBuildNumber = notes.reduce(
+    (max, note) => Math.max(max, normalizeBuildNumber(note.buildNumber)),
+    0,
+  );
 
-  if (versions.length === 0) {
-    return 'v0.1.0';
-  }
-
-  const [major, minor, patch] = versions[0];
-  return `v${major}.${minor}.${patch + 1}`;
+  return maxBuildNumber + 1;
 }
 
 export function todayDateKey(): string {
@@ -170,25 +181,8 @@ function dateKeyToLocalTime(dateKey: string): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-function parseSemver(version: string): [number, number, number] | null {
-  const matched = /^v?(\d+)\.(\d+)\.(\d+)/i.exec(version.trim());
-
-  if (!matched) {
-    return null;
-  }
-
-  return [Number(matched[1]), Number(matched[2]), Number(matched[3])];
-}
-
-function compareVersionDesc(a: string, b: string): number {
-  const versionA = parseSemver(a);
-  const versionB = parseSemver(b);
-
-  if (!versionA || !versionB) {
-    return b.localeCompare(a, 'ja');
-  }
-
-  return versionB[0] - versionA[0] || versionB[1] - versionA[1] || versionB[2] - versionA[2];
+function normalizeBuildNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

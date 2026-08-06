@@ -7,12 +7,11 @@ import {
   type MergedPullRequest,
 } from '../../services/githubApi';
 import {
-  copyPatchNotesJson,
   createEmptyPatchNote,
-  downloadPatchNotesJson,
   getPatchNotesByDate,
   removePatchNote,
-  suggestNextVersion,
+  saveNotesToLocalFile,
+  suggestNextBuildNumber,
   toPatchNotesJson,
   upsertPatchNote,
 } from '../../services/patchNotesService';
@@ -44,6 +43,7 @@ export default function PatchNotesEditor({
   const [dayWindow, setDayWindow] = useState(3);
   const [pullRequests, setPullRequests] = useState<MergedPullRequest[]>([]);
   const [isLoadingPrs, setIsLoadingPrs] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<EditorMessage | null>(null);
   const [form, setForm] = useState<PatchNote>(() => {
     return getPatchNotesByDate(notes, selectedDate)[0] ?? createEmptyPatchNote(selectedDate, notes);
@@ -174,7 +174,7 @@ export default function PatchNotesEditor({
       ...form,
       id: form.id.trim() || createEmptyPatchNote(selectedDate, notes).id,
       date: selectedDate,
-      version: form.version.trim() || suggestNextVersion(notes),
+      buildNumber: form.buildNumber > 0 ? form.buildNumber : suggestNextBuildNumber(notes),
       type: form.type,
       title: form.title.trim() || '無題のパッチノート',
       description: form.description.trim() || 'Why / 変更理由:\n変更理由を記入してください。',
@@ -204,37 +204,24 @@ export default function PatchNotesEditor({
     return nextNotes;
   };
 
-  const handleCopyJson = async () => {
+  const handleSaveToLocalFile = async () => {
+    setIsSaving(true);
+
     try {
       const nextNotes = saveToWorkingNotes();
-      await copyPatchNotesJson(nextNotes);
+      await saveNotesToLocalFile(nextNotes);
 
       setMessage({
         type: 'success',
-        text: '最新の patchNotes.json をクリップボードへコピーしました。src/data/patchNotes.json に貼り付けてください。',
+        text: 'src/data/patchNotes.json に保存しました。',
       });
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'JSONコピーに失敗しました。',
+        text: error instanceof Error ? error.message : 'ファイルへの保存に失敗しました。',
       });
-    }
-  };
-
-  const handleDownloadJson = () => {
-    try {
-      const nextNotes = saveToWorkingNotes();
-      downloadPatchNotesJson(nextNotes);
-
-      setMessage({
-        type: 'success',
-        text: 'patchNotes.json をダウンロードしました。src/data/patchNotes.json と差し替えてください。',
-      });
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'JSON保存に失敗しました。',
-      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -286,7 +273,7 @@ export default function PatchNotesEditor({
 
     setMessage({
       type: 'success',
-      text: '編集中データから削除しました。確定するにはJSONをコピーまたは保存してください。',
+      text: '編集中データから削除しました。確定するには保存ボタンを押してください。',
     });
   };
 
@@ -296,11 +283,11 @@ export default function PatchNotesEditor({
         <div>
           <h3 style={styles.title}>開発者用：パッチノート追記/編集</h3>
           <p style={styles.mutedText}>
-            ブラウザから直接 src/data/patchNotes.json は書き換えられないため、保存時はJSONをコピーまたはダウンロードします。
+            localhost環境ではサイト内から直接 src/data/patchNotes.json を更新できます。
           </p>
         </div>
 
-        <span style={styles.devBadge}>DEV only</span>
+        <span style={styles.devBadge}>LOCAL only</span>
       </div>
 
       {message && (
@@ -441,7 +428,7 @@ export default function PatchNotesEditor({
               <option value="__new__">新規ノート</option>
               {sameDayNotes.map((note) => (
                 <option key={note.id} value={note.id}>
-                  {note.version} - {note.title}
+                  第{note.buildNumber}回 - {note.title}
                 </option>
               ))}
             </select>
@@ -455,12 +442,11 @@ export default function PatchNotesEditor({
           </label>
 
           <label style={styles.label}>
-            Version
+            Build（自動採番）
             <input
               style={styles.input}
-              value={form.version}
-              placeholder="v1.2.0"
-              onChange={(event) => updateField('version', event.target.value)}
+              value={`第${form.buildNumber > 0 ? form.buildNumber : suggestNextBuildNumber(notes)}回`}
+              readOnly
             />
           </label>
 
@@ -531,16 +517,20 @@ export default function PatchNotesEditor({
         </div>
 
         <div style={styles.buttonRow}>
-          <button type="button" style={styles.primaryButton} onClick={() => saveToWorkingNotes()}>
-            編集内容を反映
+          <button type="button" style={styles.secondaryButton} onClick={() => saveToWorkingNotes()}>
+            反映（プレビュー）
           </button>
 
-          <button type="button" style={styles.secondaryButton} onClick={() => void handleCopyJson()}>
-            JSONを出力/コピー
-          </button>
-
-          <button type="button" style={styles.secondaryButton} onClick={handleDownloadJson}>
-            JSONファイル保存
+          <button
+            type="button"
+            style={{
+              ...styles.primaryButton,
+              ...(isSaving ? styles.disabledButton : {}),
+            }}
+            disabled={isSaving}
+            onClick={() => void handleSaveToLocalFile()}
+          >
+            {isSaving ? '保存中...' : '保存（ファイルに書き込む）'}
           </button>
 
           <button type="button" style={styles.dangerButton} onClick={handleDeleteNote}>
@@ -579,7 +569,7 @@ function buildDraftFromPullRequests(
 
   return {
     ...base,
-    version: base.version.trim() || suggestNextVersion(allNotes),
+    buildNumber: base.buildNumber > 0 ? base.buildNumber : suggestNextBuildNumber(allNotes),
     type: overwriteText || base.type === 'other' ? inferredType : base.type,
     title: overwriteText || !base.title.trim() ? draftTitle : base.title,
     description:

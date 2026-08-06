@@ -10,6 +10,7 @@ import {
 import PatchNotesCalendar from './PatchNotesCalendar';
 import PatchNotesDetail from './PatchNotesDetail';
 import PatchNotesEditor from './PatchNotesEditor';
+import { canEditPatchNotesLocally } from '../../utils/localEditAccess';
 
 interface PatchNotesModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ export default function PatchNotesModal({
   });
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
-  const devMode = import.meta.env.DEV;
+  const canEdit = canEditPatchNotesLocally();
 
   useEffect(() => {
     if (isOpen && initialSelectedDate) {
@@ -102,7 +103,7 @@ export default function PatchNotesModal({
               onSelectDate={setSelectedDate}
             />
 
-            {devMode && (
+            {canEdit && (
               <button
                 type="button"
                 style={styles.editorToggleButton}
@@ -114,7 +115,7 @@ export default function PatchNotesModal({
           </aside>
 
           <main style={styles.rightPane}>
-            {devMode && isEditorOpen ? (
+            {canEdit && isEditorOpen ? (
               <PatchNotesEditor
                 selectedDate={selectedDate}
                 notes={notes}

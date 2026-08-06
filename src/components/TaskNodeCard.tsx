@@ -121,14 +121,14 @@ export function TaskNodeCard({
         }
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col gap-3 rounded-xl cursor-pointer transition-all duration-150 select-none relative z-10"
+      className="animate-fadeIn flex flex-col gap-2 rounded-xl cursor-pointer transition-all duration-150 select-none relative z-10"
       style={{
-        padding: '20px 24px',
+        padding: '12px 14px',
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
-        minHeight: isRoot ? 160 : 120,
-        width: isRoot ? 240 : '100%',
+        minHeight: isRoot ? 110 : 76,
+        width: isRoot ? 200 : '100%',
       }}
     >
       {/* ── 開閉トグル（子を持つノードのみ、右端の接続線上に配置） */}
@@ -137,11 +137,11 @@ export function TaskNodeCard({
           className="flex-shrink-0 flex items-center justify-center transition-all"
           style={{
             position: 'absolute',
-            right: -12,
+            right: -9,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 22,
-            height: 22,
+            width: 18,
+            height: 18,
             borderRadius: '50%',
             border: `1.5px solid ${borderColor}`,
             background: 'var(--bg-surface)',
@@ -156,8 +156,8 @@ export function TaskNodeCard({
           title={isExpanded ? '子タスクを閉じる' : '子タスクを開く'}
         >
           <svg
-            width="10"
-            height="10"
+            width="8"
+            height="8"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -173,10 +173,10 @@ export function TaskNodeCard({
       )}
 
       {/* ── 上部：チェックボックス＋タイトル＋削除ボタン */}
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2">
         {/* チェックボックス（leafのみ有効） */}
         <button
-          className="mt-0.5 flex-shrink-0 w-4 h-4 rounded flex items-center justify-center transition-all"
+          className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center transition-all"
           style={{
             border: `1.5px solid ${node.completed ? accentColor : 'var(--text-muted)'}`,
             background: node.completed ? accentColor : 'transparent',
@@ -188,7 +188,7 @@ export function TaskNodeCard({
           title={isLeaf ? (node.completed ? '未完了に戻す' : '完了にする') : '子タスクが存在するため直接完了できません'}
         >
           {node.completed && (
-            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
               <polyline points="1.5,5 4,7.5 8.5,2.5" />
             </svg>
           )}
@@ -198,7 +198,7 @@ export function TaskNodeCard({
         {isEditingTitle ? (
           <textarea
             ref={titleRef}
-            className="input-inline text-sm font-medium flex-1"
+            className="input-inline text-xs font-medium flex-1"
             value={node.title}
             autoFocus
             rows={2}
@@ -210,7 +210,7 @@ export function TaskNodeCard({
           />
         ) : (
           <span
-            className="text-sm font-medium flex-1 leading-snug"
+            className="text-xs font-medium flex-1 leading-snug"
             style={{
               color: node.completed ? 'var(--text-muted)' : 'var(--text-primary)',
               textDecoration: node.completed ? 'line-through' : 'none',
@@ -229,14 +229,14 @@ export function TaskNodeCard({
         {!isRoot && (
           <button
             className="btn-icon flex-shrink-0 opacity-0 group-hover:opacity-100"
-            style={{ width: 20, height: 20, opacity: isSelected ? 1 : undefined }}
+            style={{ width: 16, height: 16, opacity: isSelected ? 1 : undefined }}
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
             title="このノードを削除"
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
@@ -291,6 +291,17 @@ export function TaskNodeCard({
         </div>
       )}
 
+      {/* ── 達成日表示 */}
+      {node.completed && node.completedAt && (
+        <div
+          className="flex items-center gap-1 text-xs font-medium"
+          style={{ color: accentColor }}
+        >
+          <span>🏁</span>
+          <span>達成: {formatCompletedAt(node.completedAt)}</span>
+        </div>
+      )}
+
       {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
       {!isLeaf && (
         <div className="flex flex-col gap-1 mt-1">
@@ -317,19 +328,6 @@ export function TaskNodeCard({
           </div>
         </div>
       )}
-
-      {/* ── ドラッグハンドル（rootは非表示） */}
-      {!isRoot && (
-        <div
-          className="flex items-center justify-center mt-0.5 opacity-20"
-          style={{ cursor: 'grab' }}
-        >
-          <svg width="20" height="8" viewBox="0 0 20 8" fill="currentColor" style={{ color: 'var(--text-muted)' }}>
-            <circle cx="4" cy="2" r="1.5" /><circle cx="10" cy="2" r="1.5" /><circle cx="16" cy="2" r="1.5" />
-            <circle cx="4" cy="6" r="1.5" /><circle cx="10" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
-          </svg>
-        </div>
-      )}
     </div>
   );
 }
@@ -351,4 +349,12 @@ function formatDueDate(dueDate: string): string {
   if (!month || !day) return dueDate;
 
   return `${Number(month)}/${Number(day)}`;
+}
+
+/** 達成日（YYYY-MM-DD）を "YYYY/M/D" 表記に変換する */
+function formatCompletedAt(completedAt: string): string {
+  const [year, month, day] = completedAt.split('-');
+  if (!year || !month || !day) return completedAt;
+
+  return `${year}/${Number(month)}/${Number(day)}`;
 }

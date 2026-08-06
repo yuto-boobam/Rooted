@@ -39,6 +39,9 @@ export default function RightDrawerPanel() {
 
     const selectNode = useAppStore((state) => state.selectNode);
     const updateNodeDueDate = useAppStore((state) => state.updateNodeDueDate);
+    const updateNodeCompletedAt = useAppStore(
+        (state) => state.updateNodeCompletedAt,
+    );
     const updateNodeDetailMemo = useAppStore(
         (state) => state.updateNodeDetailMemo,
     );
@@ -205,6 +208,14 @@ export default function RightDrawerPanel() {
                                     selectedTask.projectId,
                                     selectedTask.node.id,
                                     dueDate,
+                                );
+                            }}
+                            onChangeCompletedAt={(completedAt) => {
+                                if (!selectedTask) return;
+                                updateNodeCompletedAt(
+                                    selectedTask.projectId,
+                                    selectedTask.node.id,
+                                    completedAt,
                                 );
                             }}
                             onChangeDetailMemo={(detailMemo) => {
@@ -411,6 +422,7 @@ function SelectedTaskEditor({
     isPending,
     onTogglePriority,
     onChangeDueDate,
+    onChangeCompletedAt,
     onChangeDetailMemo,
     onComplete,
 }: {
@@ -418,6 +430,7 @@ function SelectedTaskEditor({
     isPending: boolean;
     onTogglePriority: () => void;
     onChangeDueDate: (dueDate: string | null) => void;
+    onChangeCompletedAt: (completedAt: string | null) => void;
     onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
 }) {
@@ -458,6 +471,20 @@ function SelectedTaskEditor({
                         onChange={(event) => onChangeDueDate(event.target.value || null)}
                     />
                 </label>
+
+                {task.node.completed && (
+                    <label style={styles.inputLabel}>
+                        達成日
+                        <input
+                            type="date"
+                            value={task.node.completedAt ?? ''}
+                            style={styles.dateInput}
+                            onChange={(event) =>
+                                onChangeCompletedAt(event.target.value || null)
+                            }
+                        />
+                    </label>
+                )}
 
                 <label style={styles.inputLabel}>
                     詳細メモ

@@ -20,13 +20,18 @@ type TreeColumn = {
 };
 
 // ── ツリーレイアウト定数（カード実寸・列間隔など） ─────────────────────────
-const CARD_WIDTH = 260;
-const ROOT_WIDTH = 240;
-const GAP_X = 60;
-const DROP_ZONE_HEIGHT = 24;
-const DEFAULT_NODE_HEIGHT = 120;
-const DEFAULT_ROOT_HEIGHT = 160;
+const CARD_WIDTH = 220;
+const ROOT_WIDTH = 200;
+const GAP_X = 50;
+const DROP_ZONE_HEIGHT = 18;
+const DEFAULT_NODE_HEIGHT = 76;
+const DEFAULT_ROOT_HEIGHT = 110;
 const CANVAS_PADDING = 48;
+
+// ── 画面比率（ズーム）定数 ───────────────────────────────────────────────
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 1.5;
+const ZOOM_STEP = 0.1;
 
 type NodePosition = { x: number; y: number; height: number };
 
@@ -169,7 +174,7 @@ function computeTreeLayout(
 }
 
 /** 現在DOM上にあるノードカードの実寸高さを毎フレーム計測する */
-function useNodeHeights(): Record<string, number> {
+function useNodeHeights(zoom: number): Record<string, number> {
   const [heights, setHeights] = useState<Record<string, number>>({});
   const latestRef = useRef<Record<string, number>>({});
 
@@ -183,7 +188,10 @@ function useNodeHeights(): Record<string, number> {
 
       elements.forEach((element) => {
         const id = element.id.slice('node-'.length);
-        const measuredHeight = Math.round(element.getBoundingClientRect().height);
+        // 実測値はズームで拡縮された画面上のサイズなので、論理サイズに戻す
+        const measuredHeight = Math.round(
+          element.getBoundingClientRect().height / zoom,
+        );
 
         if (measuredHeight > 0 && next[id] !== measuredHeight) {
           next[id] = measuredHeight;
@@ -202,7 +210,7 @@ function useNodeHeights(): Record<string, number> {
     animationFrameId = requestAnimationFrame(measure);
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, []);
+  }, [zoom]);
 
   return heights;
 }
@@ -271,6 +279,9 @@ export function TreePage() {
 
   // ── タスク追加モーダルの状態
   const [modal, setModal] = useState<ModalState>({ open: false });
+
+  // ── 画面比率（ズーム）
+  const [zoom, setZoom] = useState(1);
 
   // モーダルを開くヘルパー
   const openChildModal = useCallback((targetId: string) => {
@@ -425,7 +436,7 @@ export function TreePage() {
   }, [root, collapsedSet]);
 
   // ── 各ノードの実測高さから座標を計算（子ノード群の中心に親を合わせる）
-  const nodeHeights = useNodeHeights();
+  const nodeHeights = useNodeHeights(zoom);
 
   const layout = useMemo(() => {
     if (!root) return null;
@@ -445,6 +456,7 @@ export function TreePage() {
       <Header
         onLogoClick={goToDashboard}
         onRefreshProgress={refreshProgress}
+        rightSlot={<ZoomBar zoom={zoom} onChange={setZoom} />}
         breadcrumbsSlot={
           <Breadcrumb
             items={breadcrumbItems}
@@ -494,150 +506,166 @@ export function TreePage() {
         <span>ダブルクリックでタイトル・メモを編集 / ドラッグで並び替え</span>
       </div>
 
-      {/* ── ツリービュー本体（縦横スクロール） */}
+      {/* ── ツリービュー本体（縦横スクロール＋画面比率変更） */}
       <div className="flex-1 overflow-auto" style={{ position: 'relative' }}>
         <div
           style={{
             position: 'relative',
-            width: (layout?.width ?? 0) + CANVAS_PADDING * 2,
-            height: (layout?.height ?? 0) + CANVAS_PADDING * 2,
+            width: ((layout?.width ?? 0) + CANVAS_PADDING * 2) * zoom,
+            height: ((layout?.height ?? 0) + CANVAS_PADDING * 2) * zoom,
           }}
         >
-          <ConnectionsOverlay root={root} columns={columns} />
-
-          {/* ルートノードカード */}
           <div
-            style={{
-              position: 'absolute',
-              left: CANVAS_PADDING + (layout?.positions.get(root.id)?.x ?? 0),
-              top: CANVAS_PADDING + (layout?.positions.get(root.id)?.y ?? 0),
-              width: ROOT_WIDTH,
-            }}
-          >
-            <TaskNodeCard
-              node={root}
-              isSelected={selectedPath[selectedPath.length - 1] === root.id}
-              isRoot
-              accentColor={accentColor}
-              onClick={() => selectNode(root.id)}
-              onToggleComplete={() => toggleComplete(project.id, root.id)}
-              onUpdateTitle={(title) =>
-                updateNodeTitle(project.id, root.id, title)
-              }
-              onUpdateMemo={(memo) =>
-                updateNodeMemo(project.id, root.id, memo)
-              }
-              onAddChild={() => openChildModal(root.id)}
-              onAddSibling={() => {
-                // rootには兄弟なし
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: (layout?.width ?? 0) + CANVAS_PADDING * 2,
+                height: (layout?.height ?? 0) + CANVAS_PADDING * 2,
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top left',
               }}
-              onDelete={() => {
-                // rootは削除不可
-              }}
-              parentId={null}
-              dragIndex={0}
-              onDragOver={() => {
-                // TaskNodeCard側の型に合わせた no-op
-              }}
-              onDrop={(draggedData: DraggedNodeData) => {
-                if (draggedData.id === root.id) return;
+            >
+              <ConnectionsOverlay root={root} columns={columns} zoom={zoom} />
 
-                // ルートにドロップした場合は常にルートの子になる
-                moveNode(project.id, draggedData.id, root.id);
-              }}
-            />
-          </div>
+              {/* ルートノードカード */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left:
+                    CANVAS_PADDING + (layout?.positions.get(root.id)?.x ?? 0),
+                  top:
+                    CANVAS_PADDING + (layout?.positions.get(root.id)?.y ?? 0),
+                  width: ROOT_WIDTH,
+                }}
+              >
+                <TaskNodeCard
+                  node={root}
+                  isSelected={
+                    selectedPath[selectedPath.length - 1] === root.id
+                  }
+                  isRoot
+                  accentColor={accentColor}
+                  onClick={() => selectNode(root.id)}
+                  onToggleComplete={() => toggleComplete(project.id, root.id)}
+                  onUpdateTitle={(title) =>
+                    updateNodeTitle(project.id, root.id, title)
+                  }
+                  onUpdateMemo={(memo) =>
+                    updateNodeMemo(project.id, root.id, memo)
+                  }
+                  onAddChild={() => openChildModal(root.id)}
+                  onAddSibling={() => {
+                    // rootには兄弟なし
+                  }}
+                  onDelete={() => {
+                    // rootは削除不可
+                  }}
+                  parentId={null}
+                  dragIndex={0}
+                  onDragOver={() => {
+                    // TaskNodeCard側の型に合わせた no-op
+                  }}
+                  onDrop={(draggedData: DraggedNodeData) => {
+                    if (draggedData.id === root.id) return;
 
-          {/* 各ノードカード（実測レイアウトによる絶対配置） */}
-          {columns.flatMap((column) =>
-            column.nodes.map((node, nodeIndex) => {
-              const pos = layout?.positions.get(node.id);
-              if (!pos) return null;
+                    // ルートにドロップした場合は常にルートの子になる
+                    moveNode(project.id, draggedData.id, root.id);
+                  }}
+                />
+              </div>
 
-              return (
+              {/* 各ノードカード（実測レイアウトによる絶対配置） */}
+              {columns.flatMap((column) =>
+                column.nodes.map((node, nodeIndex) => {
+                  const pos = layout?.positions.get(node.id);
+                  if (!pos) return null;
+
+                  return (
+                    <div
+                      key={node.id}
+                      style={{
+                        position: 'absolute',
+                        left: CANVAS_PADDING + pos.x,
+                        top: CANVAS_PADDING + pos.y,
+                        width: CARD_WIDTH,
+                      }}
+                    >
+                      <TaskNodeCard
+                        node={node}
+                        isSelected={
+                          selectedPath[selectedPath.length - 1] === node.id
+                        }
+                        accentColor={accentColor}
+                        onClick={() => selectNode(node.id)}
+                        isExpanded={!collapsedSet.has(node.id)}
+                        onToggleExpand={() => toggleNodeExpanded(node.id)}
+                        onToggleComplete={() =>
+                          toggleComplete(project.id, node.id)
+                        }
+                        onUpdateTitle={(title) =>
+                          updateNodeTitle(project.id, node.id, title)
+                        }
+                        onUpdateMemo={(memo) =>
+                          updateNodeMemo(project.id, node.id, memo)
+                        }
+                        onAddChild={() => openChildModal(node.id)}
+                        onAddSibling={() => openSiblingModal(node.id)}
+                        onDelete={() => {
+                          const ok = window.confirm(
+                            `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
+                          );
+
+                          if (ok) {
+                            deleteNode(project.id, node.id);
+                          }
+                        }}
+                        parentId={column.parentId}
+                        dragIndex={nodeIndex}
+                        onDragOver={() => {
+                          // TaskNodeCard側の型に合わせた no-op
+                        }}
+                        onDrop={(draggedData: DraggedNodeData) => {
+                          if (draggedData.id === node.id) return;
+
+                          // カードの上へのドロップは常に「子タスク」として追加
+                          moveNode(project.id, draggedData.id, node.id);
+                        }}
+                      />
+                    </div>
+                  );
+                }),
+              )}
+
+              {/* 兄弟間ドロップゾーン（実測レイアウトによる絶対配置） */}
+              {layout?.dropZones.map((dropZone) => (
                 <div
-                  key={node.id}
+                  key={dropZone.key}
                   style={{
                     position: 'absolute',
-                    left: CANVAS_PADDING + pos.x,
-                    top: CANVAS_PADDING + pos.y,
+                    left: CANVAS_PADDING + dropZone.x,
+                    top: CANVAS_PADDING + dropZone.y,
                     width: CARD_WIDTH,
+                    height: DROP_ZONE_HEIGHT,
                   }}
                 >
-                  <TaskNodeCard
-                    node={node}
-                    isSelected={
-                      selectedPath[selectedPath.length - 1] === node.id
-                    }
+                  <DropZone
                     accentColor={accentColor}
-                    onClick={() => selectNode(node.id)}
-                    isExpanded={!collapsedSet.has(node.id)}
-                    onToggleExpand={() => toggleNodeExpanded(node.id)}
-                    onToggleComplete={() =>
-                      toggleComplete(project.id, node.id)
-                    }
-                    onUpdateTitle={(title) =>
-                      updateNodeTitle(project.id, node.id, title)
-                    }
-                    onUpdateMemo={(memo) =>
-                      updateNodeMemo(project.id, node.id, memo)
-                    }
-                    onAddChild={() => openChildModal(node.id)}
-                    onAddSibling={() => openSiblingModal(node.id)}
-                    onDelete={() => {
-                      const ok = window.confirm(
-                        `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
+                    onDrop={(data) => {
+                      if (data.id === dropZone.parentId) return;
+
+                      moveNode(
+                        project.id,
+                        data.id,
+                        dropZone.parentId,
+                        dropZone.insertIndex,
                       );
-
-                      if (ok) {
-                        deleteNode(project.id, node.id);
-                      }
-                    }}
-                    parentId={column.parentId}
-                    dragIndex={nodeIndex}
-                    onDragOver={() => {
-                      // TaskNodeCard側の型に合わせた no-op
-                    }}
-                    onDrop={(draggedData: DraggedNodeData) => {
-                      if (draggedData.id === node.id) return;
-
-                      // カードの上へのドロップは常に「子タスク」として追加
-                      moveNode(project.id, draggedData.id, node.id);
                     }}
                   />
                 </div>
-              );
-            }),
-          )}
-
-          {/* 兄弟間ドロップゾーン（実測レイアウトによる絶対配置） */}
-          {layout?.dropZones.map((dropZone) => (
-            <div
-              key={dropZone.key}
-              style={{
-                position: 'absolute',
-                left: CANVAS_PADDING + dropZone.x,
-                top: CANVAS_PADDING + dropZone.y,
-                width: CARD_WIDTH,
-                height: DROP_ZONE_HEIGHT,
-              }}
-            >
-              <DropZone
-                accentColor={accentColor}
-                onDrop={(data) => {
-                  if (data.id === dropZone.parentId) return;
-
-                  moveNode(
-                    project.id,
-                    data.id,
-                    dropZone.parentId,
-                    dropZone.insertIndex,
-                  );
-                }}
-              />
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
       </div>
 
       {/* ── タスク追加モーダル */}
@@ -811,9 +839,11 @@ function DropZone({
 function ConnectionsOverlay({
   root,
   columns,
+  zoom,
 }: {
   root: TaskNode;
   columns: TreeColumn[];
+  zoom: number;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [paths, setPaths] = useState<{ id: string; d: string }[]>([]);
@@ -853,13 +883,16 @@ function ConnectionsOverlay({
         const parentRect = parentElement.getBoundingClientRect();
         const childRect = childElement.getBoundingClientRect();
 
+        // 実測値はズームで拡縮された画面上の座標なので、論理座標に戻す
         // 親の右端中央
-        const startX = parentRect.right - svgRect.left;
-        const startY = parentRect.top + parentRect.height / 2 - svgRect.top;
+        const startX = (parentRect.right - svgRect.left) / zoom;
+        const startY =
+          (parentRect.top + parentRect.height / 2 - svgRect.top) / zoom;
 
         // 子の左端中央
-        const endX = childRect.left - svgRect.left;
-        const endY = childRect.top + childRect.height / 2 - svgRect.top;
+        const endX = (childRect.left - svgRect.left) / zoom;
+        const endY =
+          (childRect.top + childRect.height / 2 - svgRect.top) / zoom;
 
         // 滑らかなベジェ曲線の制御点
         const distanceX = Math.max((endX - startX) / 2, 20);
@@ -906,7 +939,7 @@ function ConnectionsOverlay({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [root, columns]);
+  }, [root, columns, zoom]);
 
   return (
     <svg
@@ -933,5 +966,101 @@ function ConnectionsOverlay({
         />
       ))}
     </svg>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// 画面比率（ズーム）バー: PowerPointなどの下部ズームバーに相当
+// ────────────────────────────────────────────────────────────
+
+function ZoomBar({
+  zoom,
+  onChange,
+}: {
+  zoom: number;
+  onChange: (zoom: number) => void;
+}) {
+  const clamp = (value: number) =>
+    Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 100) / 100));
+
+  return (
+    <div
+      className="flex-shrink-0 flex items-center gap-2"
+      style={{
+        height: 32,
+        padding: '0 10px',
+        borderRadius: 11,
+        background: 'rgba(15, 23, 42, 0.85)',
+        border: '1px solid rgba(148, 163, 184, 0.2)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => onChange(clamp(zoom - ZOOM_STEP))}
+        className="flex-shrink-0 flex items-center justify-center"
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          border: '1px solid rgba(148, 163, 184, 0.3)',
+          background: 'transparent',
+          color: '#e5e7eb',
+          cursor: 'pointer',
+          fontSize: 13,
+          lineHeight: 1,
+        }}
+        title="縮小"
+      >
+        −
+      </button>
+
+      <input
+        type="range"
+        min={MIN_ZOOM}
+        max={MAX_ZOOM}
+        step={0.05}
+        value={zoom}
+        onChange={(event) => onChange(clamp(Number(event.target.value)))}
+        style={{ width: 80, cursor: 'pointer' }}
+      />
+
+      <button
+        type="button"
+        onClick={() => onChange(clamp(zoom + ZOOM_STEP))}
+        className="flex-shrink-0 flex items-center justify-center"
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          border: '1px solid rgba(148, 163, 184, 0.3)',
+          background: 'transparent',
+          color: '#e5e7eb',
+          cursor: 'pointer',
+          fontSize: 13,
+          lineHeight: 1,
+        }}
+        title="拡大"
+      >
+        ＋
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onChange(1)}
+        style={{
+          minWidth: 34,
+          textAlign: 'center',
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#94a3b8',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+        title="100%に戻す"
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+    </div>
   );
 }

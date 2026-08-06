@@ -60,6 +60,24 @@ function normalizeDateKey(value: string | null | undefined): string | null {
   return isDateKey(trimmed) ? trimmed : null;
 }
 
+/**
+ * 達成日用の正規化。過去に記録されていたISO日時形式（例: 2026-08-06T09:22:10.329Z）も
+ * 日付部分だけを取り出して YYYY-MM-DD に変換する（移行互換用）。
+ */
+function normalizeCompletedAtDateKey(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (isDateKey(trimmed)) return trimmed;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return toDateKey(parsed);
+}
+
 function dateKeyToTime(dateKey: string): number {
   const [year, month, day] = dateKey.split('-').map(Number);
   return new Date(year, month - 1, day).getTime();
@@ -395,7 +413,7 @@ function recalcProgress(root: TaskNode): TaskNode {
     progress: average,
     completed,
     completedAt: completed
-      ? (root.completed ? root.completedAt : new Date().toISOString())
+      ? (root.completed ? root.completedAt : todayDateKey())
       : null,
     isPriority: completed ? false : root.isPriority,
     priorityOrder: completed ? null : root.priorityOrder,
@@ -448,7 +466,9 @@ function normalizeTaskNode(
 
     createdBy,
     createdAt: safeString(node.createdAt, new Date().toISOString()),
-    completedAt: completed ? safeString(node.completedAt, '') || null : null,
+    completedAt: completed
+      ? normalizeCompletedAtDateKey(node.completedAt)
+      : null,
 
     children: Array.isArray(node.children)
       ? node.children.map((child) => normalizeTaskNode(child, createdBy))
@@ -588,6 +608,12 @@ export type AppState = {
     projectId: string,
     nodeId: string,
     dueDate: string | null,
+  ) => void;
+
+  updateNodeCompletedAt: (
+    projectId: string,
+    nodeId: string,
+    completedAt: string | null,
   ) => void;
 
   toggleNodePriority: (projectId: string, nodeId: string) => void;
@@ -849,7 +875,7 @@ export const useAppStore = create<AppState>()(
       },
 
       setNodeCompletion: (projectId, nodeId, completed) => {
-        const completedAt = completed ? new Date().toISOString() : null;
+        const completedAt = completed ? todayDateKey() : null;
 
         set((state) => ({
           projects: state.projects.map((project) => {
@@ -944,6 +970,23 @@ export const useAppStore = create<AppState>()(
                 normalizedDueDate,
                 node.completed,
               ),
+            }));
+
+            return updateProjectRoot(project, nextRoot);
+          }),
+        }));
+      },
+
+      updateNodeCompletedAt: (projectId, nodeId, completedAt) => {
+        const normalizedCompletedAt = normalizeDateKey(completedAt);
+
+        set((state) => ({
+          projects: state.projects.map((project) => {
+            if (project.id !== projectId) return project;
+
+            const nextRoot = mapNode(project.rootTask, nodeId, (node) => ({
+              ...node,
+              completedAt: normalizedCompletedAt,
             }));
 
             return updateProjectRoot(project, nextRoot);

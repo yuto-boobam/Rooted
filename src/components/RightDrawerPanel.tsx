@@ -42,6 +42,7 @@ export default function RightDrawerPanel() {
     const updateNodeCompletedAt = useAppStore(
         (state) => state.updateNodeCompletedAt,
     );
+    const updateNodeMemo = useAppStore((state) => state.updateNodeMemo);
     const updateNodeDetailMemo = useAppStore(
         (state) => state.updateNodeDetailMemo,
     );
@@ -216,6 +217,14 @@ export default function RightDrawerPanel() {
                                     selectedTask.projectId,
                                     selectedTask.node.id,
                                     completedAt,
+                                );
+                            }}
+                            onChangeMemo={(memo) => {
+                                if (!selectedTask) return;
+                                updateNodeMemo(
+                                    selectedTask.projectId,
+                                    selectedTask.node.id,
+                                    memo,
                                 );
                             }}
                             onChangeDetailMemo={(detailMemo) => {
@@ -423,6 +432,7 @@ function SelectedTaskEditor({
     onTogglePriority,
     onChangeDueDate,
     onChangeCompletedAt,
+    onChangeMemo,
     onChangeDetailMemo,
     onComplete,
 }: {
@@ -431,6 +441,7 @@ function SelectedTaskEditor({
     onTogglePriority: () => void;
     onChangeDueDate: (dueDate: string | null) => void;
     onChangeCompletedAt: (completedAt: string | null) => void;
+    onChangeMemo: (memo: string) => void;
     onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
 }) {
@@ -462,6 +473,17 @@ function SelectedTaskEditor({
             </div>
 
             <div style={styles.selectedControls}>
+                <label style={styles.inputLabel}>
+                    概要メモ
+                    <input
+                        type="text"
+                        value={task.node.memo}
+                        placeholder="概要メモを入力..."
+                        style={styles.dateInput}
+                        onChange={(event) => onChangeMemo(event.target.value)}
+                    />
+                </label>
+
                 <label style={styles.inputLabel}>
                     期限
                     <input

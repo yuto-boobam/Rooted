@@ -14,7 +14,9 @@ export function getInitialPatchNotes(): PatchNote[] {
 }
 
 export function getPatchNotesByDate(notes: PatchNote[], date: string): PatchNote[] {
-  return sortPatchNotes(notes.filter((note) => note.date === date));
+  return notes
+    .filter((note) => note.date === date)
+    .sort((a, b) => a.buildNumber - b.buildNumber);
 }
 
 export function getPatchNoteDates(notes: PatchNote[]): string[] {

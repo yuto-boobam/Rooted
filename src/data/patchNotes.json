@@ -2,7 +2,7 @@
   {
     "id": "2026-08-05-5046a495",
     "date": "2026-08-05",
-    "buildNumber": 4,
+    "buildNumber": 5,
     "type": "feature",
     "title": "期限で枠線の色が変化する",
     "description": "タスクツールとして、期限が近いものは管理しやすくあるべきであるため。",
@@ -12,7 +12,7 @@
   {
     "id": "2026-08-02-62dfc64e",
     "date": "2026-08-02",
-    "buildNumber": 3,
+    "buildNumber": 4,
     "type": "spec-change",
     "title": "ノードの親子関係表示について、UI変更",
     "description": "ボタンが増えて上の領域が手狭だったため。",
@@ -22,12 +22,22 @@
   {
     "id": "2026-08-02-6d2217e1",
     "date": "2026-08-02",
-    "buildNumber": 2,
+    "buildNumber": 3,
     "type": "feature",
     "title": "サイドドロワーの実装",
     "description": "サイドドロワーを追加することで、付与された属性がかなり見やすくなった。\n期限が迫っているタスクや優先タスクを管理できるだろう。",
     "beforeImageUrl": null,
     "afterImageUrl": "/images/patch-notes/2026/08/20260802-build2-after.png?v=1786000716437"
+  },
+  {
+    "id": "2026-08-01-97013ffd",
+    "date": "2026-08-01",
+    "buildNumber": 2,
+    "type": "other",
+    "title": "タスク追加時のUI変更と属性追加",
+    "description": "期間や時期などを利用した管理ができているほうが良い。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260801-build2-before.png?v=1786002458000",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260801-build2-after.png?v=1786002448170"
   },
   {
     "id": "2026-07-30-patch-notes-json",

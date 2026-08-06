@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import type { PatchNote } from '../../types/patchNote';
-import { getPatchNoteDates, todayDateKey } from '../../services/patchNotesService';
+import { todayDateKey } from '../../services/patchNotesService';
 
 interface PatchNotesCalendarProps {
   notes: PatchNote[];
@@ -69,8 +69,6 @@ export default function PatchNotesCalendar({
 
     return cells;
   }, [displayMonth, notesByDate, selectedDate]);
-
-  const noteDates = useMemo(() => getPatchNoteDates(notes), [notes]);
 
   const moveMonth = (amount: number) => {
     onNavigateMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() + amount, 1));
@@ -149,41 +147,12 @@ export default function PatchNotesCalendar({
           );
         })}
       </div>
-
-      <div style={styles.timeline} onClick={handleBackgroundClick}>
-        <div style={styles.timelineTitle}>更新がある日</div>
-
-        {noteDates.length === 0 ? (
-          <p style={styles.emptyText}>まだパッチノートがありません。</p>
-        ) : (
-          <div style={styles.timelineList} onClick={handleBackgroundClick}>
-            {noteDates.slice(0, 8).map((date) => (
-              <button
-                key={date}
-                type="button"
-                style={{
-                  ...styles.timelineButton,
-                  ...(date === selectedDate ? styles.selectedTimelineButton : {}),
-                }}
-                onClick={() => onSelectDate(date)}
-              >
-                {formatDateLabel(date)}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </section>
   );
 }
 
 function toDateKey(year: number, monthIndex: number, day: number): string {
   return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function formatDateLabel(dateKey: string): string {
-  const [, month, day] = dateKey.split('-');
-  return `${Number(month)}月${Number(day)}日`;
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -288,40 +257,5 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 10,
     lineHeight: '16px',
     fontWeight: 800,
-  },
-  timeline: {
-    marginTop: 16,
-    paddingTop: 14,
-    borderTop: '1px solid rgba(148, 163, 184, 0.16)',
-  },
-  timelineTitle: {
-    color: '#e5e7eb',
-    fontSize: 12,
-    fontWeight: 800,
-    marginBottom: 8,
-  },
-  timelineList: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  timelineButton: {
-    border: '1px solid rgba(148, 163, 184, 0.18)',
-    background: 'rgba(30, 41, 59, 0.65)',
-    color: '#cbd5e1',
-    borderRadius: 999,
-    padding: '6px 10px',
-    fontSize: 11,
-    cursor: 'pointer',
-  },
-  selectedTimelineButton: {
-    borderColor: '#facc15',
-    color: '#fde68a',
-    background: 'rgba(250, 204, 21, 0.12)',
-  },
-  emptyText: {
-    margin: 0,
-    color: '#64748b',
-    fontSize: 12,
   },
 };

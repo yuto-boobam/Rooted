@@ -44,7 +44,9 @@ const TYPE_META: Record<
 
 export default function PatchNoteCard({ note, showDate = false }: PatchNoteCardProps) {
   const typeMeta = TYPE_META[note.type];
-  const hasImages = Boolean(note.beforeImageUrl || note.afterImageUrl);
+  const imageCount = (note.beforeImageUrl ? 1 : 0) + (note.afterImageUrl ? 1 : 0);
+  const hasImages = imageCount > 0;
+  const [isImagesExpanded, setIsImagesExpanded] = useState(false);
 
   return (
     <article style={styles.noteCard}>
@@ -76,13 +78,27 @@ export default function PatchNoteCard({ note, showDate = false }: PatchNoteCardP
       <p style={styles.description}>{note.description}</p>
 
       {hasImages && (
-        <div style={styles.imageGrid}>
-          {note.beforeImageUrl && (
-            <ImageCard label="Before" src={note.beforeImageUrl} title={note.title} />
-          )}
+        <div style={styles.imagesSection}>
+          <button
+            type="button"
+            style={styles.imagesToggle}
+            aria-expanded={isImagesExpanded}
+            onClick={() => setIsImagesExpanded((current) => !current)}
+          >
+            <span>📷 画像（{imageCount}枚）</span>
+            <span style={styles.chevron}>{isImagesExpanded ? '︿ 隠す' : '﹀ 表示'}</span>
+          </button>
 
-          {note.afterImageUrl && (
-            <ImageCard label="After" src={note.afterImageUrl} title={note.title} />
+          {isImagesExpanded && (
+            <div style={styles.imageGrid}>
+              {note.beforeImageUrl && (
+                <ImageCard label="Before" src={note.beforeImageUrl} title={note.title} />
+              )}
+
+              {note.afterImageUrl && (
+                <ImageCard label="After" src={note.afterImageUrl} title={note.title} />
+              )}
+            </div>
           )}
         </div>
       )}
@@ -209,11 +225,33 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.75,
     whiteSpace: 'pre-wrap',
   },
+  imagesSection: {
+    marginTop: 14,
+  },
+  imagesToggle: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    border: '1px solid rgba(148, 163, 184, 0.18)',
+    background: 'rgba(2, 6, 23, 0.4)',
+    color: '#cbd5e1',
+    borderRadius: 12,
+    padding: '8px 12px',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  chevron: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: 700,
+  },
   imageGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
     gap: 12,
-    marginTop: 14,
+    marginTop: 10,
   },
   imageCard: {
     margin: 0,

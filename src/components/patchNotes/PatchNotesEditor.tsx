@@ -8,6 +8,7 @@ import {
   toPatchNotesJson,
   upsertPatchNote,
 } from '../../services/patchNotesService';
+import PatchNoteImageUploadField from './PatchNoteImageUploadField';
 
 interface PatchNotesEditorProps {
   selectedDate: string;
@@ -230,25 +231,23 @@ export default function PatchNotesEditor({
         </label>
 
         <div style={styles.formGrid}>
-          <label style={styles.label}>
-            Before Image URL 任意
-            <input
-              style={styles.input}
-              value={form.beforeImageUrl ?? ''}
-              placeholder="https://..."
-              onChange={(event) => updateField('beforeImageUrl', event.target.value)}
-            />
-          </label>
+          <PatchNoteImageUploadField
+            displayLabel="Before Image"
+            uploadLabel="before"
+            value={form.beforeImageUrl}
+            onChange={(value) => updateField('beforeImageUrl', value)}
+            date={selectedDate}
+            buildNumber={form.buildNumber}
+          />
 
-          <label style={styles.label}>
-            After Image URL 任意
-            <input
-              style={styles.input}
-              value={form.afterImageUrl ?? ''}
-              placeholder="https://..."
-              onChange={(event) => updateField('afterImageUrl', event.target.value)}
-            />
-          </label>
+          <PatchNoteImageUploadField
+            displayLabel="After Image"
+            uploadLabel="after"
+            value={form.afterImageUrl}
+            onChange={(value) => updateField('afterImageUrl', value)}
+            date={selectedDate}
+            buildNumber={form.buildNumber}
+          />
         </div>
 
         <div style={styles.buttonRow}>

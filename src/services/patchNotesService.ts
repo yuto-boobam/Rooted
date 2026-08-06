@@ -3,6 +3,7 @@ import type { PatchNote, PatchNoteType, PatchNotesJson } from '../types/patchNot
 
 export const PATCH_NOTES_FILE_PATH = 'src/data/patchNotes.json';
 export const PATCH_NOTES_API_ENDPOINT = '/__rooted-api/patch-notes';
+export const PATCH_NOTE_IMAGE_API_ENDPOINT = '/__rooted-api/patch-notes/image';
 
 const importedPatchNotes = (
   Array.isArray(patchNotesJson) ? patchNotesJson : []
@@ -94,6 +95,53 @@ export async function saveNotesToLocalFile(notes: PatchNote[]): Promise<void> {
       errorText || `ローカルファイルへの保存に失敗しました。(status: ${response.status})`,
     );
   }
+}
+
+export interface UploadPatchNoteImageParams {
+  date: string;
+  buildNumber: number;
+  label: 'before' | 'after';
+  file: File;
+}
+
+export async function uploadPatchNoteImage(params: UploadPatchNoteImageParams): Promise<string> {
+  const dataBase64 = await fileToBase64(params.file);
+
+  const response = await fetch(PATCH_NOTE_IMAGE_API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      date: params.date,
+      buildNumber: params.buildNumber,
+      label: params.label,
+      fileName: params.file.name,
+      dataBase64,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(
+      errorText || `画像のアップロードに失敗しました。(status: ${response.status})`,
+    );
+  }
+
+  const result = (await response.json()) as { url: string };
+  return result.url;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+
+    reader.onerror = () => reject(reader.error ?? new Error('ファイルの読み込みに失敗しました。'));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function normalizePatchNote(note: Partial<PatchNote>): PatchNote {

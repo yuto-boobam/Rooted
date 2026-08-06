@@ -127,7 +127,7 @@ export function TaskNodeCard({
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
-        minHeight: isRoot ? 110 : 76,
+        minHeight: node.completed ? undefined : isRoot ? 110 : 76,
         width: isRoot ? 200 : '100%',
       }}
     >
@@ -243,90 +243,80 @@ export function TaskNodeCard({
         )}
       </div>
 
-      {/* ── メモ欄 */}
-      {isEditingMemo ? (
-        <input
-          ref={memoRef}
-          type="text"
-          className="input-inline text-xs"
-          placeholder="概要メモを入力..."
-          value={node.memo}
-          autoFocus
-          onChange={(e) => onUpdateMemo(e.target.value)}
-          onBlur={() => setIsEditingMemo(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === 'Escape') setIsEditingMemo(false);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          style={{ color: 'var(--text-secondary)' }}
-        />
-      ) : (
-        <p
-          className="text-xs cursor-text"
-          style={{
-            color: node.memo ? 'var(--text-secondary)' : 'var(--text-muted)',
-            minHeight: 16,
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            setIsEditingMemo(true);
-          }}
-        >
-          {node.memo || '概要メモ（ダブルクリックで編集）'}
-        </p>
-      )}
-
-      {/* ── 期限表示 */}
-      {node.dueDate && (
-        <div
-          className="flex items-center gap-1 text-xs font-medium"
-          style={{
-            color: node.completed
-              ? 'var(--text-muted)'
-              : (dueUrgency?.accent ?? 'var(--text-primary)'),
-          }}
-        >
-          <span>📅</span>
-          <span>期限: {formatDueDate(node.dueDate)}</span>
-        </div>
-      )}
-
-      {/* ── 達成日表示 */}
-      {node.completed && node.completedAt && (
-        <div
-          className="flex items-center gap-1 text-xs font-medium"
-          style={{ color: accentColor }}
-        >
-          <span>🏁</span>
-          <span>達成: {formatCompletedAt(node.completedAt)}</span>
-        </div>
-      )}
-
-      {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
-      {!isLeaf && (
-        <div className="flex flex-col gap-1 mt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              📋 {node.children.length}
-            </span>
-            <span
-              className="text-xs font-medium"
+      {/* ── 達成済みノードはタイトル＋チェックのみに圧縮（詳細はサイドドロワーで編集） */}
+      {!node.completed && (
+        <>
+          {/* ── メモ欄 */}
+          {isEditingMemo ? (
+            <input
+              ref={memoRef}
+              type="text"
+              className="input-inline text-xs"
+              placeholder="概要メモを入力..."
+              value={node.memo}
+              autoFocus
+              onChange={(e) => onUpdateMemo(e.target.value)}
+              onBlur={() => setIsEditingMemo(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') setIsEditingMemo(false);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ color: 'var(--text-secondary)' }}
+            />
+          ) : (
+            <p
+              className="text-xs cursor-text"
               style={{
-                color: isSelected
-                  ? accentColor
-                  : (dueUrgency?.accent ?? 'var(--text-primary)'),
+                color: node.memo ? 'var(--text-secondary)' : 'var(--text-muted)',
+                minHeight: 16,
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setIsEditingMemo(true);
               }}
             >
-              {progress}%
-            </span>
-          </div>
-          <div className="progress-bar">
+              {node.memo || '概要メモ（ダブルクリックで編集）'}
+            </p>
+          )}
+
+          {/* ── 期限表示 */}
+          {node.dueDate && (
             <div
-              className="progress-bar__fill"
-              style={{ width: `${progress}%`, background: accentColor }}
-            />
-          </div>
-        </div>
+              className="flex items-center gap-1 text-xs font-medium"
+              style={{ color: dueUrgency?.accent ?? 'var(--text-primary)' }}
+            >
+              <span>📅</span>
+              <span>期限: {formatDueDate(node.dueDate)}</span>
+            </div>
+          )}
+
+          {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
+          {!isLeaf && (
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  📋 {node.children.length}
+                </span>
+                <span
+                  className="text-xs font-medium"
+                  style={{
+                    color: isSelected
+                      ? accentColor
+                      : (dueUrgency?.accent ?? 'var(--text-primary)'),
+                  }}
+                >
+                  {progress}%
+                </span>
+              </div>
+              <div className="progress-bar">
+                <div
+                  className="progress-bar__fill"
+                  style={{ width: `${progress}%`, background: accentColor }}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -349,12 +339,4 @@ function formatDueDate(dueDate: string): string {
   if (!month || !day) return dueDate;
 
   return `${Number(month)}/${Number(day)}`;
-}
-
-/** 達成日（YYYY-MM-DD）を "YYYY/M/D" 表記に変換する */
-function formatCompletedAt(completedAt: string): string {
-  const [year, month, day] = completedAt.split('-');
-  if (!year || !month || !day) return completedAt;
-
-  return `${year}/${Number(month)}/${Number(day)}`;
 }

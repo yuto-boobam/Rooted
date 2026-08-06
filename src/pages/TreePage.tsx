@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
@@ -18,6 +18,194 @@ type TreeColumn = {
   nodes: TaskNode[];
   depth: number;
 };
+
+// ── ツリーレイアウト定数（カード実寸・列間隔など） ─────────────────────────
+const CARD_WIDTH = 260;
+const ROOT_WIDTH = 240;
+const GAP_X = 60;
+const DROP_ZONE_HEIGHT = 24;
+const DEFAULT_NODE_HEIGHT = 120;
+const DEFAULT_ROOT_HEIGHT = 160;
+const CANVAS_PADDING = 48;
+
+type NodePosition = { x: number; y: number; height: number };
+
+type DropZoneSpec = {
+  key: string;
+  parentId: string;
+  insertIndex: number;
+  x: number;
+  y: number;
+};
+
+type TreeLayout = {
+  positions: Map<string, NodePosition>;
+  dropZones: DropZoneSpec[];
+  width: number;
+  height: number;
+};
+
+/**
+ * 実測したカード高さを元に、各ノードの座標を計算する。
+ * 子を持つノードは「自分の子ノード群の中心」に縦位置を合わせ、葉ノードは
+ * 木全体で重ならないよう順番に積み上げる（いわゆる tidy tree レイアウト）。
+ */
+function computeTreeLayout(
+  root: TaskNode,
+  collapsedSet: Set<string>,
+  heights: Record<string, number>,
+): TreeLayout {
+  const heightOf = (id: string, isRoot: boolean) =>
+    heights[id] ?? (isRoot ? DEFAULT_ROOT_HEIGHT : DEFAULT_NODE_HEIGHT);
+
+  const depthX = (depth: number) =>
+    depth === 0 ? 0 : ROOT_WIDTH + GAP_X + (depth - 1) * (CARD_WIDTH + GAP_X);
+
+  // ルートは開閉トグルを持たないため常に展開扱い
+  const isExpanded = (node: TaskNode, depth: number) =>
+    depth === 0 || !collapsedSet.has(node.id);
+
+  const requiredCache = new Map<string, number>();
+
+  // 1段目: 各ノードが必要とする縦幅を子から積み上げて求める
+  const computeRequired = (node: TaskNode, depth: number): number => {
+    const cached = requiredCache.get(node.id);
+    if (cached !== undefined) return cached;
+
+    const own = heightOf(node.id, depth === 0);
+    const children = isExpanded(node, depth) ? node.children : [];
+
+    let required = own;
+    if (children.length > 0) {
+      const block =
+        children.reduce(
+          (sum, child) => sum + computeRequired(child, depth + 1),
+          0,
+        ) +
+        (children.length + 1) * DROP_ZONE_HEIGHT;
+
+      required = Math.max(own, block);
+    }
+
+    requiredCache.set(node.id, required);
+    return required;
+  };
+
+  computeRequired(root, 0);
+
+  // 2段目: 必要な縦幅を元に、実際の座標を割り当てる
+  const positions = new Map<string, NodePosition>();
+  const dropZones: DropZoneSpec[] = [];
+  let maxDepth = 0;
+
+  // 戻り値: このノード自身の縦方向の中心Y座標
+  const assign = (node: TaskNode, depth: number, topY: number): number => {
+    maxDepth = Math.max(maxDepth, depth);
+
+    const own = heightOf(node.id, depth === 0);
+    const required = requiredCache.get(node.id) ?? own;
+    const children = isExpanded(node, depth) ? node.children : [];
+
+    if (children.length === 0) {
+      // required === own のため、そのまま配置してよい
+      positions.set(node.id, { x: depthX(depth), y: topY, height: own });
+      return topY + own / 2;
+    }
+
+    const block =
+      children.reduce(
+        (sum, child) => sum + (requiredCache.get(child.id) ?? 0),
+        0,
+      ) +
+      (children.length + 1) * DROP_ZONE_HEIGHT;
+
+    let cursorY = topY + (required - block) / 2;
+
+    dropZones.push({
+      key: `${node.id}-0`,
+      parentId: node.id,
+      insertIndex: 0,
+      x: depthX(depth + 1),
+      y: cursorY,
+    });
+    cursorY += DROP_ZONE_HEIGHT;
+
+    const childCenters: number[] = [];
+
+    children.forEach((child, index) => {
+      childCenters.push(assign(child, depth + 1, cursorY));
+      cursorY += requiredCache.get(child.id) ?? 0;
+
+      dropZones.push({
+        key: `${node.id}-${index + 1}`,
+        parentId: node.id,
+        insertIndex: index + 1,
+        x: depthX(depth + 1),
+        y: cursorY,
+      });
+      cursorY += DROP_ZONE_HEIGHT;
+    });
+
+    // 直接の子どもたち（最初と最後）の中心に自分を合わせる。
+    // ただし自分の持ち場（[topY, topY + required]）からはみ出さないよう安全域にクランプする。
+    const rawCenter =
+      (childCenters[0] + childCenters[childCenters.length - 1]) / 2;
+    const nodeY = Math.min(
+      Math.max(rawCenter - own / 2, topY),
+      topY + required - own,
+    );
+
+    positions.set(node.id, { x: depthX(depth), y: nodeY, height: own });
+    return nodeY + own / 2;
+  };
+
+  assign(root, 0, 0);
+
+  const totalHeight = requiredCache.get(root.id) ?? heightOf(root.id, true);
+  const totalWidth =
+    depthX(maxDepth) + (maxDepth === 0 ? ROOT_WIDTH : CARD_WIDTH);
+
+  return { positions, dropZones, width: totalWidth, height: totalHeight };
+}
+
+/** 現在DOM上にあるノードカードの実寸高さを毎フレーム計測する */
+function useNodeHeights(): Record<string, number> {
+  const [heights, setHeights] = useState<Record<string, number>>({});
+  const latestRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    let animationFrameId = 0;
+
+    const measure = () => {
+      const elements = document.querySelectorAll<HTMLElement>('[id^="node-"]');
+      const next = { ...latestRef.current };
+      let changed = false;
+
+      elements.forEach((element) => {
+        const id = element.id.slice('node-'.length);
+        const measuredHeight = Math.round(element.getBoundingClientRect().height);
+
+        if (measuredHeight > 0 && next[id] !== measuredHeight) {
+          next[id] = measuredHeight;
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        latestRef.current = next;
+        setHeights(next);
+      }
+
+      animationFrameId = requestAnimationFrame(measure);
+    };
+
+    animationFrameId = requestAnimationFrame(measure);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
+  return heights;
+}
 
 /** ノードIDからノードを再帰的に検索する */
 function findNode(root: TaskNode, id: string): TaskNode | null {
@@ -236,17 +424,13 @@ export function TreePage() {
     return nextColumns;
   }, [root, collapsedSet]);
 
-  // ── 同じ深さの列（別の枝から同時に開かれたもの）をまとめる
-  const columnsByDepth = useMemo(() => {
-    const groups: TreeColumn[][] = [];
+  // ── 各ノードの実測高さから座標を計算（子ノード群の中心に親を合わせる）
+  const nodeHeights = useNodeHeights();
 
-    for (const column of columns) {
-      if (!groups[column.depth]) groups[column.depth] = [];
-      groups[column.depth].push(column);
-    }
-
-    return groups;
-  }, [columns]);
+  const layout = useMemo(() => {
+    if (!root) return null;
+    return computeTreeLayout(root, collapsedSet, nodeHeights);
+  }, [root, collapsedSet, nodeHeights]);
 
   if (!project || !root || !projectId) {
     return <ProjectMissingView onBackToDashboard={goToDashboard} />;
@@ -310,18 +494,25 @@ export function TreePage() {
         <span>ダブルクリックでタイトル・メモを編集 / ドラッグで並び替え</span>
       </div>
 
-      {/* ── ツリービュー本体（横スクロール） */}
-      <div
-        className="flex-1 overflow-x-auto overflow-y-hidden"
-        style={{ position: 'relative' }}
-      >
-        <div className="min-w-max min-h-full flex items-center p-12 gap-[60px] relative">
+      {/* ── ツリービュー本体（縦横スクロール） */}
+      <div className="flex-1 overflow-auto" style={{ position: 'relative' }}>
+        <div
+          style={{
+            position: 'relative',
+            width: (layout?.width ?? 0) + CANVAS_PADDING * 2,
+            height: (layout?.height ?? 0) + CANVAS_PADDING * 2,
+          }}
+        >
           <ConnectionsOverlay root={root} columns={columns} />
 
-          {/* 左端：ルートノードカード */}
+          {/* ルートノードカード */}
           <div
-            className="flex-shrink-0 flex items-center py-8"
-            style={{ paddingLeft: '40px' }}
+            style={{
+              position: 'absolute',
+              left: CANVAS_PADDING + (layout?.positions.get(root.id)?.x ?? 0),
+              top: CANVAS_PADDING + (layout?.positions.get(root.id)?.y ?? 0),
+              width: ROOT_WIDTH,
+            }}
           >
             <TaskNodeCard
               node={root}
@@ -357,86 +548,93 @@ export function TreePage() {
             />
           </div>
 
-          {/* 各深さ（同じ深さで複数の枝が同時に開いている場合は縦に並べる） */}
-          {columnsByDepth.map((depthColumns, depth) => (
-            <div
-              key={depth}
-              className="flex-shrink-0 flex flex-col gap-10 justify-center py-8"
-              style={{ width: 260 }}
-            >
-              {depthColumns.map((column) => (
-                <div key={column.parentId} className="flex flex-col">
-                  {/* カラム先頭（一番上）へのドロップ */}
-                  <DropZone
+          {/* 各ノードカード（実測レイアウトによる絶対配置） */}
+          {columns.flatMap((column) =>
+            column.nodes.map((node, nodeIndex) => {
+              const pos = layout?.positions.get(node.id);
+              if (!pos) return null;
+
+              return (
+                <div
+                  key={node.id}
+                  style={{
+                    position: 'absolute',
+                    left: CANVAS_PADDING + pos.x,
+                    top: CANVAS_PADDING + pos.y,
+                    width: CARD_WIDTH,
+                  }}
+                >
+                  <TaskNodeCard
+                    node={node}
+                    isSelected={
+                      selectedPath[selectedPath.length - 1] === node.id
+                    }
                     accentColor={accentColor}
-                    onDrop={(data) => {
-                      if (data.id === column.parentId) return;
-                      moveNode(project.id, data.id, column.parentId, 0);
+                    onClick={() => selectNode(node.id)}
+                    isExpanded={!collapsedSet.has(node.id)}
+                    onToggleExpand={() => toggleNodeExpanded(node.id)}
+                    onToggleComplete={() =>
+                      toggleComplete(project.id, node.id)
+                    }
+                    onUpdateTitle={(title) =>
+                      updateNodeTitle(project.id, node.id, title)
+                    }
+                    onUpdateMemo={(memo) =>
+                      updateNodeMemo(project.id, node.id, memo)
+                    }
+                    onAddChild={() => openChildModal(node.id)}
+                    onAddSibling={() => openSiblingModal(node.id)}
+                    onDelete={() => {
+                      const ok = window.confirm(
+                        `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
+                      );
+
+                      if (ok) {
+                        deleteNode(project.id, node.id);
+                      }
+                    }}
+                    parentId={column.parentId}
+                    dragIndex={nodeIndex}
+                    onDragOver={() => {
+                      // TaskNodeCard側の型に合わせた no-op
+                    }}
+                    onDrop={(draggedData: DraggedNodeData) => {
+                      if (draggedData.id === node.id) return;
+
+                      // カードの上へのドロップは常に「子タスク」として追加
+                      moveNode(project.id, draggedData.id, node.id);
                     }}
                   />
-
-                  {column.nodes.map((node, nodeIndex) => (
-                    <React.Fragment key={node.id}>
-                      <TaskNodeCard
-                        node={node}
-                        isSelected={
-                          selectedPath[selectedPath.length - 1] === node.id
-                        }
-                        accentColor={accentColor}
-                        onClick={() => selectNode(node.id)}
-                        isExpanded={!collapsedSet.has(node.id)}
-                        onToggleExpand={() => toggleNodeExpanded(node.id)}
-                        onToggleComplete={() =>
-                          toggleComplete(project.id, node.id)
-                        }
-                        onUpdateTitle={(title) =>
-                          updateNodeTitle(project.id, node.id, title)
-                        }
-                        onUpdateMemo={(memo) =>
-                          updateNodeMemo(project.id, node.id, memo)
-                        }
-                        onAddChild={() => openChildModal(node.id)}
-                        onAddSibling={() => openSiblingModal(node.id)}
-                        onDelete={() => {
-                          const ok = window.confirm(
-                            `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
-                          );
-
-                          if (ok) {
-                            deleteNode(project.id, node.id);
-                          }
-                        }}
-                        parentId={column.parentId}
-                        dragIndex={nodeIndex}
-                        onDragOver={() => {
-                          // TaskNodeCard側の型に合わせた no-op
-                        }}
-                        onDrop={(draggedData: DraggedNodeData) => {
-                          if (draggedData.id === node.id) return;
-
-                          // カードの上へのドロップは常に「子タスク」として追加
-                          moveNode(project.id, draggedData.id, node.id);
-                        }}
-                      />
-
-                      {/* カード直後（兄弟間、または一番下）へのドロップ */}
-                      <DropZone
-                        accentColor={accentColor}
-                        onDrop={(data) => {
-                          if (data.id === column.parentId) return;
-
-                          moveNode(
-                            project.id,
-                            data.id,
-                            column.parentId,
-                            nodeIndex + 1,
-                          );
-                        }}
-                      />
-                    </React.Fragment>
-                  ))}
                 </div>
-              ))}
+              );
+            }),
+          )}
+
+          {/* 兄弟間ドロップゾーン（実測レイアウトによる絶対配置） */}
+          {layout?.dropZones.map((dropZone) => (
+            <div
+              key={dropZone.key}
+              style={{
+                position: 'absolute',
+                left: CANVAS_PADDING + dropZone.x,
+                top: CANVAS_PADDING + dropZone.y,
+                width: CARD_WIDTH,
+                height: DROP_ZONE_HEIGHT,
+              }}
+            >
+              <DropZone
+                accentColor={accentColor}
+                onDrop={(data) => {
+                  if (data.id === dropZone.parentId) return;
+
+                  moveNode(
+                    project.id,
+                    data.id,
+                    dropZone.parentId,
+                    dropZone.insertIndex,
+                  );
+                }}
+              />
             </div>
           ))}
         </div>

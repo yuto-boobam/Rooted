@@ -283,6 +283,62 @@ export function TreePage() {
   // ── 画面比率（ズーム）
   const [zoom, setZoom] = useState(1);
 
+  // ── ドラッグで画面を動かす（パン）
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const panStateRef = useRef<{
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
+
+  const handleCanvasMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      // カード・ドロップゾーンなど背景以外の要素上では発火させない
+      if (event.target !== event.currentTarget) return;
+      if (event.button !== 0) return;
+
+      const scrollEl = scrollRef.current;
+      if (!scrollEl) return;
+
+      panStateRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollLeft: scrollEl.scrollLeft,
+        scrollTop: scrollEl.scrollTop,
+      };
+      setIsPanning(true);
+
+      // ドラッグ中に他の要素のテキストが選択されてしまうのを防ぐ
+      const previousUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = 'none';
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const panState = panStateRef.current;
+        const scrollTarget = scrollRef.current;
+        if (!panState || !scrollTarget) return;
+
+        scrollTarget.scrollLeft =
+          panState.scrollLeft - (moveEvent.clientX - panState.startX);
+        scrollTarget.scrollTop =
+          panState.scrollTop - (moveEvent.clientY - panState.startY);
+      };
+
+      const handleMouseUp = () => {
+        panStateRef.current = null;
+        setIsPanning(false);
+        document.body.style.userSelect = previousUserSelect;
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    },
+    [],
+  );
+
   // モーダルを開くヘルパー
   const openChildModal = useCallback((targetId: string) => {
     setModal({ open: true, mode: 'child', targetId });
@@ -503,11 +559,18 @@ export function TreePage() {
           </kbd>{' '}
           兄弟タスク追加
         </span>
-        <span>ダブルクリックでタイトル・メモを編集 / ドラッグで並び替え</span>
+        <span>
+          ダブルクリックでタイトル・メモを編集 / カードをドラッグで並び替え /
+          背景をドラッグで画面移動
+        </span>
       </div>
 
-      {/* ── ツリービュー本体（縦横スクロール＋画面比率変更） */}
-      <div className="flex-1 overflow-auto" style={{ position: 'relative' }}>
+      {/* ── ツリービュー本体（縦横スクロール＋画面比率変更＋ドラッグでパン） */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto"
+        style={{ position: 'relative' }}
+      >
         <div
           style={{
             position: 'relative',
@@ -516,6 +579,7 @@ export function TreePage() {
           }}
         >
           <div
+              onMouseDown={handleCanvasMouseDown}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -524,6 +588,8 @@ export function TreePage() {
                 height: (layout?.height ?? 0) + CANVAS_PADDING * 2,
                 transform: `scale(${zoom})`,
                 transformOrigin: 'top left',
+                cursor: isPanning ? 'grabbing' : 'grab',
+                userSelect: isPanning ? 'none' : undefined,
               }}
             >
               <ConnectionsOverlay root={root} columns={columns} zoom={zoom} />

@@ -8,8 +8,8 @@ import {
 } from '../../services/githubApi';
 import {
   createEmptyPatchNote,
+  previewBuildNumberForNewNote,
   saveNotesToLocalFile,
-  suggestNextBuildNumber,
   toPatchNotesJson,
   upsertPatchNote,
 } from '../../services/patchNotesService';
@@ -401,6 +401,7 @@ export default function PatchNotesAddForm({
             >
               <option value="feature">feature / 新機能</option>
               <option value="bugfix">bugfix / バグ修正</option>
+              <option value="spec-change">spec-change / 仕様変更</option>
               <option value="other">other / その他</option>
             </select>
           </label>
@@ -496,7 +497,7 @@ function buildDraftFromPullRequests(
 
   return {
     ...base,
-    buildNumber: base.buildNumber > 0 ? base.buildNumber : suggestNextBuildNumber(allNotes),
+    buildNumber: base.buildNumber > 0 ? base.buildNumber : previewBuildNumberForNewNote(allNotes, base.date),
     type: overwriteText || base.type === 'other' ? inferredType : base.type,
     title: overwriteText || !base.title.trim() ? draftTitle : base.title,
     description:

@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
+import { useMemo } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import type { PatchNote } from '../../types/patchNote';
 import { getPatchNoteDates, todayDateKey } from '../../services/patchNotesService';
 
 interface PatchNotesCalendarProps {
   notes: PatchNote[];
-  selectedDate: string;
+  selectedDate: string | null;
+  displayMonth: Date;
   onSelectDate: (date: string) => void;
+  onNavigateMonth: (nextMonth: Date) => void;
+  onDeselectDate: () => void;
 }
 
 type CalendarCell =
@@ -24,28 +27,11 @@ const WEEK_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
 export default function PatchNotesCalendar({
   notes,
   selectedDate,
+  displayMonth,
   onSelectDate,
+  onNavigateMonth,
+  onDeselectDate,
 }: PatchNotesCalendarProps) {
-  const [displayMonth, setDisplayMonth] = useState<Date>(() => {
-    const parsedDate = parseDateKey(selectedDate);
-    return new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1);
-  });
-
-  useEffect(() => {
-    const parsedDate = parseDateKey(selectedDate);
-
-    setDisplayMonth((currentMonth) => {
-      if (
-        currentMonth.getFullYear() === parsedDate.getFullYear() &&
-        currentMonth.getMonth() === parsedDate.getMonth()
-      ) {
-        return currentMonth;
-      }
-
-      return new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1);
-    });
-  }, [selectedDate]);
-
   const notesByDate = useMemo(() => {
     const map = new Map<string, number>();
 
@@ -87,25 +73,27 @@ export default function PatchNotesCalendar({
   const noteDates = useMemo(() => getPatchNoteDates(notes), [notes]);
 
   const moveMonth = (amount: number) => {
-    setDisplayMonth(
-      (currentMonth) =>
-        new Date(currentMonth.getFullYear(), currentMonth.getMonth() + amount, 1),
-    );
+    onNavigateMonth(new Date(displayMonth.getFullYear(), displayMonth.getMonth() + amount, 1));
   };
 
   const handleTodayClick = () => {
-    const today = todayDateKey();
-    onSelectDate(today);
+    onSelectDate(todayDateKey());
+  };
+
+  const handleBackgroundClick = (event: MouseEvent<HTMLElement>) => {
+    if (event.target === event.currentTarget) {
+      onDeselectDate();
+    }
   };
 
   return (
-    <section style={styles.panel} aria-label="パッチノートカレンダー">
-      <div style={styles.header}>
+    <section style={styles.panel} aria-label="パッチノートカレンダー" onClick={handleBackgroundClick}>
+      <div style={styles.header} onClick={handleBackgroundClick}>
         <button type="button" style={styles.navButton} onClick={() => moveMonth(-1)}>
           ‹
         </button>
 
-        <div style={styles.monthTitle}>
+        <div style={styles.monthTitle} onClick={onDeselectDate}>
           {displayMonth.getFullYear()}年 {displayMonth.getMonth() + 1}月
         </div>
 
@@ -118,7 +106,7 @@ export default function PatchNotesCalendar({
         今日を選択
       </button>
 
-      <div style={styles.weekGrid}>
+      <div style={styles.weekGrid} onClick={handleBackgroundClick}>
         {WEEK_DAYS.map((weekDay) => (
           <div key={weekDay} style={styles.weekDay}>
             {weekDay}
@@ -126,10 +114,18 @@ export default function PatchNotesCalendar({
         ))}
       </div>
 
-      <div style={styles.calendarGrid}>
+      <div style={styles.calendarGrid} onClick={handleBackgroundClick}>
         {calendarCells.map((cell, index) => {
           if (!cell) {
-            return <div key={`empty-${index}`} style={styles.emptyCell} />;
+            return (
+              <button
+                key={`empty-${index}`}
+                type="button"
+                style={styles.emptyCell}
+                aria-label="選択を解除"
+                onClick={onDeselectDate}
+              />
+            );
           }
 
           const dayButtonStyle: CSSProperties = {
@@ -154,13 +150,13 @@ export default function PatchNotesCalendar({
         })}
       </div>
 
-      <div style={styles.timeline}>
+      <div style={styles.timeline} onClick={handleBackgroundClick}>
         <div style={styles.timelineTitle}>更新がある日</div>
 
         {noteDates.length === 0 ? (
           <p style={styles.emptyText}>まだパッチノートがありません。</p>
         ) : (
-          <div style={styles.timelineList}>
+          <div style={styles.timelineList} onClick={handleBackgroundClick}>
             {noteDates.slice(0, 8).map((date) => (
               <button
                 key={date}
@@ -179,16 +175,6 @@ export default function PatchNotesCalendar({
       </div>
     </section>
   );
-}
-
-function parseDateKey(dateKey: string): Date {
-  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
-
-  if (!matched) {
-    return new Date();
-  }
-
-  return new Date(Number(matched[1]), Number(matched[2]) - 1, Number(matched[3]));
 }
 
 function toDateKey(year: number, monthIndex: number, day: number): string {
@@ -228,6 +214,7 @@ const styles: Record<string, CSSProperties> = {
     color: '#f8fafc',
     fontWeight: 700,
     fontSize: 15,
+    cursor: 'pointer',
   },
   todayButton: {
     width: '100%',
@@ -261,6 +248,10 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyCell: {
     minHeight: 42,
+    border: 'none',
+    background: 'transparent',
+    padding: 0,
+    cursor: 'pointer',
   },
   dayButton: {
     position: 'relative',

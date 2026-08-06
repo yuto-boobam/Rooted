@@ -11,7 +11,7 @@ const MAX_IMAGE_BODY_BYTES = 12 * 1024 * 1024; // base64換算で実画像は約
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const VALID_TYPES = new Set(['feature', 'bugfix', 'other']);
+const VALID_TYPES = new Set(['feature', 'bugfix', 'spec-change', 'other']);
 const VALID_IMAGE_LABELS = new Set(['before', 'after']);
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 
@@ -161,7 +161,9 @@ async function handleUploadImage(
     return;
   }
 
-  const publicUrl = `/images/patch-notes/${year}/${month}/${fileName}`;
+  // 同じ日付・ビルド番号・labelの画像を差し替えた場合もパスは同一になるため、
+  // クエリでキャッシュを無効化し、ブラウザ・Reactの双方が新しい画像として再取得するようにする。
+  const publicUrl = `/images/patch-notes/${year}/${month}/${fileName}?v=${Date.now()}`;
   respond(res, 200, JSON.stringify({ ok: true, url: publicUrl }), 'application/json');
 }
 

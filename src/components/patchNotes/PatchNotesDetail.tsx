@@ -3,18 +3,25 @@ import type { PatchNote } from '../../types/patchNote';
 import PatchNoteCard from './PatchNoteCard';
 
 interface PatchNotesDetailProps {
-  selectedDate: string;
+  heading: string;
+  emptyMessage: string;
   notes: PatchNote[];
+  showDatePerCard?: boolean;
 }
 
-export default function PatchNotesDetail({ selectedDate, notes }: PatchNotesDetailProps) {
+export default function PatchNotesDetail({
+  heading,
+  emptyMessage,
+  notes,
+  showDatePerCard = false,
+}: PatchNotesDetailProps) {
   if (notes.length === 0) {
     return (
       <section style={styles.emptyPanel}>
         <div style={styles.emptyIcon}>📭</div>
-        <h3 style={styles.emptyTitle}>{formatDateLabel(selectedDate)} の更新履歴はありません</h3>
+        <h3 style={styles.emptyTitle}>{emptyMessage}</h3>
         <p style={styles.emptyText}>
-          別の日付を選択するか、開発環境では「＋ パッチノート追記/編集」から下書きを作成できます。
+          別の日付を選択するか、開発環境では「＋ 追加」から下書きを作成できます。
         </p>
       </section>
     );
@@ -25,28 +32,18 @@ export default function PatchNotesDetail({ selectedDate, notes }: PatchNotesDeta
       <div style={styles.heading}>
         <span style={styles.headingIcon}>📜</span>
         <div>
-          <h3 style={styles.title}>{formatDateLabel(selectedDate)} のパッチノート</h3>
+          <h3 style={styles.title}>{heading}</h3>
           <p style={styles.subtitle}>{notes.length}件の更新</p>
         </div>
       </div>
 
       <div style={styles.noteList}>
         {notes.map((note) => (
-          <PatchNoteCard key={note.id} note={note} />
+          <PatchNoteCard key={note.id} note={note} showDate={showDatePerCard} />
         ))}
       </div>
     </section>
   );
-}
-
-function formatDateLabel(dateKey: string): string {
-  const [year, month, day] = dateKey.split('-');
-
-  if (!year || !month || !day) {
-    return dateKey;
-  }
-
-  return `${year}年${Number(month)}月${Number(day)}日`;
 }
 
 const styles: Record<string, CSSProperties> = {

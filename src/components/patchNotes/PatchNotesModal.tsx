@@ -5,6 +5,7 @@ import {
   getInitialPatchNotes,
   getPatchNoteDates,
   getPatchNotesByDate,
+  getPatchNotesByMonth,
   todayDateKey,
 } from '../../services/patchNotesService';
 import PatchNotesAddForm from './PatchNotesAddForm';
@@ -31,20 +32,45 @@ export default function PatchNotesModal({
   initialSelectedDate,
 }: PatchNotesModalProps) {
   const [notes, setNotes] = useState<PatchNote[]>(() => getInitialPatchNotes());
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
     const initialNotes = getInitialPatchNotes();
     return initialSelectedDate ?? getPatchNoteDates(initialNotes)[0] ?? todayDateKey();
+  });
+  const [displayMonth, setDisplayMonth] = useState<Date>(() => {
+    const initialNotes = getInitialPatchNotes();
+    const initialDate = initialSelectedDate ?? getPatchNoteDates(initialNotes)[0] ?? todayDateKey();
+    return monthStartFromDateKey(initialDate);
   });
   const [editorMode, setEditorMode] = useState<EditorMode>('closed');
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
   const canEdit = canEditPatchNotesLocally();
 
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(date);
+    setDisplayMonth(monthStartFromDateKey(date));
+  };
+
+  const handleNavigateMonth = (nextMonth: Date) => {
+    setDisplayMonth(nextMonth);
+    setSelectedDate(null);
+  };
+
+  const handleDeselectDate = () => {
+    setSelectedDate(null);
+  };
+
   useEffect(() => {
     if (isOpen && initialSelectedDate) {
-      setSelectedDate(initialSelectedDate);
+      handleSelectDate(initialSelectedDate);
     }
   }, [initialSelectedDate, isOpen]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setEditorMode('closed');
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -69,10 +95,21 @@ export default function PatchNotesModal({
     };
   }, [isOpen, onClose]);
 
-  const selectedNotes = useMemo(
-    () => getPatchNotesByDate(notes, selectedDate),
-    [notes, selectedDate],
-  );
+  const panelNotes = useMemo(() => {
+    if (selectedDate) {
+      return getPatchNotesByDate(notes, selectedDate);
+    }
+
+    return getPatchNotesByMonth(notes, displayMonth.getFullYear(), displayMonth.getMonth());
+  }, [notes, selectedDate, displayMonth]);
+
+  const panelHeading = selectedDate
+    ? `${formatDateLabelKanji(selectedDate)} のパッチノート`
+    : `${displayMonth.getFullYear()}年${displayMonth.getMonth() + 1}月 のパッチノート`;
+
+  const panelEmptyMessage = selectedDate
+    ? `${formatDateLabelKanji(selectedDate)} の更新履歴はありません`
+    : `${displayMonth.getFullYear()}年${displayMonth.getMonth() + 1}月 の更新履歴はありません`;
 
   const patchNoteDateCount = useMemo(() => getPatchNoteDates(notes).length, [notes]);
 
@@ -143,7 +180,10 @@ export default function PatchNotesModal({
               <PatchNotesCalendar
                 notes={notes}
                 selectedDate={selectedDate}
-                onSelectDate={setSelectedDate}
+                displayMonth={displayMonth}
+                onSelectDate={handleSelectDate}
+                onNavigateMonth={handleNavigateMonth}
+                onDeselectDate={handleDeselectDate}
               />
 
               {canEdit && (
@@ -153,7 +193,10 @@ export default function PatchNotesModal({
                     style={{
                       ...styles.editorModeButton,
                       ...(editorMode === 'edit' ? styles.editorModeButtonActive : {}),
+                      ...(selectedDate ? {} : styles.editorModeButtonDisabled),
                     }}
+                    disabled={!selectedDate}
+                    title={selectedDate ? undefined : '日付を選択してください'}
                     aria-pressed={editorMode === 'edit'}
                     onClick={() =>
                       setEditorMode((current) => (current === 'edit' ? 'closed' : 'edit'))
@@ -167,7 +210,10 @@ export default function PatchNotesModal({
                     style={{
                       ...styles.editorModeButton,
                       ...(editorMode === 'add' ? styles.editorModeButtonActive : {}),
+                      ...(selectedDate ? {} : styles.editorModeButtonDisabled),
                     }}
+                    disabled={!selectedDate}
+                    title={selectedDate ? undefined : '日付を選択してください'}
                     aria-pressed={editorMode === 'add'}
                     onClick={() =>
                       setEditorMode((current) => (current === 'add' ? 'closed' : 'add'))
@@ -183,14 +229,14 @@ export default function PatchNotesModal({
           <main style={styles.rightPane}>
             {viewMode === 'list' ? (
               <PatchNotesFullList notes={notes} maxHeight={CONTENT_MAX_HEIGHT} />
-            ) : canEdit && editorMode === 'edit' ? (
+            ) : canEdit && editorMode === 'edit' && selectedDate ? (
               <PatchNotesEditor
                 selectedDate={selectedDate}
                 notes={notes}
                 onNotesChange={setNotes}
                 onClose={() => setEditorMode('closed')}
               />
-            ) : canEdit && editorMode === 'add' ? (
+            ) : canEdit && editorMode === 'add' && selectedDate ? (
               <PatchNotesAddForm
                 selectedDate={selectedDate}
                 notes={notes}
@@ -198,13 +244,38 @@ export default function PatchNotesModal({
                 onClose={() => setEditorMode('closed')}
               />
             ) : (
-              <PatchNotesDetail selectedDate={selectedDate} notes={selectedNotes} />
+              <PatchNotesDetail
+                heading={panelHeading}
+                emptyMessage={panelEmptyMessage}
+                notes={panelNotes}
+                showDatePerCard={!selectedDate}
+              />
             )}
           </main>
         </div>
       </div>
     </div>
   );
+}
+
+function monthStartFromDateKey(dateKey: string): Date {
+  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+
+  if (!matched) {
+    return new Date();
+  }
+
+  return new Date(Number(matched[1]), Number(matched[2]) - 1, 1);
+}
+
+function formatDateLabelKanji(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-');
+
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+
+  return `${year}年${Number(month)}月${Number(day)}日`;
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -319,5 +390,9 @@ const styles: Record<string, CSSProperties> = {
     borderColor: '#facc15',
     background: 'rgba(250, 204, 21, 0.16)',
     color: '#fde68a',
+  },
+  editorModeButtonDisabled: {
+    opacity: 0.45,
+    cursor: 'not-allowed',
   },
 };

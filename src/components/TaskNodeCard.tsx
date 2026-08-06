@@ -53,7 +53,6 @@ export function TaskNodeCard({
   const memoRef = useRef<HTMLInputElement>(null);
 
   const isLeaf = node.children.length === 0;
-  // progress は refreshProgress ボタン押下時のみ更新される（node.progress をそのまま参照）
   const progress = node.progress;
 
   // ── キーボード操作（タイトル編集中）

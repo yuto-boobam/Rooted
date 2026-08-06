@@ -264,7 +264,6 @@ export function TreePage() {
     updateNodeTitle,
     updateNodeMemo,
     moveNode,
-    refreshProgress,
   } = useAppStore();
 
   const project = useMemo(
@@ -511,7 +510,6 @@ export function TreePage() {
       {/* ── 共通ヘッダー */}
       <Header
         onLogoClick={goToDashboard}
-        onRefreshProgress={refreshProgress}
         rightSlot={<ZoomBar zoom={zoom} onChange={setZoom} />}
         breadcrumbsSlot={
           <Breadcrumb

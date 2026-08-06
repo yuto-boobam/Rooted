@@ -534,6 +534,10 @@ export type AppState = {
   nickname: string;
   setNickname: (nickname: string) => Promise<void>;
 
+  // 配色テーマ（ライト/ダーク）
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
+
   projects: Project[];
   view: View;
   currentProjectId: string | null;
@@ -650,8 +654,6 @@ export type AppState = {
     toIndex?: number,
   ) => void;
 
-  refreshProgress: () => void;
-
   // ナビゲーション
   selectNode: (nodeId: string) => void;
   navigateToPath: (path: string[]) => void;
@@ -697,6 +699,14 @@ export const useAppStore = create<AppState>()(
         }
 
         set({ nickname });
+      },
+
+      theme: 'dark',
+
+      toggleTheme: () => {
+        set((state) => ({
+          theme: state.theme === 'dark' ? 'light' : 'dark',
+        }));
       },
 
       projects: [],
@@ -1162,16 +1172,6 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      // ──── 進捗更新 ────────────────────────────────────────────────────
-
-      refreshProgress: () => {
-        set((state) => ({
-          projects: state.projects.map((project) =>
-            updateProjectRoot(project, project.rootTask),
-          ),
-        }));
-      },
-
       // ──── ナビゲーション ──────────────────────────────────────────────
 
       selectNode: (nodeId) => {
@@ -1267,6 +1267,7 @@ export const useAppStore = create<AppState>()(
         currentProjectId: state.currentProjectId,
         selectedPath: state.selectedPath,
         collapsedNodeIds: state.collapsedNodeIds,
+        theme: state.theme,
         rightPanel: {
           ...state.rightPanel,
           isOpen: false,

@@ -1,11 +1,11 @@
 [
   {
-    "id": "2026-07-30-ab7ffbcc",
-    "date": "2026-07-30",
+    "id": "2026-08-02-6d2217e1",
+    "date": "2026-08-02",
     "buildNumber": 4,
-    "type": "other",
-    "title": "無題のパッチノート",
-    "description": "Why / 変更理由:\n変更理由を記入してください。",
+    "type": "feature",
+    "title": "サイドドロワーの実装",
+    "description": "サイドドロワーを追加することで、付与された属性がかなり見やすくなった。\n期限が迫っているタスクや優先タスクを管理できるだろう。",
     "beforeImageUrl": null,
     "afterImageUrl": null
   },
@@ -18,15 +18,5 @@
     "description": "Why / 変更理由:\nSupabaseのDBに依存せず、GitHubのPR内容を下書きにしながら更新履歴をJSONファイルとして管理・提示できるようにするため。",
     "beforeImageUrl": null,
     "afterImageUrl": null
-  },
-  {
-    "id": "2026-07-30-dashboard-project-list",
-    "date": "2026-07-30",
-    "buildNumber": 1,
-    "type": "feature",
-    "title": "プロジェクト一覧と進捗カードの初期画面を追加",
-    "description": "Why / 変更理由:\n面接官やユーザーがアプリを開いた直後に、現在のプロジェクト数・進捗率・最終更新日時をすぐ把握できるようにするため。",
-    "beforeImageUrl": null,
-    "afterImageUrl": "https://www.genspark.ai/api/files/s/tq5grpFH"
   }
 ]

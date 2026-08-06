@@ -1,5 +1,15 @@
 [
   {
+    "id": "2026-08-06-4fa68674",
+    "date": "2026-08-06",
+    "buildNumber": 6,
+    "type": "spec-change",
+    "title": "ノードの配置を調整",
+    "description": "ノードの意味がめちゃめちゃだったので、高さを元に座標を計算して配置。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260806-build6-before.png?v=1786007655784",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260806-build6-after.png?v=1786007651692"
+  },
+  {
     "id": "2026-08-05-5046a495",
     "date": "2026-08-05",
     "buildNumber": 5,

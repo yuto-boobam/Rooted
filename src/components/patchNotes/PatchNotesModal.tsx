@@ -7,6 +7,7 @@ import {
   getPatchNotesByDate,
   todayDateKey,
 } from '../../services/patchNotesService';
+import PatchNotesAddForm from './PatchNotesAddForm';
 import PatchNotesCalendar from './PatchNotesCalendar';
 import PatchNotesDetail from './PatchNotesDetail';
 import PatchNotesEditor from './PatchNotesEditor';
@@ -20,6 +21,7 @@ interface PatchNotesModalProps {
 }
 
 type ViewMode = 'calendar' | 'list';
+type EditorMode = 'closed' | 'edit' | 'add';
 
 const CONTENT_MAX_HEIGHT = 'calc(min(860px, 100vh - 36px) - 74px)';
 
@@ -33,7 +35,7 @@ export default function PatchNotesModal({
     const initialNotes = getInitialPatchNotes();
     return initialSelectedDate ?? getPatchNoteDates(initialNotes)[0] ?? todayDateKey();
   });
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>('closed');
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
   const canEdit = canEditPatchNotesLocally();
@@ -46,7 +48,7 @@ export default function PatchNotesModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setIsEditorOpen(false);
+      setEditorMode('closed');
       setViewMode('calendar');
       return;
     }
@@ -145,13 +147,35 @@ export default function PatchNotesModal({
               />
 
               {canEdit && (
-                <button
-                  type="button"
-                  style={styles.editorToggleButton}
-                  onClick={() => setIsEditorOpen((current) => !current)}
-                >
-                  {isEditorOpen ? '閲覧に戻る' : '＋ パッチノート追記/編集'}
-                </button>
+                <div style={styles.editorModeButtons}>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.editorModeButton,
+                      ...(editorMode === 'edit' ? styles.editorModeButtonActive : {}),
+                    }}
+                    aria-pressed={editorMode === 'edit'}
+                    onClick={() =>
+                      setEditorMode((current) => (current === 'edit' ? 'closed' : 'edit'))
+                    }
+                  >
+                    ✎ 編集
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.editorModeButton,
+                      ...(editorMode === 'add' ? styles.editorModeButtonActive : {}),
+                    }}
+                    aria-pressed={editorMode === 'add'}
+                    onClick={() =>
+                      setEditorMode((current) => (current === 'add' ? 'closed' : 'add'))
+                    }
+                  >
+                    ＋ 追加
+                  </button>
+                </div>
               )}
             </aside>
           )}
@@ -159,12 +183,19 @@ export default function PatchNotesModal({
           <main style={styles.rightPane}>
             {viewMode === 'list' ? (
               <PatchNotesFullList notes={notes} maxHeight={CONTENT_MAX_HEIGHT} />
-            ) : canEdit && isEditorOpen ? (
+            ) : canEdit && editorMode === 'edit' ? (
               <PatchNotesEditor
                 selectedDate={selectedDate}
                 notes={notes}
                 onNotesChange={setNotes}
-                onClose={() => setIsEditorOpen(false)}
+                onClose={() => setEditorMode('closed')}
+              />
+            ) : canEdit && editorMode === 'add' ? (
+              <PatchNotesAddForm
+                selectedDate={selectedDate}
+                notes={notes}
+                onNotesChange={setNotes}
+                onClose={() => setEditorMode('closed')}
               />
             ) : (
               <PatchNotesDetail selectedDate={selectedDate} notes={selectedNotes} />
@@ -269,15 +300,24 @@ const styles: Record<string, CSSProperties> = {
   rightPane: {
     minWidth: 0,
   },
-  editorToggleButton: {
-    width: '100%',
-    border: '1px solid rgba(250, 204, 21, 0.35)',
-    background: 'rgba(250, 204, 21, 0.1)',
-    color: '#fde68a',
+  editorModeButtons: {
+    display: 'flex',
+    gap: 8,
+  },
+  editorModeButton: {
+    flex: '1 1 0',
+    border: '1px solid rgba(148, 163, 184, 0.22)',
+    background: 'rgba(30, 41, 59, 0.7)',
+    color: '#e5e7eb',
     borderRadius: 14,
     padding: '10px 12px',
     fontSize: 13,
     fontWeight: 900,
     cursor: 'pointer',
+  },
+  editorModeButtonActive: {
+    borderColor: '#facc15',
+    background: 'rgba(250, 204, 21, 0.16)',
+    color: '#fde68a',
   },
 };

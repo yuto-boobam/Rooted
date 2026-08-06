@@ -16,6 +16,10 @@ type Props = {
   onAddSibling: () => void;
   onDelete: () => void;
 
+  // 子ノードの開閉（子を持つノードのみ）
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+
   // ドラッグ&ドロップ用
   parentId: string | null;
   dragIndex: number;
@@ -35,6 +39,8 @@ export function TaskNodeCard({
   onAddChild,
   onAddSibling,
   onDelete,
+  isExpanded = true,
+  onToggleExpand,
   parentId,
   dragIndex,
   onDragOver,
@@ -125,6 +131,47 @@ export function TaskNodeCard({
         width: isRoot ? 240 : '100%',
       }}
     >
+      {/* ── 開閉トグル（子を持つノードのみ、右端の接続線上に配置） */}
+      {!isLeaf && onToggleExpand && (
+        <button
+          className="flex-shrink-0 flex items-center justify-center transition-all"
+          style={{
+            position: 'absolute',
+            right: -12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            border: `1.5px solid ${borderColor}`,
+            background: 'var(--bg-surface)',
+            color: 'var(--text-primary)',
+            zIndex: 20,
+            cursor: 'pointer',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          title={isExpanded ? '子タスクを閉じる' : '子タスクを開く'}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            style={{
+              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 150ms',
+            }}
+          >
+            <polyline points="9,6 15,12 9,18" />
+          </svg>
+        </button>
+      )}
+
       {/* ── 上部：チェックボックス＋タイトル＋削除ボタン */}
       <div className="flex items-start gap-3">
         {/* チェックボックス（leafのみ有効） */}

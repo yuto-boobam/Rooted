@@ -5,11 +5,15 @@ import {
   getInitialPatchNotes,
   getPatchNoteDates,
   getPatchNotesByDate,
+  getPatchNotesByMonth,
   todayDateKey,
 } from '../../services/patchNotesService';
+import PatchNotesAddForm from './PatchNotesAddForm';
 import PatchNotesCalendar from './PatchNotesCalendar';
 import PatchNotesDetail from './PatchNotesDetail';
 import PatchNotesEditor from './PatchNotesEditor';
+import PatchNotesFullList from './PatchNotesFullList';
+import { canEditPatchNotesLocally } from '../../utils/localEditAccess';
 
 interface PatchNotesModalProps {
   isOpen: boolean;
@@ -17,29 +21,61 @@ interface PatchNotesModalProps {
   initialSelectedDate?: string;
 }
 
+type ViewMode = 'calendar' | 'list';
+type EditorMode = 'closed' | 'edit' | 'add';
+
+const CONTENT_MAX_HEIGHT = 'calc(min(860px, 100vh - 36px) - 74px)';
+
 export default function PatchNotesModal({
   isOpen,
   onClose,
   initialSelectedDate,
 }: PatchNotesModalProps) {
   const [notes, setNotes] = useState<PatchNote[]>(() => getInitialPatchNotes());
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
     const initialNotes = getInitialPatchNotes();
     return initialSelectedDate ?? getPatchNoteDates(initialNotes)[0] ?? todayDateKey();
   });
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [displayMonth, setDisplayMonth] = useState<Date>(() => {
+    const initialNotes = getInitialPatchNotes();
+    const initialDate = initialSelectedDate ?? getPatchNoteDates(initialNotes)[0] ?? todayDateKey();
+    return monthStartFromDateKey(initialDate);
+  });
+  const [editorMode, setEditorMode] = useState<EditorMode>('closed');
+  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
-  const devMode = import.meta.env.DEV;
+  const canEdit = canEditPatchNotesLocally();
+
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(date);
+    setDisplayMonth(monthStartFromDateKey(date));
+  };
+
+  const handleNavigateMonth = (nextMonth: Date) => {
+    setDisplayMonth(nextMonth);
+    setSelectedDate(null);
+  };
+
+  const handleDeselectDate = () => {
+    setSelectedDate(null);
+  };
 
   useEffect(() => {
     if (isOpen && initialSelectedDate) {
-      setSelectedDate(initialSelectedDate);
+      handleSelectDate(initialSelectedDate);
     }
   }, [initialSelectedDate, isOpen]);
 
   useEffect(() => {
+    if (!selectedDate) {
+      setEditorMode('closed');
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
     if (!isOpen) {
-      setIsEditorOpen(false);
+      setEditorMode('closed');
+      setViewMode('calendar');
       return;
     }
 
@@ -59,10 +95,21 @@ export default function PatchNotesModal({
     };
   }, [isOpen, onClose]);
 
-  const selectedNotes = useMemo(
-    () => getPatchNotesByDate(notes, selectedDate),
-    [notes, selectedDate],
-  );
+  const panelNotes = useMemo(() => {
+    if (selectedDate) {
+      return getPatchNotesByDate(notes, selectedDate);
+    }
+
+    return getPatchNotesByMonth(notes, displayMonth.getFullYear(), displayMonth.getMonth());
+  }, [notes, selectedDate, displayMonth]);
+
+  const panelHeading = selectedDate
+    ? `${formatDateLabelKanji(selectedDate)} のパッチノート`
+    : `${displayMonth.getFullYear()}年${displayMonth.getMonth() + 1}月 のパッチノート`;
+
+  const panelEmptyMessage = selectedDate
+    ? `${formatDateLabelKanji(selectedDate)} の更新履歴はありません`
+    : `${displayMonth.getFullYear()}年${displayMonth.getMonth() + 1}月 の更新履歴はありません`;
 
   const patchNoteDateCount = useMemo(() => getPatchNoteDates(notes).length, [notes]);
 
@@ -89,46 +136,146 @@ export default function PatchNotesModal({
             </p>
           </div>
 
-          <button type="button" style={styles.closeButton} onClick={onClose} aria-label="閉じる">
-            ×
-          </button>
-        </header>
-
-        <div style={styles.content}>
-          <aside style={styles.leftPane}>
-            <PatchNotesCalendar
-              notes={notes}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-            />
-
-            {devMode && (
+          <div style={styles.headerRight}>
+            <div style={styles.viewToggle} role="group" aria-label="表示モード切り替え">
               <button
                 type="button"
-                style={styles.editorToggleButton}
-                onClick={() => setIsEditorOpen((current) => !current)}
+                style={{
+                  ...styles.viewToggleButton,
+                  ...(viewMode === 'calendar' ? styles.viewToggleButtonActive : {}),
+                }}
+                aria-pressed={viewMode === 'calendar'}
+                onClick={() => setViewMode('calendar')}
               >
-                {isEditorOpen ? '閲覧に戻る' : '＋ パッチノート追記/編集'}
+                カレンダー
               </button>
-            )}
-          </aside>
+
+              <button
+                type="button"
+                style={{
+                  ...styles.viewToggleButton,
+                  ...(viewMode === 'list' ? styles.viewToggleButtonActive : {}),
+                }}
+                aria-pressed={viewMode === 'list'}
+                onClick={() => setViewMode('list')}
+              >
+                一覧
+              </button>
+            </div>
+
+            <button type="button" style={styles.closeButton} onClick={onClose} aria-label="閉じる">
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div
+          style={{
+            ...styles.content,
+            gridTemplateColumns: viewMode === 'calendar' ? styles.content.gridTemplateColumns : '1fr',
+          }}
+        >
+          {viewMode === 'calendar' && (
+            <aside style={styles.leftPane}>
+              <PatchNotesCalendar
+                notes={notes}
+                selectedDate={selectedDate}
+                displayMonth={displayMonth}
+                onSelectDate={handleSelectDate}
+                onNavigateMonth={handleNavigateMonth}
+                onDeselectDate={handleDeselectDate}
+              />
+
+              {canEdit && (
+                <div style={styles.editorModeButtons}>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.editorModeButton,
+                      ...(editorMode === 'edit' ? styles.editorModeButtonActive : {}),
+                      ...(selectedDate ? {} : styles.editorModeButtonDisabled),
+                    }}
+                    disabled={!selectedDate}
+                    title={selectedDate ? undefined : '日付を選択してください'}
+                    aria-pressed={editorMode === 'edit'}
+                    onClick={() =>
+                      setEditorMode((current) => (current === 'edit' ? 'closed' : 'edit'))
+                    }
+                  >
+                    ✎ 編集
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.editorModeButton,
+                      ...(editorMode === 'add' ? styles.editorModeButtonActive : {}),
+                      ...(selectedDate ? {} : styles.editorModeButtonDisabled),
+                    }}
+                    disabled={!selectedDate}
+                    title={selectedDate ? undefined : '日付を選択してください'}
+                    aria-pressed={editorMode === 'add'}
+                    onClick={() =>
+                      setEditorMode((current) => (current === 'add' ? 'closed' : 'add'))
+                    }
+                  >
+                    ＋ 追加
+                  </button>
+                </div>
+              )}
+            </aside>
+          )}
 
           <main style={styles.rightPane}>
-            {devMode && isEditorOpen ? (
+            {viewMode === 'list' ? (
+              <PatchNotesFullList notes={notes} maxHeight={CONTENT_MAX_HEIGHT} />
+            ) : canEdit && editorMode === 'edit' && selectedDate ? (
               <PatchNotesEditor
                 selectedDate={selectedDate}
                 notes={notes}
                 onNotesChange={setNotes}
-                onClose={() => setIsEditorOpen(false)}
+                onClose={() => setEditorMode('closed')}
+              />
+            ) : canEdit && editorMode === 'add' && selectedDate ? (
+              <PatchNotesAddForm
+                selectedDate={selectedDate}
+                notes={notes}
+                onNotesChange={setNotes}
+                onClose={() => setEditorMode('closed')}
               />
             ) : (
-              <PatchNotesDetail selectedDate={selectedDate} notes={selectedNotes} />
+              <PatchNotesDetail
+                heading={panelHeading}
+                emptyMessage={panelEmptyMessage}
+                notes={panelNotes}
+                showDatePerCard={!selectedDate}
+              />
             )}
           </main>
         </div>
       </div>
     </div>
   );
+}
+
+function monthStartFromDateKey(dateKey: string): Date {
+  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+
+  if (!matched) {
+    return new Date();
+  }
+
+  return new Date(Number(matched[1]), Number(matched[2]) - 1, 1);
+}
+
+function formatDateLabelKanji(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-');
+
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+
+  return `${year}年${Number(month)}月${Number(day)}日`;
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -171,6 +318,12 @@ const styles: Record<string, CSSProperties> = {
     color: '#94a3b8',
     fontSize: 12,
   },
+  headerRight: {
+    flex: '0 0 auto',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
   closeButton: {
     flex: '0 0 auto',
     width: 36,
@@ -183,13 +336,32 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 22,
     lineHeight: 1,
   },
+  viewToggle: {
+    display: 'flex',
+    gap: 8,
+  },
+  viewToggleButton: {
+    border: '1px solid rgba(148, 163, 184, 0.18)',
+    background: 'rgba(30, 41, 59, 0.65)',
+    color: '#cbd5e1',
+    borderRadius: 999,
+    padding: '8px 16px',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  viewToggleButtonActive: {
+    borderColor: '#facc15',
+    background: 'rgba(250, 204, 21, 0.16)',
+    color: '#fde68a',
+  },
   content: {
     display: 'grid',
     gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
     gap: 16,
     padding: 16,
     overflow: 'auto',
-    maxHeight: 'calc(min(860px, 100vh - 36px) - 74px)',
+    maxHeight: CONTENT_MAX_HEIGHT,
   },
   leftPane: {
     display: 'grid',
@@ -199,15 +371,28 @@ const styles: Record<string, CSSProperties> = {
   rightPane: {
     minWidth: 0,
   },
-  editorToggleButton: {
-    width: '100%',
-    border: '1px solid rgba(250, 204, 21, 0.35)',
-    background: 'rgba(250, 204, 21, 0.1)',
-    color: '#fde68a',
+  editorModeButtons: {
+    display: 'flex',
+    gap: 8,
+  },
+  editorModeButton: {
+    flex: '1 1 0',
+    border: '1px solid rgba(148, 163, 184, 0.22)',
+    background: 'rgba(30, 41, 59, 0.7)',
+    color: '#e5e7eb',
     borderRadius: 14,
     padding: '10px 12px',
     fontSize: 13,
     fontWeight: 900,
     cursor: 'pointer',
+  },
+  editorModeButtonActive: {
+    borderColor: '#facc15',
+    background: 'rgba(250, 204, 21, 0.16)',
+    color: '#fde68a',
+  },
+  editorModeButtonDisabled: {
+    opacity: 0.45,
+    cursor: 'not-allowed',
   },
 };

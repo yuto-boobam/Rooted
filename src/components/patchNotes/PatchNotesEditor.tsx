@@ -1,21 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PatchNote, PatchNoteType } from '../../types/patchNote';
 import {
-  getDefaultGitHubConfig,
-  getMergedPullRequests,
-  type MergedPullRequest,
-} from '../../services/githubApi';
-import {
-  copyPatchNotesJson,
-  createEmptyPatchNote,
-  downloadPatchNotesJson,
   getPatchNotesByDate,
   removePatchNote,
-  suggestNextVersion,
+  saveNotesToLocalFile,
   toPatchNotesJson,
   upsertPatchNote,
 } from '../../services/patchNotesService';
+import PatchNoteImageUploadField from './PatchNoteImageUploadField';
 
 interface PatchNotesEditorProps {
   selectedDate: string;
@@ -35,167 +28,46 @@ export default function PatchNotesEditor({
   onNotesChange,
   onClose,
 }: PatchNotesEditorProps) {
-  const githubDefaults = useMemo(() => getDefaultGitHubConfig(), []);
-  const autoFetchKeyRef = useRef('');
-
-  const [owner, setOwner] = useState(githubDefaults.owner);
-  const [repo, setRepo] = useState(githubDefaults.repo);
-  const [token, setToken] = useState(githubDefaults.token ?? '');
-  const [dayWindow, setDayWindow] = useState(3);
-  const [pullRequests, setPullRequests] = useState<MergedPullRequest[]>([]);
-  const [isLoadingPrs, setIsLoadingPrs] = useState(false);
-  const [message, setMessage] = useState<EditorMessage | null>(null);
-  const [form, setForm] = useState<PatchNote>(() => {
-    return getPatchNotesByDate(notes, selectedDate)[0] ?? createEmptyPatchNote(selectedDate, notes);
-  });
-
   const sameDayNotes = useMemo(() => getPatchNotesByDate(notes, selectedDate), [notes, selectedDate]);
-  const isExistingNote = useMemo(
-    () => notes.some((note) => note.id === form.id),
-    [form.id, notes],
-  );
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<EditorMessage | null>(null);
+  const [form, setForm] = useState<PatchNote | null>(() => sameDayNotes[0] ?? null);
 
   useEffect(() => {
-    setForm((currentForm) => {
-      if (currentForm.date === selectedDate) {
-        return currentForm;
-      }
-
-      return getPatchNotesByDate(notes, selectedDate)[0] ?? createEmptyPatchNote(selectedDate, notes);
-    });
-
-    setPullRequests([]);
+    setForm(sameDayNotes[0] ?? null);
     setMessage(null);
-  }, [notes, selectedDate]);
+  }, [selectedDate, sameDayNotes]);
 
-  const fetchAndMaybeApplyPrs = useCallback(
-    async (signal?: AbortSignal, applyDraft = true) => {
-      const resolvedOwner = owner.trim();
-      const resolvedRepo = repo.trim();
-      const resolvedToken = token.trim();
-
-      if (!resolvedOwner || !resolvedRepo) {
-        setMessage({
-          type: 'info',
-          text: 'GitHub owner / repo を入力してください。.env.local での設定も可能です。',
-        });
-        return;
-      }
-
-      setIsLoadingPrs(true);
-      setMessage({
-        type: 'info',
-        text: 'GitHub からマージ済みPRを取得しています...',
-      });
-
-      try {
-        const result = await getMergedPullRequests({
-          owner: resolvedOwner,
-          repo: resolvedRepo,
-          token: resolvedToken || undefined,
-          targetDate: selectedDate,
-          dayWindow,
-          maxPages: 3,
-          perPage: 100,
-          signal,
-        });
-
-        if (signal?.aborted) {
-          return;
-        }
-
-        setPullRequests(result);
-
-        if (applyDraft && result.length > 0) {
-          setForm((previousForm) => {
-            const alreadyHasNote = getPatchNotesByDate(notes, selectedDate).length > 0;
-
-            if (alreadyHasNote || previousForm.title.trim()) {
-              return previousForm;
-            }
-
-            return buildDraftFromPullRequests(previousForm, result, notes, false);
-          });
-        }
-
-        setMessage({
-          type: result.length > 0 ? 'success' : 'info',
-          text:
-            result.length > 0
-              ? `${result.length}件のマージ済みPRを取得しました。`
-              : '対象日付近のマージ済みPRは見つかりませんでした。',
-        });
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          return;
-        }
-
-        setMessage({
-          type: 'error',
-          text: error instanceof Error ? error.message : 'GitHub API の取得に失敗しました。',
-        });
-      } finally {
-        if (!signal?.aborted) {
-          setIsLoadingPrs(false);
-        }
-      }
-    },
-    [dayWindow, notes, owner, repo, selectedDate, token],
-  );
-
-  useEffect(() => {
-    if (!import.meta.env.DEV || !githubDefaults.owner || !githubDefaults.repo) {
-      return;
-    }
-
-    const autoFetchKey = `${selectedDate}:${owner}/${repo}`;
-
-    if (autoFetchKeyRef.current === autoFetchKey) {
-      return;
-    }
-
-    autoFetchKeyRef.current = autoFetchKey;
-
-    const controller = new AbortController();
-    void fetchAndMaybeApplyPrs(controller.signal, true);
-
-    return () => controller.abort();
-  }, [
-    fetchAndMaybeApplyPrs,
-    githubDefaults.owner,
-    githubDefaults.repo,
-    owner,
-    repo,
-    selectedDate,
-  ]);
-
-  const sanitizeCurrentForm = useCallback((): PatchNote => {
+  const sanitizeCurrentForm = useCallback((currentForm: PatchNote): PatchNote => {
     return {
-      ...form,
-      id: form.id.trim() || createEmptyPatchNote(selectedDate, notes).id,
-      date: selectedDate,
-      version: form.version.trim() || suggestNextVersion(notes),
-      type: form.type,
-      title: form.title.trim() || '無題のパッチノート',
-      description: form.description.trim() || 'Why / 変更理由:\n変更理由を記入してください。',
-      beforeImageUrl: normalizeImageUrl(form.beforeImageUrl),
-      afterImageUrl: normalizeImageUrl(form.afterImageUrl),
+      ...currentForm,
+      title: currentForm.title.trim() || '無題のパッチノート',
+      description:
+        currentForm.description.trim() || 'Why / 変更理由:\n変更理由を記入してください。',
+      beforeImageUrl: normalizeImageUrl(currentForm.beforeImageUrl),
+      afterImageUrl: normalizeImageUrl(currentForm.afterImageUrl),
     };
-  }, [form, notes, selectedDate]);
+  }, []);
 
   const jsonPreview = useMemo(() => {
-    return toPatchNotesJson(upsertPatchNote(notes, sanitizeCurrentForm()));
-  }, [notes, sanitizeCurrentForm]);
+    if (!form) {
+      return toPatchNotesJson(notes);
+    }
+
+    return toPatchNotesJson(upsertPatchNote(notes, sanitizeCurrentForm(form)));
+  }, [notes, form, sanitizeCurrentForm]);
 
   const updateField = <K extends keyof PatchNote>(field: K, value: PatchNote[K]) => {
-    setForm((previousForm) => ({
-      ...previousForm,
-      [field]: value,
-    }));
+    setForm((previousForm) => (previousForm ? { ...previousForm, [field]: value } : previousForm));
   };
 
   const saveToWorkingNotes = (): PatchNote[] => {
-    const sanitizedNote = sanitizeCurrentForm();
+    if (!form) {
+      return notes;
+    }
+
+    const sanitizedNote = sanitizeCurrentForm(form);
     const nextNotes = upsertPatchNote(notes, sanitizedNote);
 
     onNotesChange(nextNotes);
@@ -204,62 +76,32 @@ export default function PatchNotesEditor({
     return nextNotes;
   };
 
-  const handleCopyJson = async () => {
-    try {
-      const nextNotes = saveToWorkingNotes();
-      await copyPatchNotesJson(nextNotes);
-
-      setMessage({
-        type: 'success',
-        text: '最新の patchNotes.json をクリップボードへコピーしました。src/data/patchNotes.json に貼り付けてください。',
-      });
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'JSONコピーに失敗しました。',
-      });
-    }
-  };
-
-  const handleDownloadJson = () => {
-    try {
-      const nextNotes = saveToWorkingNotes();
-      downloadPatchNotesJson(nextNotes);
-
-      setMessage({
-        type: 'success',
-        text: 'patchNotes.json をダウンロードしました。src/data/patchNotes.json と差し替えてください。',
-      });
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'JSON保存に失敗しました。',
-      });
-    }
-  };
-
-  const handleApplyAllPullRequests = () => {
-    if (pullRequests.length === 0) {
-      setMessage({
-        type: 'info',
-        text: '反映できるPRがありません。先にGitHub APIからPRを取得してください。',
-      });
+  const handleSaveToLocalFile = async () => {
+    if (!form) {
       return;
     }
 
-    setForm((previousForm) => buildDraftFromPullRequests(previousForm, pullRequests, notes, true));
-    setMessage({
-      type: 'success',
-      text: '取得したPR内容をフォームへ反映しました。',
-    });
+    setIsSaving(true);
+
+    try {
+      const nextNotes = saveToWorkingNotes();
+      await saveNotesToLocalFile(nextNotes);
+
+      setMessage({
+        type: 'success',
+        text: 'src/data/patchNotes.json に保存しました。',
+      });
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'ファイルへの保存に失敗しました。',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSelectExistingNote = (selectedNoteId: string) => {
-    if (selectedNoteId === '__new__') {
-      setForm(createEmptyPatchNote(selectedDate, notes));
-      return;
-    }
-
     const selectedNote = sameDayNotes.find((note) => note.id === selectedNoteId);
 
     if (selectedNote) {
@@ -268,11 +110,7 @@ export default function PatchNotesEditor({
   };
 
   const handleDeleteNote = () => {
-    if (!isExistingNote) {
-      setMessage({
-        type: 'info',
-        text: 'このノートはまだJSONに反映されていません。',
-      });
+    if (!form) {
       return;
     }
 
@@ -282,25 +120,45 @@ export default function PatchNotesEditor({
 
     const nextNotes = removePatchNote(notes, form.id);
     onNotesChange(nextNotes);
-    setForm(createEmptyPatchNote(selectedDate, nextNotes));
+
+    const remainingSameDayNotes = getPatchNotesByDate(nextNotes, selectedDate);
+    setForm(remainingSameDayNotes[0] ?? null);
 
     setMessage({
       type: 'success',
-      text: '編集中データから削除しました。確定するにはJSONをコピーまたは保存してください。',
+      text: '編集中データから削除しました。確定するには保存ボタンを押してください。',
     });
   };
+
+  if (!form) {
+    return (
+      <section style={styles.container}>
+        <div style={styles.emptyPanel}>
+          <div style={styles.emptyIcon}>📭</div>
+          <h3 style={styles.emptyTitle}>この日にはまだパッチノートがありません</h3>
+          <p style={styles.emptyText}>「追加」ボタンから新規作成してください。</p>
+
+          {onClose && (
+            <button type="button" style={styles.ghostButton} onClick={onClose}>
+              閲覧へ戻る
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={styles.container}>
       <div style={styles.editorHeader}>
         <div>
-          <h3 style={styles.title}>開発者用：パッチノート追記/編集</h3>
+          <h3 style={styles.title}>開発者用：パッチノート編集</h3>
           <p style={styles.mutedText}>
-            ブラウザから直接 src/data/patchNotes.json は書き換えられないため、保存時はJSONをコピーまたはダウンロードします。
+            localhost環境ではサイト内から直接 src/data/patchNotes.json を更新できます。
           </p>
         </div>
 
-        <span style={styles.devBadge}>DEV only</span>
+        <span style={styles.devBadge}>LOCAL only</span>
       </div>
 
       {message && (
@@ -309,139 +167,17 @@ export default function PatchNotesEditor({
 
       <section style={styles.section}>
         <div style={styles.sectionHeader}>
-          <h4 style={styles.sectionTitle}>GitHub PRから下書き作成</h4>
-          <button
-            type="button"
-            style={{
-              ...styles.primaryButton,
-              ...(isLoadingPrs ? styles.disabledButton : {}),
-            }}
-            disabled={isLoadingPrs}
-            onClick={() => void fetchAndMaybeApplyPrs(undefined, true)}
-          >
-            {isLoadingPrs ? '取得中...' : 'マージ済みPRを取得'}
-          </button>
-        </div>
-
-        <div style={styles.githubGrid}>
-          <label style={styles.label}>
-            Owner
-            <input
-              style={styles.input}
-              value={owner}
-              placeholder="your-github-name"
-              onChange={(event) => setOwner(event.target.value)}
-            />
-          </label>
-
-          <label style={styles.label}>
-            Repo
-            <input
-              style={styles.input}
-              value={repo}
-              placeholder="rooted"
-              onChange={(event) => setRepo(event.target.value)}
-            />
-          </label>
-
-          <label style={styles.label}>
-            Token 任意
-            <input
-              style={styles.input}
-              value={token}
-              type="password"
-              autoComplete="off"
-              placeholder="ghp_... / fine-grained token"
-              onChange={(event) => setToken(event.target.value)}
-            />
-          </label>
-
-          <label style={styles.label}>
-            日付範囲 ±日
-            <input
-              style={styles.input}
-              value={dayWindow}
-              type="number"
-              min={0}
-              max={14}
-              onChange={(event) => setDayWindow(Math.max(0, Number(event.target.value) || 0))}
-            />
-          </label>
-        </div>
-
-        <p style={styles.envHint}>
-          .env.local 例：
-          <code style={styles.inlineCode}>VITE_GITHUB_OWNER</code> /{' '}
-          <code style={styles.inlineCode}>VITE_GITHUB_REPO</code> /{' '}
-          <code style={styles.inlineCode}>VITE_GITHUB_TOKEN</code>
-        </p>
-
-        {pullRequests.length > 0 && (
-          <div style={styles.prList}>
-            <div style={styles.prListHeader}>
-              <strong>取得したPR</strong>
-              <button type="button" style={styles.secondaryButton} onClick={handleApplyAllPullRequests}>
-                まとめてフォームへ反映
-              </button>
-            </div>
-
-            {pullRequests.map((pullRequest) => (
-              <article key={pullRequest.id} style={styles.prCard}>
-                <div>
-                  <div style={styles.prTitle}>
-                    #{pullRequest.number} {pullRequest.title}
-                  </div>
-                  <div style={styles.prMeta}>
-                    merged: {formatMergedAt(pullRequest.mergedAt)} / by {pullRequest.authorLogin}
-                  </div>
-                </div>
-
-                <div style={styles.buttonRow}>
-                  <button
-                    type="button"
-                    style={styles.smallButton}
-                    onClick={() => {
-                      setForm((previousForm) =>
-                        buildDraftFromPullRequests(previousForm, [pullRequest], notes, true),
-                      );
-                      setMessage({
-                        type: 'success',
-                        text: `#${pullRequest.number} の内容をフォームへ反映しました。`,
-                      });
-                    }}
-                  >
-                    このPRを反映
-                  </button>
-
-                  <a
-                    href={pullRequest.htmlUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={styles.inlineLink}
-                  >
-                    GitHubで開く
-                  </a>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section style={styles.section}>
-        <div style={styles.sectionHeader}>
           <h4 style={styles.sectionTitle}>パッチノート内容</h4>
 
-          {sameDayNotes.length > 0 && (
+          {sameDayNotes.length > 1 && (
             <select
               style={styles.select}
-              value={isExistingNote ? form.id : '__new__'}
+              value={form.id}
               onChange={(event) => handleSelectExistingNote(event.target.value)}
             >
-              <option value="__new__">新規ノート</option>
               {sameDayNotes.map((note) => (
                 <option key={note.id} value={note.id}>
-                  {note.version} - {note.title}
+                  第{note.buildNumber}回 - {note.title}
                 </option>
               ))}
             </select>
@@ -455,13 +191,8 @@ export default function PatchNotesEditor({
           </label>
 
           <label style={styles.label}>
-            Version
-            <input
-              style={styles.input}
-              value={form.version}
-              placeholder="v1.2.0"
-              onChange={(event) => updateField('version', event.target.value)}
-            />
+            Build（自動採番）
+            <input style={styles.input} value={`第${form.buildNumber}回`} readOnly />
           </label>
 
           <label style={styles.label}>
@@ -473,17 +204,9 @@ export default function PatchNotesEditor({
             >
               <option value="feature">feature / 新機能</option>
               <option value="bugfix">bugfix / バグ修正</option>
+              <option value="spec-change">spec-change / 仕様変更</option>
               <option value="other">other / その他</option>
             </select>
-          </label>
-
-          <label style={styles.label}>
-            ID
-            <input
-              style={styles.input}
-              value={form.id}
-              onChange={(event) => updateField('id', event.target.value)}
-            />
           </label>
         </div>
 
@@ -509,38 +232,40 @@ export default function PatchNotesEditor({
         </label>
 
         <div style={styles.formGrid}>
-          <label style={styles.label}>
-            Before Image URL 任意
-            <input
-              style={styles.input}
-              value={form.beforeImageUrl ?? ''}
-              placeholder="https://..."
-              onChange={(event) => updateField('beforeImageUrl', event.target.value)}
-            />
-          </label>
+          <PatchNoteImageUploadField
+            displayLabel="Before Image"
+            uploadLabel="before"
+            value={form.beforeImageUrl}
+            onChange={(value) => updateField('beforeImageUrl', value)}
+            date={selectedDate}
+            buildNumber={form.buildNumber}
+          />
 
-          <label style={styles.label}>
-            After Image URL 任意
-            <input
-              style={styles.input}
-              value={form.afterImageUrl ?? ''}
-              placeholder="https://..."
-              onChange={(event) => updateField('afterImageUrl', event.target.value)}
-            />
-          </label>
+          <PatchNoteImageUploadField
+            displayLabel="After Image"
+            uploadLabel="after"
+            value={form.afterImageUrl}
+            onChange={(value) => updateField('afterImageUrl', value)}
+            date={selectedDate}
+            buildNumber={form.buildNumber}
+          />
         </div>
 
         <div style={styles.buttonRow}>
-          <button type="button" style={styles.primaryButton} onClick={() => saveToWorkingNotes()}>
-            編集内容を反映
+          <button type="button" style={styles.secondaryButton} onClick={() => saveToWorkingNotes()}>
+            反映（プレビュー）
           </button>
 
-          <button type="button" style={styles.secondaryButton} onClick={() => void handleCopyJson()}>
-            JSONを出力/コピー
-          </button>
-
-          <button type="button" style={styles.secondaryButton} onClick={handleDownloadJson}>
-            JSONファイル保存
+          <button
+            type="button"
+            style={{
+              ...styles.primaryButton,
+              ...(isSaving ? styles.disabledButton : {}),
+            }}
+            disabled={isSaving}
+            onClick={() => void handleSaveToLocalFile()}
+          >
+            {isSaving ? '保存中...' : '保存（ファイルに書き込む）'}
           </button>
 
           <button type="button" style={styles.dangerButton} onClick={handleDeleteNote}>
@@ -563,119 +288,9 @@ export default function PatchNotesEditor({
   );
 }
 
-function buildDraftFromPullRequests(
-  base: PatchNote,
-  pullRequests: MergedPullRequest[],
-  allNotes: PatchNote[],
-  overwriteText: boolean,
-): PatchNote {
-  const draftTitle =
-    pullRequests.length === 1
-      ? pullRequests[0].title
-      : `${pullRequests.length}件のPRを反映`;
-
-  const draftDescription = `Why / 変更理由:\n${buildPullRequestDescription(pullRequests)}`;
-  const inferredType = inferPatchNoteTypeFromPullRequests(pullRequests);
-
-  return {
-    ...base,
-    version: base.version.trim() || suggestNextVersion(allNotes),
-    type: overwriteText || base.type === 'other' ? inferredType : base.type,
-    title: overwriteText || !base.title.trim() ? draftTitle : base.title,
-    description:
-      overwriteText || !base.description.trim() ? draftDescription : base.description,
-  };
-}
-
-function buildPullRequestDescription(pullRequests: MergedPullRequest[]): string {
-  return pullRequests
-    .map((pullRequest) => {
-      const body = compactText(extractWhySection(pullRequest.body));
-      const bodyText =
-        body.length > 0
-          ? body
-              .split('\n')
-              .slice(0, 8)
-              .map((line) => `  ${line}`)
-              .join('\n')
-          : '  PR本文にWhy/変更理由がないため、ここを手動で補足してください。';
-
-      return `- #${pullRequest.number} ${pullRequest.title}\n${bodyText}\n  ${pullRequest.htmlUrl}`;
-    })
-    .join('\n\n');
-}
-
-function extractWhySection(body: string): string {
-  const cleanedBody = body.replace(/<!--[\s\S]*?-->/g, '').trim();
-
-  if (!cleanedBody) {
-    return '';
-  }
-
-  const lines = cleanedBody.replace(/\r\n/g, '\n').split('\n');
-  const headingIndex = lines.findIndex((line) =>
-    /^(#{1,6}\s*)?(why|変更理由|理由|背景|目的|概要|what)/i.test(line.trim()),
-  );
-
-  if (headingIndex === -1) {
-    return cleanedBody;
-  }
-
-  const sectionLines: string[] = [];
-
-  for (let index = headingIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-
-    if (/^#{1,6}\s+/.test(line.trim()) && sectionLines.length > 0) {
-      break;
-    }
-
-    sectionLines.push(line);
-  }
-
-  return sectionLines.join('\n').trim() || cleanedBody;
-}
-
-function compactText(text: string): string {
-  const compacted = text
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+$/gm, '')
-    .trim();
-
-  if (compacted.length <= 700) {
-    return compacted;
-  }
-
-  return `${compacted.slice(0, 700)}...`;
-}
-
-function inferPatchNoteTypeFromPullRequests(pullRequests: MergedPullRequest[]): PatchNoteType {
-  const text = pullRequests
-    .map((pullRequest) => `${pullRequest.title} ${pullRequest.body} ${pullRequest.labels.join(' ')}`)
-    .join(' ')
-    .toLowerCase();
-
-  if (/(bug|fix|hotfix|不具合|バグ|修正|障害)/i.test(text)) {
-    return 'bugfix';
-  }
-
-  if (/(feat|feature|add|新機能|追加|実装|改善)/i.test(text)) {
-    return 'feature';
-  }
-
-  return 'other';
-}
-
 function normalizeImageUrl(value: string | null | undefined): string | null {
   const trimmedValue = typeof value === 'string' ? value.trim() : '';
   return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function formatMergedAt(value: string): string {
-  return new Intl.DateTimeFormat('ja-JP', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
 }
 
 function getMessageStyle(type: EditorMessage['type']): CSSProperties {
@@ -755,11 +370,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     fontWeight: 900,
   },
-  githubGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-    gap: 10,
-  },
   formGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -805,19 +415,6 @@ const styles: Record<string, CSSProperties> = {
     padding: '9px 10px',
     outline: 'none',
     fontSize: 13,
-  },
-  envHint: {
-    margin: '10px 0 0',
-    color: '#64748b',
-    fontSize: 11,
-    lineHeight: 1.6,
-  },
-  inlineCode: {
-    color: '#fde68a',
-    background: 'rgba(250, 204, 21, 0.08)',
-    border: '1px solid rgba(250, 204, 21, 0.16)',
-    borderRadius: 6,
-    padding: '1px 5px',
   },
   buttonRow: {
     display: 'flex',
@@ -865,16 +462,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: 'pointer',
   },
-  smallButton: {
-    border: '1px solid rgba(59, 130, 246, 0.32)',
-    background: 'rgba(37, 99, 235, 0.14)',
-    color: '#bfdbfe',
-    borderRadius: 10,
-    padding: '7px 10px',
-    fontSize: 11,
-    fontWeight: 850,
-    cursor: 'pointer',
-  },
   disabledButton: {
     opacity: 0.55,
     cursor: 'wait',
@@ -885,44 +472,6 @@ const styles: Record<string, CSSProperties> = {
     padding: '10px 12px',
     fontSize: 12,
     lineHeight: 1.6,
-  },
-  prList: {
-    display: 'grid',
-    gap: 9,
-    marginTop: 12,
-  },
-  prListHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    color: '#e5e7eb',
-    fontSize: 12,
-    flexWrap: 'wrap',
-  },
-  prCard: {
-    display: 'grid',
-    gap: 8,
-    border: '1px solid rgba(148, 163, 184, 0.16)',
-    borderRadius: 14,
-    padding: 11,
-    background: 'rgba(2, 6, 23, 0.36)',
-  },
-  prTitle: {
-    color: '#f8fafc',
-    fontSize: 13,
-    fontWeight: 850,
-    lineHeight: 1.45,
-  },
-  prMeta: {
-    color: '#64748b',
-    fontSize: 11,
-    marginTop: 4,
-  },
-  inlineLink: {
-    color: '#93c5fd',
-    fontSize: 12,
-    textDecoration: 'none',
   },
   previewDetails: {
     border: '1px solid rgba(148, 163, 184, 0.16)',
@@ -946,5 +495,30 @@ const styles: Record<string, CSSProperties> = {
     background: '#020617',
     fontSize: 11,
     lineHeight: 1.6,
+  },
+  emptyPanel: {
+    display: 'grid',
+    justifyItems: 'center',
+    textAlign: 'center',
+    padding: 28,
+    border: '1px dashed rgba(148, 163, 184, 0.22)',
+    borderRadius: 18,
+    background: 'rgba(15, 23, 42, 0.44)',
+    gap: 8,
+  },
+  emptyIcon: {
+    fontSize: 38,
+  },
+  emptyTitle: {
+    margin: '4px 0 0',
+    color: '#f8fafc',
+    fontSize: 17,
+  },
+  emptyText: {
+    maxWidth: 420,
+    margin: 0,
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 1.7,
   },
 };

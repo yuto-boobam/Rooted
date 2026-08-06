@@ -2,21 +2,46 @@ import patchNotesJson from '../data/patchNotes.json';
 import type { PatchNote, PatchNoteType, PatchNotesJson } from '../types/patchNote';
 
 export const PATCH_NOTES_FILE_PATH = 'src/data/patchNotes.json';
+export const PATCH_NOTES_API_ENDPOINT = '/__rooted-api/patch-notes';
+export const PATCH_NOTE_IMAGE_API_ENDPOINT = '/__rooted-api/patch-notes/image';
 
 const importedPatchNotes = (
   Array.isArray(patchNotesJson) ? patchNotesJson : []
 ) as unknown as PatchNotesJson;
 
 export function getInitialPatchNotes(): PatchNote[] {
-  return sortPatchNotes(importedPatchNotes.map((note) => normalizePatchNote(note)));
+  return sortPatchNotes(recalculateBuildNumbers(importedPatchNotes.map((note) => normalizePatchNote(note))));
 }
 
 export function getPatchNotesByDate(notes: PatchNote[], date: string): PatchNote[] {
-  return sortPatchNotes(notes.filter((note) => note.date === date));
+  return notes
+    .filter((note) => note.date === date)
+    .sort((a, b) => a.buildNumber - b.buildNumber);
 }
 
 export function getPatchNoteDates(notes: PatchNote[]): string[] {
   return Array.from(new Set(sortPatchNotes(notes).map((note) => note.date)));
+}
+
+// yearMonthIndexは Date.getMonth() と同じ0始まり
+export function getPatchNotesByMonth(
+  notes: PatchNote[],
+  year: number,
+  monthIndex: number,
+): PatchNote[] {
+  const prefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}-`;
+
+  return notes
+    .filter((note) => note.date.startsWith(prefix))
+    .sort((a, b) => {
+      const dateDiff = dateKeyToLocalTime(a.date) - dateKeyToLocalTime(b.date);
+
+      if (dateDiff !== 0) {
+        return dateDiff;
+      }
+
+      return a.buildNumber - b.buildNumber;
+    });
 }
 
 export function createEmptyPatchNote(date = todayDateKey(), notes: PatchNote[] = []): PatchNote {
@@ -25,7 +50,7 @@ export function createEmptyPatchNote(date = todayDateKey(), notes: PatchNote[] =
   return {
     id: generatePatchNoteId(safeDate),
     date: safeDate,
-    version: suggestNextVersion(notes),
+    buildNumber: previewBuildNumberForNewNote(notes, safeDate),
     type: 'other',
     title: '',
     description: '',
@@ -38,22 +63,67 @@ export function upsertPatchNote(notes: PatchNote[], patchNote: PatchNote): Patch
   const normalizedPatchNote = normalizePatchNote(patchNote);
   const existingIndex = notes.findIndex((note) => note.id === normalizedPatchNote.id);
 
-  if (existingIndex === -1) {
-    return sortPatchNotes([...notes, normalizedPatchNote]);
-  }
+  const nextNotes =
+    existingIndex === -1
+      ? [...notes, normalizedPatchNote]
+      : notes.map((note, index) => (index === existingIndex ? normalizedPatchNote : note));
 
-  const nextNotes = [...notes];
-  nextNotes[existingIndex] = normalizedPatchNote;
-
-  return sortPatchNotes(nextNotes);
+  return sortPatchNotes(recalculateBuildNumbers(nextNotes));
 }
 
 export function removePatchNote(notes: PatchNote[], patchNoteId: string): PatchNote[] {
-  return sortPatchNotes(notes.filter((note) => note.id !== patchNoteId));
+  const nextNotes = notes.filter((note) => note.id !== patchNoteId);
+  return sortPatchNotes(recalculateBuildNumbers(nextNotes));
+}
+
+// buildNumberは「古い順の通し番号」として常に日付順から再計算される派生値。
+// 同日内の並び順は、既存ノートは現在のbuildNumberを、新規ノート（buildNumber未確定=0）は
+// その日の最後尾になるようにタイブレークする。
+export function recalculateBuildNumbers(notes: PatchNote[]): PatchNote[] {
+  const chronological = [...notes].sort((a, b) => {
+    const dateDiff = dateKeyToLocalTime(a.date) - dateKeyToLocalTime(b.date);
+
+    if (dateDiff !== 0) {
+      return dateDiff;
+    }
+
+    return sameDayTieBreak(a.buildNumber) - sameDayTieBreak(b.buildNumber);
+  });
+
+  const buildNumberById = new Map<string, number>(
+    chronological.map((note, index) => [note.id, index + 1]),
+  );
+
+  return notes.map((note) => ({
+    ...note,
+    buildNumber: buildNumberById.get(note.id) ?? note.buildNumber,
+  }));
+}
+
+export function previewBuildNumberForNewNote(notes: PatchNote[], date: string): number {
+  const placeholder: PatchNote = {
+    id: '__preview__',
+    date,
+    buildNumber: 0,
+    type: 'other',
+    title: '',
+    description: '',
+    beforeImageUrl: null,
+    afterImageUrl: null,
+  };
+
+  const recalculated = recalculateBuildNumbers([...notes, placeholder]);
+  return recalculated.find((note) => note.id === placeholder.id)?.buildNumber ?? notes.length + 1;
+}
+
+function sameDayTieBreak(buildNumber: number): number {
+  return buildNumber > 0 ? buildNumber : Number.MAX_SAFE_INTEGER;
 }
 
 export function toPatchNotesJson(notes: PatchNote[]): string {
-  const normalizedNotes = sortPatchNotes(notes.map((note) => normalizePatchNote(note)));
+  const normalizedNotes = sortPatchNotes(
+    recalculateBuildNumbers(notes.map((note) => normalizePatchNote(note))),
+  );
   return `${JSON.stringify(normalizedNotes, null, 2)}\n`;
 }
 
@@ -80,6 +150,68 @@ export function downloadPatchNotesJson(notes: PatchNote[], filename = 'patchNote
   URL.revokeObjectURL(objectUrl);
 }
 
+export async function saveNotesToLocalFile(notes: PatchNote[]): Promise<void> {
+  const response = await fetch(PATCH_NOTES_API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: toPatchNotesJson(notes),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(
+      errorText || `ローカルファイルへの保存に失敗しました。(status: ${response.status})`,
+    );
+  }
+}
+
+export interface UploadPatchNoteImageParams {
+  date: string;
+  buildNumber: number;
+  label: 'before' | 'after';
+  file: File;
+}
+
+export async function uploadPatchNoteImage(params: UploadPatchNoteImageParams): Promise<string> {
+  const dataBase64 = await fileToBase64(params.file);
+
+  const response = await fetch(PATCH_NOTE_IMAGE_API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      date: params.date,
+      buildNumber: params.buildNumber,
+      label: params.label,
+      fileName: params.file.name,
+      dataBase64,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(
+      errorText || `画像のアップロードに失敗しました。(status: ${response.status})`,
+    );
+  }
+
+  const result = (await response.json()) as { url: string };
+  return result.url;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+
+    reader.onerror = () => reject(reader.error ?? new Error('ファイルの読み込みに失敗しました。'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function normalizePatchNote(note: Partial<PatchNote>): PatchNote {
   const rawDate = safeString(note.date);
   const date = isDateKey(rawDate) ? rawDate : todayDateKey();
@@ -87,7 +219,7 @@ export function normalizePatchNote(note: Partial<PatchNote>): PatchNote {
   return {
     id: safeString(note.id) || generatePatchNoteId(date),
     date,
-    version: safeString(note.version) || 'v0.1.0',
+    buildNumber: normalizeBuildNumber(note.buildNumber),
     type: isPatchNoteType(note.type) ? note.type : 'other',
     title: safeString(note.title) || '無題のパッチノート',
     description: safeString(note.description) || 'Why / 変更理由:\n変更理由を記入してください。',
@@ -104,22 +236,8 @@ export function sortPatchNotes(notes: PatchNote[]): PatchNote[] {
       return dateDiff;
     }
 
-    return compareVersionDesc(a.version, b.version);
+    return b.buildNumber - a.buildNumber;
   });
-}
-
-export function suggestNextVersion(notes: PatchNote[]): string {
-  const versions = notes
-    .map((note) => parseSemver(note.version))
-    .filter((version): version is [number, number, number] => version !== null)
-    .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
-
-  if (versions.length === 0) {
-    return 'v0.1.0';
-  }
-
-  const [major, minor, patch] = versions[0];
-  return `v${major}.${minor}.${patch + 1}`;
 }
 
 export function todayDateKey(): string {
@@ -143,7 +261,9 @@ export function generatePatchNoteId(date = todayDateKey()): string {
 }
 
 export function isPatchNoteType(value: unknown): value is PatchNoteType {
-  return value === 'feature' || value === 'bugfix' || value === 'other';
+  return (
+    value === 'feature' || value === 'bugfix' || value === 'spec-change' || value === 'other'
+  );
 }
 
 function optionalUrlToNull(value: unknown): string | null {
@@ -170,25 +290,8 @@ function dateKeyToLocalTime(dateKey: string): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-function parseSemver(version: string): [number, number, number] | null {
-  const matched = /^v?(\d+)\.(\d+)\.(\d+)/i.exec(version.trim());
-
-  if (!matched) {
-    return null;
-  }
-
-  return [Number(matched[1]), Number(matched[2]), Number(matched[3])];
-}
-
-function compareVersionDesc(a: string, b: string): number {
-  const versionA = parseSemver(a);
-  const versionB = parseSemver(b);
-
-  if (!versionA || !versionB) {
-    return b.localeCompare(a, 'ja');
-  }
-
-  return versionB[0] - versionA[0] || versionB[1] - versionA[1] || versionB[2] - versionA[2];
+function normalizeBuildNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

@@ -10,6 +10,7 @@ import {
 import PatchNotesCalendar from './PatchNotesCalendar';
 import PatchNotesDetail from './PatchNotesDetail';
 import PatchNotesEditor from './PatchNotesEditor';
+import PatchNotesFullList from './PatchNotesFullList';
 import { canEditPatchNotesLocally } from '../../utils/localEditAccess';
 
 interface PatchNotesModalProps {
@@ -17,6 +18,10 @@ interface PatchNotesModalProps {
   onClose: () => void;
   initialSelectedDate?: string;
 }
+
+type ViewMode = 'calendar' | 'list';
+
+const CONTENT_MAX_HEIGHT = 'calc(min(860px, 100vh - 36px) - 74px)';
 
 export default function PatchNotesModal({
   isOpen,
@@ -29,6 +34,7 @@ export default function PatchNotesModal({
     return initialSelectedDate ?? getPatchNoteDates(initialNotes)[0] ?? todayDateKey();
   });
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
   const canEdit = canEditPatchNotesLocally();
 
@@ -41,6 +47,7 @@ export default function PatchNotesModal({
   useEffect(() => {
     if (!isOpen) {
       setIsEditorOpen(false);
+      setViewMode('calendar');
       return;
     }
 
@@ -90,32 +97,69 @@ export default function PatchNotesModal({
             </p>
           </div>
 
-          <button type="button" style={styles.closeButton} onClick={onClose} aria-label="閉じる">
-            ×
-          </button>
-        </header>
-
-        <div style={styles.content}>
-          <aside style={styles.leftPane}>
-            <PatchNotesCalendar
-              notes={notes}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-            />
-
-            {canEdit && (
+          <div style={styles.headerRight}>
+            <div style={styles.viewToggle} role="group" aria-label="表示モード切り替え">
               <button
                 type="button"
-                style={styles.editorToggleButton}
-                onClick={() => setIsEditorOpen((current) => !current)}
+                style={{
+                  ...styles.viewToggleButton,
+                  ...(viewMode === 'calendar' ? styles.viewToggleButtonActive : {}),
+                }}
+                aria-pressed={viewMode === 'calendar'}
+                onClick={() => setViewMode('calendar')}
               >
-                {isEditorOpen ? '閲覧に戻る' : '＋ パッチノート追記/編集'}
+                カレンダー
               </button>
-            )}
-          </aside>
+
+              <button
+                type="button"
+                style={{
+                  ...styles.viewToggleButton,
+                  ...(viewMode === 'list' ? styles.viewToggleButtonActive : {}),
+                }}
+                aria-pressed={viewMode === 'list'}
+                onClick={() => setViewMode('list')}
+              >
+                一覧
+              </button>
+            </div>
+
+            <button type="button" style={styles.closeButton} onClick={onClose} aria-label="閉じる">
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div
+          style={{
+            ...styles.content,
+            gridTemplateColumns: viewMode === 'calendar' ? styles.content.gridTemplateColumns : '1fr',
+          }}
+        >
+          {viewMode === 'calendar' && (
+            <aside style={styles.leftPane}>
+              <PatchNotesCalendar
+                notes={notes}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+              />
+
+              {canEdit && (
+                <button
+                  type="button"
+                  style={styles.editorToggleButton}
+                  onClick={() => setIsEditorOpen((current) => !current)}
+                >
+                  {isEditorOpen ? '閲覧に戻る' : '＋ パッチノート追記/編集'}
+                </button>
+              )}
+            </aside>
+          )}
 
           <main style={styles.rightPane}>
-            {canEdit && isEditorOpen ? (
+            {viewMode === 'list' ? (
+              <PatchNotesFullList notes={notes} maxHeight={CONTENT_MAX_HEIGHT} />
+            ) : canEdit && isEditorOpen ? (
               <PatchNotesEditor
                 selectedDate={selectedDate}
                 notes={notes}
@@ -172,6 +216,12 @@ const styles: Record<string, CSSProperties> = {
     color: '#94a3b8',
     fontSize: 12,
   },
+  headerRight: {
+    flex: '0 0 auto',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
   closeButton: {
     flex: '0 0 auto',
     width: 36,
@@ -184,13 +234,32 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 22,
     lineHeight: 1,
   },
+  viewToggle: {
+    display: 'flex',
+    gap: 8,
+  },
+  viewToggleButton: {
+    border: '1px solid rgba(148, 163, 184, 0.18)',
+    background: 'rgba(30, 41, 59, 0.65)',
+    color: '#cbd5e1',
+    borderRadius: 999,
+    padding: '8px 16px',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  viewToggleButtonActive: {
+    borderColor: '#facc15',
+    background: 'rgba(250, 204, 21, 0.16)',
+    color: '#fde68a',
+  },
   content: {
     display: 'grid',
     gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
     gap: 16,
     padding: 16,
     overflow: 'auto',
-    maxHeight: 'calc(min(860px, 100vh - 36px) - 74px)',
+    maxHeight: CONTENT_MAX_HEIGHT,
   },
   leftPane: {
     display: 'grid',

@@ -18,8 +18,6 @@ interface HeaderProps {
   subtitle?: string;
   breadcrumbs?: HeaderBreadcrumbItem[];
   rightSlot?: ReactNode;
-  onRefreshProgress?: () => void;
-  showRefreshButton?: boolean;
 }
 
 export default function Header({
@@ -30,8 +28,6 @@ export default function Header({
   subtitle,
   breadcrumbs,
   rightSlot,
-  onRefreshProgress,
-  showRefreshButton,
 }: HeaderProps) {
   const isPatchNotesModalOpen = useAppStore((state) => state.isPatchNotesModalOpen);
   const selectedPatchNoteDate = useAppStore((state) => state.selectedPatchNoteDate);
@@ -43,8 +39,6 @@ export default function Header({
 
   const breadcrumbItems =
     breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : title ? [title] : [];
-
-  const shouldShowRefreshButton = showRefreshButton ?? Boolean(onRefreshProgress);
 
   const hasSecondRow =
     Boolean(breadcrumbsSlot) || breadcrumbItems.length > 0 || Boolean(subtitle);
@@ -89,22 +83,8 @@ export default function Header({
               <span style={styles.compactButtonText}>パッチノート</span>
             </button>
 
-            {shouldShowRefreshButton && (
-              <button
-                type="button"
-                style={{
-                  ...styles.refreshButton,
-                  opacity: onRefreshProgress ? 1 : 0.5,
-                  cursor: onRefreshProgress ? 'pointer' : 'not-allowed',
-                }}
-                onClick={onRefreshProgress}
-                disabled={!onRefreshProgress}
-                title="進捗を更新"
-              >
-                <span>↻</span>
-                <span style={styles.compactButtonText}>進捗を更新</span>
-              </button>
-            )}
+            {/* 将来のボタン用に予約している枠（現在は未使用） */}
+            <div style={styles.reservedButtonSlot} aria-hidden="true" />
 
             <button
               type="button"
@@ -178,9 +158,9 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
-    borderBottom: '1px solid rgba(148, 163, 184, 0.14)',
-    background: 'rgba(3, 7, 18, 0.94)',
-    color: '#e5e7eb',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--bg-surface)',
+    color: 'var(--text-primary)',
     boxSizing: 'border-box',
   },
   topRow: {
@@ -208,16 +188,16 @@ const styles: Record<string, CSSProperties> = {
     height: 34,
     padding: '0 9px',
     borderRadius: 12,
-    border: '1px solid rgba(148, 163, 184, 0.16)',
-    background: 'rgba(15, 23, 42, 0.72)',
-    color: '#f8fafc',
+    border: '1px solid var(--border)',
+    background: 'var(--bg-elevated)',
+    color: 'var(--text-primary)',
   },
   brandIcon: {
     fontSize: 18,
     lineHeight: 1,
   },
   brandText: {
-    color: '#f8fafc',
+    color: 'var(--text-primary)',
     fontSize: 14,
     letterSpacing: '-0.02em',
   },
@@ -225,7 +205,7 @@ const styles: Record<string, CSSProperties> = {
     flex: '0 0 auto',
     width: 1,
     height: 22,
-    background: 'rgba(148, 163, 184, 0.15)',
+    background: 'var(--border)',
   },
   actions: {
     flex: '0 0 auto',
@@ -251,19 +231,12 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
-  refreshButton: {
+  reservedButtonSlot: {
+    flexShrink: 0,
+    width: 32,
     height: 32,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
     borderRadius: 11,
-    border: '1px solid rgba(148, 163, 184, 0.2)',
-    background: 'rgba(15, 23, 42, 0.85)',
-    color: '#e5e7eb',
-    padding: '0 9px',
-    fontSize: 12,
-    fontWeight: 800,
-    whiteSpace: 'nowrap',
+    border: '1px dashed var(--border)',
   },
   rightPanelButton: {
     height: 32,
@@ -294,12 +267,12 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 10,
     padding: '5px 12px 8px',
-    borderTop: '1px solid rgba(148, 163, 184, 0.08)',
+    borderTop: '1px solid var(--border)',
     boxSizing: 'border-box',
   },
   breadcrumbLabel: {
     flex: '0 0 auto',
-    color: '#64748b',
+    color: 'var(--text-muted)',
     fontSize: 11,
     fontWeight: 800,
   },
@@ -316,7 +289,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    color: '#94a3b8',
+    color: 'var(--text-secondary)',
     fontSize: 12,
   },
   breadcrumbItem: {
@@ -325,18 +298,18 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
   },
   breadcrumbSeparator: {
-    color: '#475569',
+    color: 'var(--text-muted)',
   },
   breadcrumbButton: {
     border: 0,
     background: 'transparent',
-    color: '#94a3b8',
+    color: 'var(--text-secondary)',
     padding: 0,
     cursor: 'pointer',
     fontSize: 12,
   },
   breadcrumbCurrent: {
-    color: '#e5e7eb',
+    color: 'var(--text-primary)',
     fontWeight: 750,
   },
   subtitle: {

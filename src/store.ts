@@ -374,34 +374,36 @@ function reorderPriorityInRoot(
 function recalcProgress(root: TaskNode): TaskNode {
   const children = root.children.map(recalcProgress);
 
-  if (root.completed) {
-    return {
-      ...root,
-      children,
-      progress: 100,
-    };
-  }
-
+  // 子タスクを持たないノード（leaf）は達成状態を手動管理する
   if (children.length === 0) {
     return {
       ...root,
       children,
-      progress: 0,
+      progress: root.completed ? 100 : 0,
     };
   }
 
-  const average =
-    children.reduce((sum, child) => sum + child.progress, 0) / children.length;
+  // 親ノードは子タスクの達成率から自動的に導出する（手動チェック不可）
+  const average = Math.round(
+    children.reduce((sum, child) => sum + child.progress, 0) / children.length,
+  );
+  const completed = average === 100;
 
   return {
     ...root,
     children,
-    progress: Math.round(average),
+    progress: average,
+    completed,
+    completedAt: completed
+      ? (root.completed ? root.completedAt : new Date().toISOString())
+      : null,
+    isPriority: completed ? false : root.isPriority,
+    priorityOrder: completed ? null : root.priorityOrder,
   };
 }
 
 function prepareRoot(root: TaskNode): TaskNode {
-  return recalcProgress(normalizePriorityOrders(refreshDueVisuals(root)));
+  return refreshDueVisuals(normalizePriorityOrders(recalcProgress(root)));
 }
 
 function updateProjectRoot(project: Project, rootTask: TaskNode): Project {
@@ -516,6 +518,10 @@ export type AppState = {
   view: View;
   currentProjectId: string | null;
   selectedPath: string[];
+
+  // ノードごとの開閉状態（ここに含まれるノードIDは「閉じている」。未登録なら開いている扱い）
+  collapsedNodeIds: string[];
+  toggleNodeExpanded: (nodeId: string) => void;
 
   // プロジェクト操作
   addProject: (title: string, description: string) => void;
@@ -671,6 +677,15 @@ export const useAppStore = create<AppState>()(
       view: 'dashboard',
       currentProjectId: null,
       selectedPath: [],
+      collapsedNodeIds: [],
+
+      toggleNodeExpanded: (nodeId) => {
+        set((state) => ({
+          collapsedNodeIds: state.collapsedNodeIds.includes(nodeId)
+            ? state.collapsedNodeIds.filter((id) => id !== nodeId)
+            : [...state.collapsedNodeIds, nodeId],
+        }));
+      },
 
       // ──── プロジェクト操作 ────────────────────────────────────────────
 
@@ -817,6 +832,9 @@ export const useAppStore = create<AppState>()(
           selectedPath: state.selectedPath.includes(nodeId)
             ? state.selectedPath.slice(0, state.selectedPath.indexOf(nodeId))
             : state.selectedPath,
+          collapsedNodeIds: state.collapsedNodeIds.filter(
+            (id) => id !== nodeId,
+          ),
         }));
       },
 
@@ -1205,6 +1223,7 @@ export const useAppStore = create<AppState>()(
         view: state.view,
         currentProjectId: state.currentProjectId,
         selectedPath: state.selectedPath,
+        collapsedNodeIds: state.collapsedNodeIds,
         rightPanel: {
           ...state.rightPanel,
           isOpen: false,

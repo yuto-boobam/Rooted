@@ -52,12 +52,14 @@ export function TreePage() {
     projects,
     currentProjectId,
     selectedPath,
+    collapsedNodeIds,
     rightPanel,
     isPatchNotesModalOpen,
 
     goToDashboard,
     selectNode,
     navigateToPath,
+    toggleNodeExpanded,
 
     addChildNode,
     addSiblingNode,
@@ -205,27 +207,46 @@ export function TreePage() {
       .filter((item): item is { id: string; title: string } => item !== null);
   }, [root, selectedPath]);
 
-  // ── 列（カラム）の構築
+  // ── ノードごとの開閉状態（選択状態とは独立）
+  const collapsedSet = useMemo(
+    () => new Set(collapsedNodeIds),
+    [collapsedNodeIds],
+  );
+
+  // ── 列（カラム）の構築: 開いているノードをすべて辿る（複数の枝を同時に開ける）
   const columns = useMemo<TreeColumn[]>(() => {
     if (!root) return [];
 
     const nextColumns: TreeColumn[] = [];
 
-    for (let index = 0; index < selectedPath.length; index += 1) {
-      const nodeId = selectedPath[index];
-      const node = findNode(root, nodeId);
+    const visit = (node: TaskNode, depth: number) => {
+      if (node.children.length === 0) return;
+      // ルートは常に展開扱い（開閉トグルを持たないため）
+      if (depth > 0 && collapsedSet.has(node.id)) return;
 
-      if (node && node.children.length > 0) {
-        nextColumns.push({
-          parentId: node.id,
-          nodes: node.children,
-          depth: index,
-        });
+      nextColumns.push({ parentId: node.id, nodes: node.children, depth });
+
+      for (const child of node.children) {
+        visit(child, depth + 1);
       }
-    }
+    };
+
+    visit(root, 0);
 
     return nextColumns;
-  }, [root, selectedPath]);
+  }, [root, collapsedSet]);
+
+  // ── 同じ深さの列（別の枝から同時に開かれたもの）をまとめる
+  const columnsByDepth = useMemo(() => {
+    const groups: TreeColumn[][] = [];
+
+    for (const column of columns) {
+      if (!groups[column.depth]) groups[column.depth] = [];
+      groups[column.depth].push(column);
+    }
+
+    return groups;
+  }, [columns]);
 
   if (!project || !root || !projectId) {
     return <ProjectMissingView onBackToDashboard={goToDashboard} />;
@@ -336,75 +357,85 @@ export function TreePage() {
             />
           </div>
 
-          {/* 各列 */}
-          {columns.map((column) => (
+          {/* 各深さ（同じ深さで複数の枝が同時に開いている場合は縦に並べる） */}
+          {columnsByDepth.map((depthColumns, depth) => (
             <div
-              key={column.parentId}
-              className="flex-shrink-0 flex flex-col justify-center py-8"
+              key={depth}
+              className="flex-shrink-0 flex flex-col gap-10 justify-center py-8"
               style={{ width: 260 }}
             >
-              {/* カラム先頭（一番上）へのドロップ */}
-              <DropZone
-                accentColor={accentColor}
-                onDrop={(data) => {
-                  if (data.id === column.parentId) return;
-                  moveNode(project.id, data.id, column.parentId, 0);
-                }}
-              />
-
-              {column.nodes.map((node, nodeIndex) => (
-                <React.Fragment key={node.id}>
-                  <TaskNodeCard
-                    node={node}
-                    isSelected={selectedPath.includes(node.id)}
-                    accentColor={accentColor}
-                    onClick={() => selectNode(node.id)}
-                    onToggleComplete={() => toggleComplete(project.id, node.id)}
-                    onUpdateTitle={(title) =>
-                      updateNodeTitle(project.id, node.id, title)
-                    }
-                    onUpdateMemo={(memo) =>
-                      updateNodeMemo(project.id, node.id, memo)
-                    }
-                    onAddChild={() => openChildModal(node.id)}
-                    onAddSibling={() => openSiblingModal(node.id)}
-                    onDelete={() => {
-                      const ok = window.confirm(
-                        `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
-                      );
-
-                      if (ok) {
-                        deleteNode(project.id, node.id);
-                      }
-                    }}
-                    parentId={column.parentId}
-                    dragIndex={nodeIndex}
-                    onDragOver={() => {
-                      // TaskNodeCard側の型に合わせた no-op
-                    }}
-                    onDrop={(draggedData: DraggedNodeData) => {
-                      if (draggedData.id === node.id) return;
-
-                      // カードの上へのドロップは常に「子タスク」として追加
-                      moveNode(project.id, draggedData.id, node.id);
-                    }}
-                  />
-
-                  {/* カード直後（兄弟間、または一番下）へのドロップ */}
+              {depthColumns.map((column) => (
+                <div key={column.parentId} className="flex flex-col">
+                  {/* カラム先頭（一番上）へのドロップ */}
                   <DropZone
                     accentColor={accentColor}
                     onDrop={(data) => {
                       if (data.id === column.parentId) return;
-
-                      moveNode(
-                        project.id,
-                        data.id,
-                        column.parentId,
-                        nodeIndex + 1,
-                      );
+                      moveNode(project.id, data.id, column.parentId, 0);
                     }}
                   />
-                </React.Fragment>
+
+                  {column.nodes.map((node, nodeIndex) => (
+                    <React.Fragment key={node.id}>
+                      <TaskNodeCard
+                        node={node}
+                        isSelected={
+                          selectedPath[selectedPath.length - 1] === node.id
+                        }
+                        accentColor={accentColor}
+                        onClick={() => selectNode(node.id)}
+                        isExpanded={!collapsedSet.has(node.id)}
+                        onToggleExpand={() => toggleNodeExpanded(node.id)}
+                        onToggleComplete={() =>
+                          toggleComplete(project.id, node.id)
+                        }
+                        onUpdateTitle={(title) =>
+                          updateNodeTitle(project.id, node.id, title)
+                        }
+                        onUpdateMemo={(memo) =>
+                          updateNodeMemo(project.id, node.id, memo)
+                        }
+                        onAddChild={() => openChildModal(node.id)}
+                        onAddSibling={() => openSiblingModal(node.id)}
+                        onDelete={() => {
+                          const ok = window.confirm(
+                            `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
+                          );
+
+                          if (ok) {
+                            deleteNode(project.id, node.id);
+                          }
+                        }}
+                        parentId={column.parentId}
+                        dragIndex={nodeIndex}
+                        onDragOver={() => {
+                          // TaskNodeCard側の型に合わせた no-op
+                        }}
+                        onDrop={(draggedData: DraggedNodeData) => {
+                          if (draggedData.id === node.id) return;
+
+                          // カードの上へのドロップは常に「子タスク」として追加
+                          moveNode(project.id, draggedData.id, node.id);
+                        }}
+                      />
+
+                      {/* カード直後（兄弟間、または一番下）へのドロップ */}
+                      <DropZone
+                        accentColor={accentColor}
+                        onDrop={(data) => {
+                          if (data.id === column.parentId) return;
+
+                          moveNode(
+                            project.id,
+                            data.id,
+                            column.parentId,
+                            nodeIndex + 1,
+                          );
+                        }}
+                      />
+                    </React.Fragment>
+                  ))}
+                </div>
               ))}
             </div>
           ))}
@@ -606,27 +637,14 @@ function ConnectionsOverlay({
       let changed = false;
 
       // 描画すべきすべての「親 → 子」のペアをリスト化
-      const links: { parentId: string; childId: string }[] = [];
-
-      if (columns.length > 0) {
-        links.push(
-          ...columns[0].nodes.map((node) => ({
-            parentId: root.id,
+      // （開いている列はすべて自分のparentIdを持つため、列ごとに一律で処理できる）
+      const links: { parentId: string; childId: string }[] = columns.flatMap(
+        (column) =>
+          column.nodes.map((node) => ({
+            parentId: column.parentId,
             childId: node.id,
           })),
-        );
-
-        for (let index = 1; index < columns.length; index += 1) {
-          const column = columns[index];
-
-          links.push(
-            ...column.nodes.map((node) => ({
-              parentId: column.parentId,
-              childId: node.id,
-            })),
-          );
-        }
-      }
+      );
 
       links.forEach((link) => {
         const parentElement = document.getElementById(`node-${link.parentId}`);

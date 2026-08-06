@@ -68,7 +68,7 @@ export default function PatchNotesDetail({ selectedDate, notes }: PatchNotesDeta
               <div style={styles.noteHeader}>
                 <div>
                   <div style={styles.versionRow}>
-                    <span style={styles.version}>{note.version}</span>
+                    <span style={styles.version}>第{note.buildNumber}回更新</span>
                     <span
                       style={{
                         ...styles.typeBadge,

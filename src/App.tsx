@@ -13,6 +13,7 @@ function App() {
   const view = useAppStore((s) => s.view);
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
+  const isGuest = useAppStore((s) => s.isGuest);
   const theme = useAppStore((s) => s.theme);
 
   // 配色テーマをHTMLルート要素に反映（CSS変数の切り替えに使う）
@@ -35,8 +36,9 @@ function App() {
   }, [hasHydrated]);
 
   // アプリ起動時およびセッション変更時にSupabaseの認証状態を同期
+  // ゲストモード中はSupabaseセッションを持たないため同期をスキップする
   useEffect(() => {
-    if (!hasHydrated) return;
+    if (!hasHydrated || isGuest) return;
 
     // 現在のセッションを一度だけ取得
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -49,13 +51,13 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [hasHydrated, setUser]);
+  }, [hasHydrated, isGuest, setUser]);
 
   if (!hasHydrated) {
     return null;
   }
 
-  if (!user) {
+  if (!user && !isGuest) {
     return <AuthPage />;
   }
 

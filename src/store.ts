@@ -13,6 +13,10 @@ import type {
 import { PROJECT_COLORS, PROJECT_ICONS } from './types';
 import { supabase } from './utils/supabaseClient';
 import { getDueUrgencyColors } from './utils/dueDateColor';
+import {
+  GUEST_SAMPLE_PROJECT_ID,
+  makeGuestSampleProject,
+} from './data/guestSampleProject';
 
 // ── UI用定数 ─────────────────────────────────────────────────────────────
 
@@ -531,6 +535,11 @@ export type AppState = {
   user: User | null;
   setUser: (user: User | null) => void;
 
+  // ゲストモード（Supabase認証を経由しないお試しログイン）
+  isGuest: boolean;
+  enterGuestMode: () => void;
+  logout: () => Promise<void>;
+
   nickname: string;
   setNickname: (nickname: string) => Promise<void>;
 
@@ -687,9 +696,35 @@ export const useAppStore = create<AppState>()(
         set({ user, nickname });
       },
 
+      isGuest: false,
+
+      enterGuestMode: () => {
+        set({ isGuest: true, user: null, nickname: 'ゲスト' });
+
+        const hasSampleProject = get().projects.some(
+          (project) => project.id === GUEST_SAMPLE_PROJECT_ID,
+        );
+        if (!hasSampleProject) {
+          get().importProject(makeGuestSampleProject());
+        }
+      },
+
+      logout: async () => {
+        if (get().isGuest) {
+          set({ isGuest: false, user: null, nickname: '' });
+          return;
+        }
+        await supabase.auth.signOut();
+      },
+
       nickname: '',
 
       setNickname: async (nickname) => {
+        if (get().isGuest) {
+          set({ nickname });
+          return;
+        }
+
         const { error } = await supabase.auth.updateUser({
           data: { nickname },
         });
@@ -1287,6 +1322,7 @@ export const useAppStore = create<AppState>()(
         selectedPath: state.selectedPath,
         collapsedNodeIds: state.collapsedNodeIds,
         theme: state.theme,
+        isGuest: state.isGuest,
         rightPanel: {
           ...state.rightPanel,
           isOpen: false,
@@ -1306,7 +1342,7 @@ export const useAppStore = create<AppState>()(
           projects,
           rightPanel: normalizeRightPanelState(persisted?.rightPanel),
           user: currentState.user,
-          nickname: currentState.nickname,
+          nickname: persisted?.isGuest ? 'ゲスト' : currentState.nickname,
           isPatchNotesModalOpen: false,
           selectedPatchNoteDate: null,
         };

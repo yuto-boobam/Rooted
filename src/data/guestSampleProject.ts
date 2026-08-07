@@ -26,7 +26,6 @@ function buildSampleProjectData() {
       'ゲストモードの操作感を確認するためのサンプルです。自由に編集・削除して試してください。',
     icon: '🌱',
     color: '#3b82f6',
-    starred: true,
     createdBy: 'ゲスト',
     rootTask: {
       title: 'サンプルプロジェクト',

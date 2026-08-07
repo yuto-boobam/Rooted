@@ -172,7 +172,6 @@ const makeProject = (
     description,
     icon,
     color,
-    starred: false,
     createdBy,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -496,7 +495,6 @@ function normalizeProject(project: Partial<Project>): Project {
     description: safeString(project.description, ''),
     icon: safeString(project.icon, PROJECT_ICONS[0]),
     color: safeString(project.color, PROJECT_COLORS[0]),
-    starred: Boolean(project.starred),
     createdBy,
     createdAt: safeString(project.createdAt, new Date().toISOString()),
     updatedAt: safeString(project.updatedAt, new Date().toISOString()),
@@ -560,7 +558,6 @@ export type AppState = {
   addProject: (title: string, description: string) => void;
   deleteProject: (id: string) => void;
   importProject: (project: Partial<Project>) => void;
-  toggleStar: (id: string) => void;
   openProject: (id: string) => void;
   goToDashboard: () => void;
 
@@ -794,16 +791,6 @@ export const useAppStore = create<AppState>()(
           projects[existingIndex] = normalized;
           return { projects };
         });
-      },
-
-      toggleStar: (id) => {
-        set((state) => ({
-          projects: state.projects.map((project) =>
-            project.id === id
-              ? { ...project, starred: !project.starred }
-              : project,
-          ),
-        }));
       },
 
       openProject: (id) => {

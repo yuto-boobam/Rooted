@@ -6,12 +6,8 @@ import Header from '../components/Header'; // ★ 追加：共通Headerコンポ
 
 export function DashboardPage() {
   console.log('★ DashboardPageがレンダリングされました');
-  const { projects, addProject, deleteProject, toggleStar, openProject } =
-    useAppStore();
+  const { projects, addProject, deleteProject, openProject } = useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // お気に入りを上に表示
-  const sorted = [...projects].sort((a, b) => Number(b.starred) - Number(a.starred));
 
   return (
     <div
@@ -76,7 +72,7 @@ export function DashboardPage() {
 
             {/* プロジェクトグリッド */}
             <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-              {sorted.map((project) => (
+              {projects.map((project) => (
                 <div key={project.id} className="group">
                   <ProjectCard
                     project={project}
@@ -86,7 +82,6 @@ export function DashboardPage() {
                         deleteProject(project.id);
                       }
                     }}
-                    onToggleStar={() => toggleStar(project.id)}
                   />
                 </div>
               ))}

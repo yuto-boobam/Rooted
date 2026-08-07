@@ -127,7 +127,7 @@ export function TaskNodeCard({
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
         minHeight: node.completed ? undefined : isRoot ? 110 : 76,
-        width: isRoot ? 200 : '100%',
+        width: isRoot ? 220 : '100%',
       }}
     >
       {/* ── 開閉トグル（子を持つノードのみ、右端の接続線上に配置） */}
@@ -213,7 +213,12 @@ export function TaskNodeCard({
             style={{
               color: node.completed ? 'var(--text-muted)' : 'var(--text-primary)',
               textDecoration: node.completed ? 'line-through' : 'none',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
+            title={node.title || undefined}
             onDoubleClick={(e) => {
               e.stopPropagation();
               setIsEditingTitle(true);
@@ -268,7 +273,11 @@ export function TaskNodeCard({
               style={{
                 color: node.memo ? 'var(--text-secondary)' : 'var(--text-muted)',
                 minHeight: 16,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
+              title={node.memo || undefined}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setIsEditingMemo(true);

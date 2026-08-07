@@ -76,6 +76,9 @@ export default function Header({
   breadcrumbs,
   rightSlot,
 }: HeaderProps) {
+  const isGuest = useAppStore((state) => state.isGuest);
+  const logout = useAppStore((state) => state.logout);
+
   const isPatchNotesModalOpen = useAppStore((state) => state.isPatchNotesModalOpen);
   const selectedPatchNoteDate = useAppStore((state) => state.selectedPatchNoteDate);
   const openPatchNotesModal = useAppStore((state) => state.openPatchNotesModal);
@@ -226,10 +229,22 @@ export default function Header({
             <div style={styles.divider} />
 
             <NicknameDisplay showDivider={false} />
+
+            {isGuest && <span style={styles.guestBadge}>ゲストモード</span>}
           </div>
 
           <div style={styles.actions}>
             {rightSlot}
+
+            <button
+              type="button"
+              style={styles.logoutButton}
+              onClick={() => logout()}
+              title={isGuest ? 'ゲストモードを終了' : 'ログアウト'}
+            >
+              <span>🚪</span>
+              <span style={styles.compactButtonText}>ログアウト</span>
+            </button>
 
             <button
               type="button"
@@ -446,6 +461,32 @@ const styles: Record<string, CSSProperties> = {
     width: 1,
     height: 22,
     background: 'var(--border)',
+  },
+  guestBadge: {
+    flex: '0 0 auto',
+    padding: '3px 8px',
+    borderRadius: 999,
+    border: '1px solid rgba(250, 204, 21, 0.32)',
+    background: 'rgba(250, 204, 21, 0.1)',
+    color: '#fde68a',
+    fontSize: 11,
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+  },
+  logoutButton: {
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 11,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-secondary)',
+    padding: '0 9px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   actions: {
     flex: '0 0 auto',

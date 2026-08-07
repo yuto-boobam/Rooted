@@ -46,7 +46,6 @@ export type Project = {
   description: string;
   icon: string;
   color: string;
-  starred: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

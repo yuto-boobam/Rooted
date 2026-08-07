@@ -4,7 +4,6 @@ type Props = {
   project: Project;
   onOpen: () => void;
   onDelete: () => void;
-  onToggleStar: () => void;
 };
 
 /** 日付文字列を「YYYY/MM/DD HH:mm」形式にフォーマットする */
@@ -14,76 +13,67 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function ProjectCard({ project, onOpen, onDelete, onToggleStar }: Props) {
-  const { title, description, icon, color, starred, progress, updatedAt } = project;
+export function ProjectCard({ project, onOpen, onDelete }: Props) {
+  const { title, description, icon, color, progress, updatedAt } = project;
 
   return (
     <div
-      className="card group relative cursor-pointer flex flex-col gap-3 p-5 animate-fadeIn"
+      className="card group relative cursor-pointer flex flex-col gap-4 p-6 animate-fadeIn"
       style={{ '--card-color': color } as React.CSSProperties}
       onClick={onOpen}
     >
-      {/* 上部：アイコン＋右側ボタン群 */}
-      <div className="flex items-start justify-between">
+      {/* 上部：アイコン＋タイトル（隣接配置でコンパクトに） */}
+      {/* 削除ボタンはホバー時のみ絶対配置で重ねて表示し、通常時にタイトル幅を圧迫しないようにする */}
+      <div className="flex items-center gap-2 min-w-0 pr-8">
         {/* カラー付きアイコン */}
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
           style={{ background: `${color}22`, border: `1px solid ${color}44` }}
         >
           {icon}
         </div>
 
-        {/* ボタン群（ホバー時に表示） */}
-        <div
-          className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={(e) => e.stopPropagation()} // カード全体のクリックを止める
-        >
-          {/* スターボタン */}
-          <button
-            id={`star-${project.id}`}
-            className="btn-icon"
-            onClick={onToggleStar}
-            title={starred ? 'お気に入り解除' : 'お気に入りに追加'}
-          >
-            <span style={{ color: starred ? '#eab308' : undefined, fontSize: 16 }}>
-              {starred ? '★' : '☆'}
-            </span>
-          </button>
-
-          {/* 削除ボタン */}
-          <button
-            id={`delete-project-${project.id}`}
-            className="btn-icon"
-            onClick={onDelete}
-            title="プロジェクトを削除"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6M14 11v6" />
-              <path d="M9 6V4h6v2" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* タイトル */}
-      <div>
+        {/* タイトル（1行省略） */}
         <h2
-          className="font-semibold text-base leading-snug"
+          className="font-semibold text-sm truncate min-w-0"
           style={{ color: 'var(--text-primary)' }}
+          title={title}
         >
           {title}
         </h2>
-        {description && (
-          <p
-            className="text-xs mt-1 line-clamp-2"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {description}
-          </p>
-        )}
       </div>
+
+      {/* 削除ボタン（ホバー時にカード右上へ重ねて表示） */}
+      <div
+        className="absolute top-6 right-6 flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()} // カード全体のクリックを止める
+      >
+        <button
+          id={`delete-project-${project.id}`}
+          className="btn-icon"
+          onClick={onDelete}
+          title="プロジェクトを削除"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14H6L5 6" />
+            <path d="M10 11v6M14 11v6" />
+            <path d="M9 6V4h6v2" />
+          </svg>
+        </button>
+      </div>
+
+      {/* 説明文（1行省略、高さを揃えるため常に表示） */}
+      <p
+        className="text-xs truncate"
+        style={{
+          color: description ? 'var(--text-secondary)' : 'var(--text-muted)',
+          fontStyle: description ? 'normal' : 'italic',
+        }}
+        title={description || undefined}
+      >
+        {description || '説明なし'}
+      </p>
 
       {/* プログレスバー */}
       <div className="mt-auto flex flex-col gap-1.5">

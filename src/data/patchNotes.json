@@ -1,5 +1,25 @@
 [
   {
+    "id": "2026-08-07-d08f2a04",
+    "date": "2026-08-07",
+    "buildNumber": 12,
+    "type": "spec-change",
+    "title": "ノードサイズ変更と省略機能",
+    "description": "ノードそのもののサイズを大きくし、一定以上の文字数の場合は省略する仕様を実装。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260807-build12-before.png?v=1786079288549",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260807-build12-after.png?v=1786079293320"
+  },
+  {
+    "id": "2026-08-07-5baadd22",
+    "date": "2026-08-07",
+    "buildNumber": 11,
+    "type": "feature",
+    "title": "インポート・エクスポート機能",
+    "description": "ノートの内容を補完してバックアップする機能が必要だった",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/08/20260807-build11-after.png?v=1786079202307"
+  },
+  {
     "id": "2026-08-06-a14b4ed6",
     "date": "2026-08-06",
     "buildNumber": 10,

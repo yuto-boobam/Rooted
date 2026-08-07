@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { supabase } from '../utils/supabaseClient';
 
 export function AuthPage() {
-  const setUser = useAppStore((s) => s.setUser);
+  const enterGuestMode = useAppStore((s) => s.enterGuestMode);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
@@ -175,7 +175,31 @@ export function AuthPage() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+        {/* 区切り線 */}
+        <div className="flex items-center gap-3 my-5">
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            または
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
+
+        {/* ゲストモードボタン */}
+        <button
+          type="button"
+          className="w-full btn-ghost justify-center py-3 text-sm font-semibold"
+          onClick={() => {
+            setErrorMessage(null);
+            enterGuestMode();
+          }}
+        >
+          ゲストモードとしてログイン
+        </button>
+        <div className="mt-2 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+          ※ 登録不要でサンプルデータを使ってお試しいただけます。
+        </div>
+
+        <div className="mt-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
           ※ アカウント情報はSupabaseにより安全に管理されます。
         </div>
       </div>

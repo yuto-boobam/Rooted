@@ -1,5 +1,25 @@
 [
   {
+    "id": "2026-08-07-b4a6bc07",
+    "date": "2026-08-07",
+    "buildNumber": 14,
+    "type": "spec-change",
+    "title": "ホーム画面のUIを改善",
+    "description": "スペースがないため使いにくく、読みにくい構成となっていた箇所を修正",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260807-build14-before.png?v=1786082843164",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260807-build14-after.png?v=1786082851714"
+  },
+  {
+    "id": "2026-08-07-49fc9541",
+    "date": "2026-08-07",
+    "buildNumber": 13,
+    "type": "feature",
+    "title": "ログアウト機能実装",
+    "description": "ヘッダーにログアウトボタンを配置",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/08/20260807-build13-after.png?v=1786081903164"
+  },
+  {
     "id": "2026-08-07-d08f2a04",
     "date": "2026-08-07",
     "buildNumber": 12,

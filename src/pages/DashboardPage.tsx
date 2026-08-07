@@ -6,12 +6,8 @@ import Header from '../components/Header'; // ★ 追加：共通Headerコンポ
 
 export function DashboardPage() {
   console.log('★ DashboardPageがレンダリングされました');
-  const { projects, addProject, deleteProject, toggleStar, openProject } =
-    useAppStore();
+  const { projects, addProject, deleteProject, openProject } = useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // お気に入りを上に表示
-  const sorted = [...projects].sort((a, b) => Number(b.starred) - Number(a.starred));
 
   return (
     <div
@@ -47,7 +43,7 @@ export function DashboardPage() {
       />
 
       {/* ── メインコンテンツ */}
-      <main className="flex-1 overflow-y-auto px-8 py-6">
+      <main className="flex-1 overflow-y-auto px-10 py-8">
         {/* プロジェクトが0件のときの空状態 */}
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 animate-fadeIn">
@@ -75,8 +71,8 @@ export function DashboardPage() {
             </h1>
 
             {/* プロジェクトグリッド */}
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-              {sorted.map((project) => (
+            <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+              {projects.map((project) => (
                 <div key={project.id} className="group">
                   <ProjectCard
                     project={project}
@@ -86,7 +82,6 @@ export function DashboardPage() {
                         deleteProject(project.id);
                       }
                     }}
-                    onToggleStar={() => toggleStar(project.id)}
                   />
                 </div>
               ))}

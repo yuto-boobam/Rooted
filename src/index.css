@@ -47,10 +47,17 @@
 }
 
 /* ── リセット & ベース ──────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* @layer base に入れることで、Tailwindのユーティリティクラス（p-*, m-* 等）が
+   このリセットより後のカスケードレイヤーとして優先されるようにする。
+   レイヤーの外（unlayered）に書くと、CSSカスケードレイヤーの仕様上どんなに
+   詳細度の高いユーティリティクラスよりも常にこちらが勝ってしまい、
+   margin/padding系のTailwindクラスがアプリ全体で無効化されてしまう。 */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html, body, #root {

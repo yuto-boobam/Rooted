@@ -1,7 +1,54 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { useAppStore } from '../store';
+import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
+import { useRef, useState } from 'react';
+import { useAppStore, todayDateKey } from '../store';
+import type { Project } from '../types';
+import { getStoredFileHandle, setStoredFileHandle } from '../utils/fileHandleStore';
 import PatchNotesModal from './patchNotes/PatchNotesModal';
 import { NicknameDisplay } from './NicknameDisplay';
+
+const isFileSystemAccessSupported =
+  typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
+
+function sanitizeFileNamePart(value: string): string {
+  return value.trim().replace(/[\\/:*?"<>|]+/g, '_') || '無題のプロジェクト';
+}
+
+function projectExportFileName(project: Project): string {
+  return `rooted-${sanitizeFileNamePart(project.title)}-${todayDateKey()}.json`;
+}
+
+function buildProjectExportPayload(project: Project) {
+  return {
+    formatVersion: 1,
+    exportedAt: new Date().toISOString(),
+    project,
+  };
+}
+
+function extractProjectFromImportedJson(parsed: unknown): Partial<Project> | null {
+  const candidate =
+    parsed && typeof parsed === 'object' && 'project' in parsed
+      ? (parsed as { project: unknown }).project
+      : parsed;
+
+  if (!candidate || typeof candidate !== 'object' || !('rootTask' in candidate)) {
+    return null;
+  }
+
+  return candidate as Partial<Project>;
+}
+
+function downloadJson(fileName: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export type HeaderBreadcrumbItem =
   | string
@@ -36,6 +83,117 @@ export default function Header({
 
   const isRightPanelOpen = useAppStore((state) => state.rightPanel.isOpen);
   const toggleRightPanel = useAppStore((state) => state.toggleRightPanel);
+
+  const projects = useAppStore((state) => state.projects);
+  const currentProjectId = useAppStore((state) => state.currentProjectId);
+  const importProject = useAppStore((state) => state.importProject);
+  const currentProject = projects.find((project) => project.id === currentProjectId) ?? null;
+
+  const [isBackupMenuOpen, setIsBackupMenuOpen] = useState(false);
+  const [backupMenuPosition, setBackupMenuPosition] = useState({ top: 0, right: 0 });
+  const backupButtonRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveFileHandlesRef = useRef<Map<string, FileSystemFileHandle>>(new Map());
+
+  const handleBackupButtonClick = () => {
+    const rect = backupButtonRef.current?.getBoundingClientRect();
+    if (rect) {
+      setBackupMenuPosition({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setIsBackupMenuOpen((open) => !open);
+  };
+
+  const handleExport = () => {
+    if (!currentProject) return;
+    downloadJson(projectExportFileName(currentProject), buildProjectExportPayload(currentProject));
+    setIsBackupMenuOpen(false);
+  };
+
+  const handleImportButtonClick = () => {
+    setIsBackupMenuOpen(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    let projectData: Partial<Project> | null = null;
+    try {
+      projectData = extractProjectFromImportedJson(JSON.parse(await file.text()));
+    } catch {
+      projectData = null;
+    }
+
+    if (!projectData) {
+      window.alert(
+        'インポートに失敗しました。Rootedからエクスポートしたプロジェクトのjsonファイルを選択してください。',
+      );
+      return;
+    }
+
+    const isReplacing = projects.some((project) => project.id === projectData!.id);
+    const projectTitle = projectData.title || '無題のプロジェクト';
+    const confirmed = window.confirm(
+      isReplacing
+        ? `既存のプロジェクト「${projectTitle}」を、インポートしたファイルの内容で置き換えます。よろしいですか？`
+        : `プロジェクト「${projectTitle}」を新規追加します。よろしいですか？`,
+    );
+    if (!confirmed) return;
+
+    importProject(projectData);
+  };
+
+  const handleSaveOverwrite = async () => {
+    setIsBackupMenuOpen(false);
+    if (!currentProject) return;
+
+    if (!isFileSystemAccessSupported || !window.showSaveFilePicker) {
+      handleExport();
+      return;
+    }
+
+    try {
+      let handle =
+        saveFileHandlesRef.current.get(currentProject.id) ??
+        (await getStoredFileHandle(currentProject.id)) ??
+        undefined;
+
+      if (!handle) {
+        handle = await window.showSaveFilePicker({
+          suggestedName: projectExportFileName(currentProject),
+          types: [
+            { description: 'JSON', accept: { 'application/json': ['.json'] } },
+          ],
+        });
+        await setStoredFileHandle(currentProject.id, handle);
+      }
+
+      saveFileHandlesRef.current.set(currentProject.id, handle);
+
+      const permission = await handle.queryPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') {
+        const requested = await handle.requestPermission({ mode: 'readwrite' });
+        if (requested !== 'granted') {
+          window.alert('ファイルへの書き込み権限が許可されませんでした。');
+          return;
+        }
+      }
+
+      const writable = await handle.createWritable();
+      await writable.write(
+        JSON.stringify(buildProjectExportPayload(currentProject), null, 2),
+      );
+      await writable.close();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      window.alert('上書き保存に失敗しました。');
+    }
+  };
 
   const breadcrumbItems =
     breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : title ? [title] : [];
@@ -83,8 +241,90 @@ export default function Header({
               <span style={styles.compactButtonText}>パッチノート</span>
             </button>
 
-            {/* 将来のボタン用に予約している枠（現在は未使用） */}
-            <div style={styles.reservedButtonSlot} aria-hidden="true" />
+            <div style={styles.backupMenuWrapper}>
+              <button
+                ref={backupButtonRef}
+                type="button"
+                style={styles.backupButton}
+                onClick={handleBackupButtonClick}
+                title="バックアップ（エクスポート／インポート）"
+                aria-haspopup="menu"
+                aria-expanded={isBackupMenuOpen}
+              >
+                <span>💾</span>
+              </button>
+
+              {isBackupMenuOpen && (
+                <>
+                  <div
+                    style={styles.backupMenuOverlay}
+                    onClick={() => setIsBackupMenuOpen(false)}
+                  />
+
+                  <div
+                    style={{
+                      ...styles.backupMenu,
+                      top: backupMenuPosition.top,
+                      right: backupMenuPosition.right,
+                    }}
+                    role="menu"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      style={{
+                        ...styles.backupMenuItem,
+                        ...(currentProject ? {} : styles.backupMenuItemDisabled),
+                      }}
+                      onClick={handleExport}
+                      disabled={!currentProject}
+                    >
+                      <span>⬇️</span>
+                      <span>エクスポート</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      style={styles.backupMenuItem}
+                      onClick={handleImportButtonClick}
+                    >
+                      <span>⬆️</span>
+                      <span>インポート</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      style={{
+                        ...styles.backupMenuItem,
+                        ...(currentProject ? {} : styles.backupMenuItemDisabled),
+                      }}
+                      onClick={handleSaveOverwrite}
+                      disabled={!currentProject}
+                      title={
+                        isFileSystemAccessSupported
+                          ? undefined
+                          : 'このブラウザは上書き保存に非対応のため、新規ダウンロードになります'
+                      }
+                    >
+                      <span>💽</span>
+                      <span>
+                        上書き保存{isFileSystemAccessSupported ? '' : '（新規DL）'}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                style={styles.hiddenFileInput}
+                onChange={handleImportFileChange}
+              />
+            </div>
 
             <button
               type="button"
@@ -231,12 +471,63 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
-  reservedButtonSlot: {
+  backupMenuWrapper: {
+    position: 'relative',
     flexShrink: 0,
+  },
+  backupButton: {
     width: 32,
     height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 11,
-    border: '1px dashed var(--border)',
+    border: '1px solid rgba(45, 212, 191, 0.32)',
+    background: 'rgba(20, 184, 166, 0.12)',
+    color: '#5eead4',
+    fontSize: 14,
+    cursor: 'pointer',
+  },
+  backupMenuOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 59,
+  },
+  backupMenu: {
+    position: 'fixed',
+    zIndex: 60,
+    minWidth: 176,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    padding: 4,
+    borderRadius: 10,
+    border: '1px solid var(--border)',
+    background: 'var(--bg-elevated)',
+    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.35)',
+  },
+  backupMenuItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '7px 9px',
+    borderRadius: 8,
+    border: 0,
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: 'left',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  backupMenuItemDisabled: {
+    color: 'var(--text-muted)',
+    cursor: 'not-allowed',
+  },
+  hiddenFileInput: {
+    display: 'none',
   },
   rightPanelButton: {
     height: 32,

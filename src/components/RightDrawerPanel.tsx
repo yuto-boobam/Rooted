@@ -1026,7 +1026,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     selectedTitle: {
-        color: '#bfdbfe',
+        color: 'var(--accent-blue-text)',
         fontSize: 11,
         fontWeight: 900,
     },
@@ -1043,7 +1043,7 @@ const styles: Record<string, CSSProperties> = {
     priorityBadge: {
         border: '1px solid rgba(251, 113, 133, 0.42)',
         background: 'rgba(251, 113, 133, 0.14)',
-        color: '#fecdd3',
+        color: 'var(--accent-rose-text)',
         borderRadius: 999,
         padding: '4px 8px',
         fontSize: 11,
@@ -1106,9 +1106,9 @@ const styles: Record<string, CSSProperties> = {
     },
 
     completeButton: {
-        border: '1px solid rgba(34, 197, 94, 0.35)',
-        background: 'rgba(22, 163, 74, 0.16)',
-        color: '#bbf7d0',
+        border: '1px solid var(--accent-green-border)',
+        background: 'var(--accent-green-bg)',
+        color: 'var(--accent-green-text)',
         borderRadius: 10,
         padding: '8px 10px',
         cursor: 'pointer',
@@ -1158,7 +1158,7 @@ const styles: Record<string, CSSProperties> = {
         display: 'inline-grid',
         placeItems: 'center',
         background: 'rgba(59, 130, 246, 0.18)',
-        color: '#bfdbfe',
+        color: 'var(--accent-blue-text)',
         fontSize: 11,
         fontWeight: 900,
     },
@@ -1225,7 +1225,7 @@ const styles: Record<string, CSSProperties> = {
     textButton: {
         border: 0,
         background: 'transparent',
-        color: '#93c5fd',
+        color: 'var(--accent-blue-text)',
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 800,
@@ -1251,7 +1251,7 @@ const styles: Record<string, CSSProperties> = {
         placeItems: 'center',
         borderRadius: 9,
         background: 'rgba(251, 113, 133, 0.18)',
-        color: '#fecdd3',
+        color: 'var(--accent-rose-text)',
         fontSize: 12,
         fontWeight: 950,
     },
@@ -1297,7 +1297,7 @@ const styles: Record<string, CSSProperties> = {
     calendarTabActive: {
         borderColor: 'rgba(96, 165, 250, 0.42)',
         background: 'rgba(37, 99, 235, 0.18)',
-        color: '#bfdbfe',
+        color: 'var(--accent-blue-text)',
     },
 
     weeklyList: {
@@ -1311,7 +1311,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     weeklyDayTitle: {
-        color: '#fde68a',
+        color: 'var(--accent-amber-text)',
         fontSize: 12,
         fontWeight: 900,
     },
@@ -1379,7 +1379,7 @@ const styles: Record<string, CSSProperties> = {
     monthCellSelected: {
         borderColor: 'rgba(250, 204, 21, 0.54)',
         background: 'rgba(250, 204, 21, 0.12)',
-        color: '#fde68a',
+        color: 'var(--accent-amber-text)',
     },
 
     monthCellHasCompleted: {

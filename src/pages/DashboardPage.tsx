@@ -47,7 +47,7 @@ export function DashboardPage() {
       />
 
       {/* ── メインコンテンツ */}
-      <main className="flex-1 overflow-y-auto px-8 py-6">
+      <main className="flex-1 overflow-y-auto px-10 py-8">
         {/* プロジェクトが0件のときの空状態 */}
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 animate-fadeIn">
@@ -75,7 +75,7 @@ export function DashboardPage() {
             </h1>
 
             {/* プロジェクトグリッド */}
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+            <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
               {sorted.map((project) => (
                 <div key={project.id} className="group">
                   <ProjectCard

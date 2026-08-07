@@ -20,8 +20,8 @@ type TreeColumn = {
 };
 
 // ── ツリーレイアウト定数（カード実寸・列間隔など） ─────────────────────────
-const CARD_WIDTH = 220;
-const ROOT_WIDTH = 200;
+const CARD_WIDTH = 245;
+const ROOT_WIDTH = 220;
 const GAP_X = 50;
 const DROP_ZONE_HEIGHT = 18;
 const DEFAULT_NODE_HEIGHT = 76;

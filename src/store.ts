@@ -550,6 +550,7 @@ export type AppState = {
   // プロジェクト操作
   addProject: (title: string, description: string) => void;
   deleteProject: (id: string) => void;
+  importProject: (project: Partial<Project>) => void;
   toggleStar: (id: string) => void;
   openProject: (id: string) => void;
   goToDashboard: () => void;
@@ -740,6 +741,24 @@ export const useAppStore = create<AppState>()(
           selectedPath:
             state.currentProjectId === id ? [] : state.selectedPath,
         }));
+      },
+
+      importProject: (project) => {
+        const normalized = normalizeProject(project);
+
+        set((state) => {
+          const existingIndex = state.projects.findIndex(
+            (item) => item.id === normalized.id,
+          );
+
+          if (existingIndex === -1) {
+            return { projects: [...state.projects, normalized] };
+          }
+
+          const projects = [...state.projects];
+          projects[existingIndex] = normalized;
+          return { projects };
+        });
       },
 
       toggleStar: (id) => {

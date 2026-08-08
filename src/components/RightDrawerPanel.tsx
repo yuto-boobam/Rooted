@@ -1,17 +1,10 @@
 // src/components/RightDrawerPanel.tsx
 
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
-import type { Project, TaskNode } from '../types';
-
-type FlatTask = {
-    projectId: string;
-    projectTitle: string;
-    node: TaskNode;
-    pathIds: string[];
-    pathTitles: string[];
-};
+import { flattenProjectTasks, type FlatTask } from '../utils/taskTree';
+import AccordionSection from './AccordionSection';
 
 type CalendarDay =
     | {
@@ -563,40 +556,6 @@ function SelectedTaskEditor({
     );
 }
 
-function AccordionSection({
-    title,
-    icon,
-    count,
-    isOpen,
-    onToggle,
-    children,
-}: {
-    title: string;
-    icon: string;
-    count: number;
-    isOpen: boolean;
-    onToggle: () => void;
-    children: ReactNode;
-}) {
-    return (
-        <section style={styles.section}>
-            <button type="button" style={styles.sectionHeader} onClick={onToggle}>
-                <span style={styles.sectionTitle}>
-                    <span>{icon}</span>
-                    {title}
-                </span>
-
-                <span style={styles.sectionRight}>
-                    <span style={styles.countBadge}>{count}</span>
-                    <span style={styles.chevron}>{isOpen ? '⌃' : '⌄'}</span>
-                </span>
-            </button>
-
-            {isOpen && <div style={styles.sectionBody}>{children}</div>}
-        </section>
-    );
-}
-
 function TaskRow({
     task,
     pending,
@@ -860,35 +819,6 @@ function EmptyMessage({ text }: { text: string }) {
     return <p style={styles.emptyMessage}>{text}</p>;
 }
 
-function flattenProjectTasks(project: Project): FlatTask[] {
-    const result: FlatTask[] = [];
-
-    const walk = (
-        node: TaskNode,
-        pathIds: string[],
-        pathTitles: string[],
-    ) => {
-        const nextPathIds = [...pathIds, node.id];
-        const nextPathTitles = [...pathTitles, node.title];
-
-        result.push({
-            projectId: project.id,
-            projectTitle: project.title,
-            node,
-            pathIds: nextPathIds,
-            pathTitles: nextPathTitles,
-        });
-
-        node.children.forEach((child) => {
-            walk(child, nextPathIds, nextPathTitles);
-        });
-    };
-
-    walk(project.rootTask, [], []);
-
-    return result;
-}
-
 function todayDateKey(): string {
     return toDateKey(new Date());
 }
@@ -1114,62 +1044,6 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 900,
-    },
-
-    section: {
-        border: '1px solid var(--border)',
-        borderRadius: 14,
-        background: 'var(--bg-elevated)',
-        overflow: 'hidden',
-    },
-
-    sectionHeader: {
-        width: '100%',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 10,
-        border: 0,
-        background: 'var(--bg-elevated)',
-        color: 'var(--text-primary)',
-        padding: '9px 11px',
-        minHeight: 40,
-        cursor: 'pointer',
-    },
-
-    sectionTitle: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 13,
-        fontWeight: 900,
-    },
-
-    sectionRight: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 7,
-    },
-
-    countBadge: {
-        minWidth: 21,
-        height: 19,
-        borderRadius: 999,
-        display: 'inline-grid',
-        placeItems: 'center',
-        background: 'rgba(59, 130, 246, 0.18)',
-        color: 'var(--accent-blue-text)',
-        fontSize: 11,
-        fontWeight: 900,
-    },
-
-    chevron: {
-        color: 'var(--text-secondary)',
-        fontSize: 13,
-    },
-
-    sectionBody: {
-        padding: 10,
     },
 
     taskList: {

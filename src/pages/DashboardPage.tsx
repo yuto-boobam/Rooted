@@ -3,6 +3,7 @@ import { useAppStore } from '../store';
 import { ProjectCard } from '../components/ProjectCard';
 import { NewProjectModal } from '../components/NewProjectModal';
 import Header from '../components/Header'; // ★ 追加：共通Headerコンポーネント
+import HomeDrawerPanel from '../components/HomeDrawerPanel';
 
 export function DashboardPage() {
   console.log('★ DashboardPageがレンダリングされました');
@@ -121,6 +122,9 @@ export function DashboardPage() {
           onClose={() => setIsModalOpen(false)}
         />
       )}
+
+      {/* ── サイドドロワー（期限が近いタスクの横断一覧） */}
+      <HomeDrawerPanel />
     </div>
   );
 }

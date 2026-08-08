@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import type { TaskNode } from '../types';
 import { getDueUrgencyColors } from '../utils/dueDateColor';
+import { daysUntil, formatDueDateShort } from '../utils/dueDate';
 
 type Props = {
   node: TaskNode;
@@ -294,7 +295,7 @@ export function TaskNodeCard({
               style={{ color: dueUrgency?.accent ?? 'var(--text-primary)' }}
             >
               <span>📅</span>
-              <span>期限: {formatDueDate(node.dueDate)}</span>
+              <span>期限: {formatDueDateShort(node.dueDate)}</span>
             </div>
           )}
 
@@ -330,21 +331,3 @@ export function TaskNodeCard({
   );
 }
 
-/** 期限日（YYYY-MM-DD）までの残り日数（0 = 当日、負の値 = 超過）を返す */
-function daysUntil(dueDate: string): number {
-  const [year, month, day] = dueDate.split('-').map(Number);
-  const target = new Date(year, month - 1, day).getTime();
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-  return Math.round((target - today) / (24 * 60 * 60 * 1000));
-}
-
-/** 期限日（YYYY-MM-DD）を "M/D" 表記に変換する */
-function formatDueDate(dueDate: string): string {
-  const [, month, day] = dueDate.split('-');
-  if (!month || !day) return dueDate;
-
-  return `${Number(month)}/${Number(day)}`;
-}

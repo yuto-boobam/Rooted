@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
 import { flattenProjectTasks, type FlatTask } from '../utils/taskTree';
 import AccordionSection from './AccordionSection';
+import DrawerLogoutFooter from './DrawerLogoutFooter';
 
 type CalendarDay =
     | {
@@ -437,6 +438,8 @@ export default function RightDrawerPanel() {
                         </AccordionSection>
                     </div>
                 )}
+
+                <DrawerLogoutFooter />
             </aside>
         </>
     );
@@ -869,7 +872,7 @@ const styles: Record<string, CSSProperties> = {
         boxShadow: '-24px 0 70px rgba(0, 0, 0, 0.45)',
         transition: 'transform 220ms ease',
         display: 'grid',
-        gridTemplateRows: 'auto minmax(0, 1fr)',
+        gridTemplateRows: 'auto minmax(0, 1fr) auto',
         overflow: 'hidden',
     },
 

@@ -77,7 +77,6 @@ export default function Header({
   rightSlot,
 }: HeaderProps) {
   const isGuest = useAppStore((state) => state.isGuest);
-  const logout = useAppStore((state) => state.logout);
 
   const isPatchNotesModalOpen = useAppStore((state) => state.isPatchNotesModalOpen);
   const selectedPatchNoteDate = useAppStore((state) => state.selectedPatchNoteDate);
@@ -238,16 +237,6 @@ export default function Header({
 
             <button
               type="button"
-              style={styles.logoutButton}
-              onClick={() => logout()}
-              title={isGuest ? 'ゲストモードを終了' : 'ログアウト'}
-            >
-              <span>🚪</span>
-              <span style={styles.compactButtonText}>ログアウト</span>
-            </button>
-
-            <button
-              type="button"
               style={styles.patchNotesButton}
               onClick={() => openPatchNotesModal()}
               title="パッチノートを開く"
@@ -267,6 +256,7 @@ export default function Header({
                 aria-expanded={isBackupMenuOpen}
               >
                 <span>💾</span>
+                <span style={styles.compactButtonText}>バックアップ</span>
               </button>
 
               {isBackupMenuOpen && (
@@ -348,12 +338,12 @@ export default function Header({
                 ...(isRightPanelOpen ? styles.rightPanelButtonActive : {}),
               }}
               onClick={toggleRightPanel}
-              title="右側パネルを開閉"
+              title="タスクパネルを開閉"
               aria-pressed={isRightPanelOpen}
             >
               <span>⚡</span>
               <span style={styles.compactButtonText}>
-                {isRightPanelOpen ? 'パネル閉じる' : '新パネル'}
+                {isRightPanelOpen ? 'パネル閉じる' : 'タスクパネル'}
               </span>
             </button>
           </div>
@@ -473,29 +463,14 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     whiteSpace: 'nowrap',
   },
-  logoutButton: {
-    height: 32,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 11,
-    border: '1px solid var(--border)',
-    background: 'transparent',
-    color: 'var(--text-secondary)',
-    padding: '0 9px',
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
   actions: {
-    flex: '0 0 auto',
+    flex: '0 1 auto',
+    minWidth: 0,
     display: 'flex',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 7,
-    overflowX: 'auto',
-    maxWidth: '72vw',
   },
   patchNotesButton: {
     height: 32,
@@ -517,17 +492,19 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   backupButton: {
-    width: 32,
     height: 32,
     display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
     borderRadius: 11,
     border: '1px solid var(--accent-teal-border)',
     background: 'var(--accent-teal-bg)',
     color: 'var(--accent-teal-text)',
-    fontSize: 14,
+    padding: '0 9px',
+    fontSize: 12,
+    fontWeight: 900,
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   backupMenuOverlay: {
     position: 'fixed',

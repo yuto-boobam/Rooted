@@ -27,6 +27,7 @@ const DROP_ZONE_HEIGHT = 18;
 const DEFAULT_NODE_HEIGHT = 76;
 const DEFAULT_ROOT_HEIGHT = 110;
 const CANVAS_PADDING = 48;
+const EXIT_TRANSITION_MS = 200;
 
 // ── 画面比率（ズーム）定数 ───────────────────────────────────────────────
 const MIN_ZOOM = 0.3;
@@ -222,6 +223,27 @@ function findNode(root: TaskNode, id: string): TaskNode | null {
   for (const child of root.children) {
     const found = findNode(child, id);
     if (found) return found;
+  }
+
+  return null;
+}
+
+/**
+ * 閉じて消えるノードの収束先座標を求める。
+ * 直接の親も一緒に消えている場合（複数階層が同時に閉じる場合）があるため、
+ * 現在も表示されている祖先が見つかるまで親をたどる。
+ */
+function findConvergenceTarget(
+  id: string,
+  parentOf: Map<string, string>,
+  currentPositions: Map<string, NodePosition>,
+): NodePosition | null {
+  let cursor = parentOf.get(id);
+
+  while (cursor) {
+    const pos = currentPositions.get(cursor);
+    if (pos) return pos;
+    cursor = parentOf.get(cursor);
   }
 
   return null;
@@ -490,6 +512,23 @@ export function TreePage() {
     return nextColumns;
   }, [root, collapsedSet]);
 
+  // ── 各ノードIDから親IDを引くためのマップ（木構造全体から作るため、開閉で
+  // 非表示になっているノードの親も辿れる。開くアニメーションの出発点、
+  // 閉じるアニメーションの収束先の計算に使用）
+  const parentOf = useMemo(() => {
+    const map = new Map<string, string>();
+
+    const walk = (node: TaskNode) => {
+      node.children.forEach((child) => {
+        map.set(child.id, node.id);
+        walk(child);
+      });
+    };
+
+    if (root) walk(root);
+    return map;
+  }, [root]);
+
   // ── 各ノードの実測高さから座標を計算（子ノード群の中心に親を合わせる）
   const nodeHeights = useNodeHeights(zoom);
 
@@ -497,6 +536,104 @@ export function TreePage() {
     if (!root) return null;
     return computeTreeLayout(root, collapsedSet, nodeHeights);
   }, [root, collapsedSet, nodeHeights]);
+
+  // ── ノードが閉じられて消える際、閉じた親の位置に吸い込まれながらフェードアウトさせる
+  const prevVisibleIdsRef = useRef<Set<string>>(new Set());
+  const prevPositionsRef = useRef<Map<string, NodePosition>>(new Map());
+  const prevExitingNodesRef = useRef<Map<string, NodePosition>>(new Map());
+  const [exitingNodes, setExitingNodes] = useState<
+    Map<string, NodePosition>
+  >(new Map());
+
+  // ── ノードが新しく開いて現れる際、直前の「親の位置」から最終位置へ滑らせる
+  const [enteringNodes, setEnteringNodes] = useState<
+    Map<string, NodePosition>
+  >(new Map());
+
+  useEffect(() => {
+    if (!layout) return;
+
+    const currentIds = new Set(layout.positions.keys());
+    const previousIds = prevVisibleIdsRef.current;
+    const framePositions = prevPositionsRef.current;
+
+    const removedIds = Array.from(previousIds).filter(
+      (id) => !currentIds.has(id),
+    );
+    const addedIds = Array.from(currentIds).filter(
+      (id) => !previousIds.has(id),
+    );
+
+    // 消えていく途中のノードの収束先を更新する。
+    // 閉じた直後の1フレーム目はまだ実測高さが揺れていて親の位置が暫定値のことがあるため、
+    // 新規に消えたノードだけでなく、フェード中の既存ノードもレイアウトが変わるたびに
+    // 収束先を追従・補正し続ける（最終的に親の落ち着き先へ正しく吸い込まれる）。
+    if (removedIds.length > 0 || prevExitingNodesRef.current.size > 0) {
+      setExitingNodes((prev) => {
+        const next = new Map(prev);
+
+        removedIds.forEach((id) => {
+          // 生き残っている祖先（＝閉じたノード自身）の現在位置に向けて吸い込む。
+          // 見つからない場合は消える直前の位置に留めてフェードのみ行う。
+          const pos =
+            findConvergenceTarget(id, parentOf, layout.positions) ??
+            framePositions.get(id);
+          if (pos) next.set(id, pos);
+        });
+
+        next.forEach((_, id) => {
+          const pos = findConvergenceTarget(id, parentOf, layout.positions);
+          if (pos) next.set(id, pos);
+        });
+
+        prevExitingNodesRef.current = next;
+        return next;
+      });
+    }
+
+    if (removedIds.length > 0) {
+      window.setTimeout(() => {
+        setExitingNodes((prev) => {
+          if (removedIds.every((id) => !prev.has(id))) return prev;
+          const next = new Map(prev);
+          removedIds.forEach((id) => next.delete(id));
+          prevExitingNodesRef.current = next;
+          return next;
+        });
+      }, EXIT_TRANSITION_MS);
+    }
+
+    if (addedIds.length > 0) {
+      setEnteringNodes((prev) => {
+        const next = new Map(prev);
+        addedIds.forEach((id) => {
+          const parentId = parentOf.get(id);
+          const spawnPos =
+            (parentId ? framePositions.get(parentId) : undefined) ??
+            layout.positions.get(id) ??
+            null;
+          if (spawnPos) next.set(id, spawnPos);
+        });
+        return next;
+      });
+
+      // ブラウザが「出発位置」を一度描画してから最終位置へ切り替える
+      // （1回のrAFだと描画前に上書きされることがあるため2段構えにする）
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setEnteringNodes((prev) => {
+            if (addedIds.every((id) => !prev.has(id))) return prev;
+            const next = new Map(prev);
+            addedIds.forEach((id) => next.delete(id));
+            return next;
+          });
+        });
+      });
+    }
+
+    prevVisibleIdsRef.current = currentIds;
+    prevPositionsRef.current = layout.positions;
+  }, [layout, parentOf]);
 
   if (!project || !root || !projectId) {
     return <ProjectMissingView onBackToDashboard={goToDashboard} />;
@@ -596,11 +733,11 @@ export function TreePage() {
               <div
                 style={{
                   position: 'absolute',
-                  left:
-                    CANVAS_PADDING + (layout?.positions.get(root.id)?.x ?? 0),
-                  top:
-                    CANVAS_PADDING + (layout?.positions.get(root.id)?.y ?? 0),
+                  left: CANVAS_PADDING,
+                  top: CANVAS_PADDING,
                   width: ROOT_WIDTH,
+                  transform: `translate(${layout?.positions.get(root.id)?.x ?? 0}px, ${layout?.positions.get(root.id)?.y ?? 0}px)`,
+                  transition: 'transform 220ms ease',
                 }}
               >
                 <TaskNodeCard
@@ -645,14 +782,19 @@ export function TreePage() {
                   const pos = layout?.positions.get(node.id);
                   if (!pos) return null;
 
+                  // 新規出現中のノードは、最終位置ではなく親の出発位置から描画する
+                  const renderPos = enteringNodes.get(node.id) ?? pos;
+
                   return (
                     <div
                       key={node.id}
                       style={{
                         position: 'absolute',
-                        left: CANVAS_PADDING + pos.x,
-                        top: CANVAS_PADDING + pos.y,
+                        left: CANVAS_PADDING,
+                        top: CANVAS_PADDING,
                         width: CARD_WIDTH,
+                        transform: `translate(${renderPos.x}px, ${renderPos.y}px)`,
+                        transition: 'transform 220ms ease',
                       }}
                     >
                       <TaskNodeCard
@@ -700,6 +842,65 @@ export function TreePage() {
                   );
                 }),
               )}
+
+              {/* 閉じられて消えていくノード（閉じた親ノードの位置に吸い込まれながらフェードアウト） */}
+              {Array.from(exitingNodes.entries())
+                .filter(([id]) => !layout?.positions.has(id))
+                .map(([id, pos]) => {
+                  const node = findNode(root, id);
+                  if (!node) return null;
+
+                  return (
+                    <div
+                      key={id}
+                      style={{
+                        position: 'absolute',
+                        left: CANVAS_PADDING,
+                        top: CANVAS_PADDING,
+                        width: CARD_WIDTH,
+                        transform: `translate(${pos.x}px, ${pos.y}px)`,
+                        transition: `transform ${EXIT_TRANSITION_MS}ms ease, opacity ${EXIT_TRANSITION_MS}ms ease`,
+                        opacity: 0,
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <TaskNodeCard
+                        node={node}
+                        isSelected={false}
+                        accentColor={accentColor}
+                        onClick={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onToggleComplete={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onUpdateTitle={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onUpdateMemo={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onAddChild={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onAddSibling={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onDelete={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        parentId={null}
+                        dragIndex={0}
+                        onDragOver={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                        onDrop={() => {
+                          // フェードアウト中は操作不可
+                        }}
+                      />
+                    </div>
+                  );
+                })}
 
               {/* 兄弟間ドロップゾーン（実測レイアウトによる絶対配置） */}
               {layout?.dropZones.map((dropZone) => (

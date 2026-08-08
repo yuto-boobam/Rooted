@@ -1,5 +1,35 @@
 [
   {
+    "id": "2026-08-08-123f5b2d",
+    "date": "2026-08-08",
+    "buildNumber": 17,
+    "type": "bugfix",
+    "title": "サイドドロワー内にサイドバー実装",
+    "description": "「はみ出しているか」の判定がうまくいっていなかったため。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260808-build17-before.png?v=1786171558852",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260808-build17-after.png?v=1786171562365"
+  },
+  {
+    "id": "2026-08-08-c9e59dc5",
+    "date": "2026-08-08",
+    "buildNumber": 16,
+    "type": "spec-change",
+    "title": "ボタンのレスポンシブ対応",
+    "description": "ヘッダー内のボタンをレスポンシブに対応させ、二行表示するようにした。",
+    "beforeImageUrl": "/images/patch-notes/2026/08/20260808-build16-before.png?v=1786169288647",
+    "afterImageUrl": "/images/patch-notes/2026/08/20260808-build16-after.png?v=1786169295587"
+  },
+  {
+    "id": "2026-08-08-ff179a56",
+    "date": "2026-08-08",
+    "buildNumber": 15,
+    "type": "feature",
+    "title": "期限が近いタスクをノートごとに一覧表示",
+    "description": "ホーム画面のサイドドロワーには何も機能がなかったので、付け足した。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/08/20260808-build15-after.png?v=1786162468053"
+  },
+  {
     "id": "2026-08-07-b4a6bc07",
     "date": "2026-08-07",
     "buildNumber": 14,

@@ -46,6 +46,10 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 14,
     background: 'var(--bg-elevated)',
     overflow: 'hidden',
+    // drawerBody(display:grid)の子要素はoverflow:hiddenがあると自動最小サイズが0になり、
+    // 中身がどれだけ長くても押し縮められて grid が「はみ出していない」と誤認してしまう
+    // （結果スクロールバーが出ずスクロールもできない）。minHeightで実サイズを明示して回避する。
+    minHeight: 'max-content',
   },
 
   sectionHeader: {

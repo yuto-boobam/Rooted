@@ -25,6 +25,28 @@
   --warning:  #eab308;
   --danger:   #ef4444;
 
+  /* ヘッダーの機能ボタン（パッチノート／バックアップ／タスクパネル）用アクセント。
+     ライトモードでは背景が白に近くなるため、文字色を濃い側に切り替える。 */
+  --accent-amber-border: rgba(250, 204, 21, 0.32);
+  --accent-amber-bg:     rgba(250, 204, 21, 0.1);
+  --accent-amber-text:   #fde68a;
+
+  --accent-teal-border: rgba(45, 212, 191, 0.32);
+  --accent-teal-bg:     rgba(20, 184, 166, 0.12);
+  --accent-teal-text:   #5eead4;
+
+  --accent-blue-border: rgba(96, 165, 250, 0.32);
+  --accent-blue-bg:     rgba(37, 99, 235, 0.12);
+  --accent-blue-text:   #bfdbfe;
+
+  --accent-rose-border: rgba(251, 113, 133, 0.48);
+  --accent-rose-bg:     rgba(251, 113, 133, 0.16);
+  --accent-rose-text:   #fecdd3;
+
+  --accent-green-border: rgba(34, 197, 94, 0.35);
+  --accent-green-bg:     rgba(22, 163, 74, 0.16);
+  --accent-green-text:   #bbf7d0;
+
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
@@ -44,6 +66,26 @@
   --text-primary:   #18181b;
   --text-secondary: #3f3f46;
   --text-muted:     #71717a;
+
+  --accent-amber-border: rgba(217, 119, 6, 0.35);
+  --accent-amber-bg:     rgba(245, 158, 11, 0.12);
+  --accent-amber-text:   #92400e;
+
+  --accent-teal-border: rgba(13, 148, 136, 0.35);
+  --accent-teal-bg:     rgba(20, 184, 166, 0.12);
+  --accent-teal-text:   #0f766e;
+
+  --accent-blue-border: rgba(37, 99, 235, 0.35);
+  --accent-blue-bg:     rgba(59, 130, 246, 0.12);
+  --accent-blue-text:   #1d4ed8;
+
+  --accent-rose-border: rgba(225, 29, 72, 0.4);
+  --accent-rose-bg:     rgba(244, 63, 94, 0.12);
+  --accent-rose-text:   #be123c;
+
+  --accent-green-border: rgba(21, 128, 61, 0.35);
+  --accent-green-bg:     rgba(34, 197, 94, 0.12);
+  --accent-green-text:   #15803d;
 }
 
 /* ── リセット & ベース ──────────────────────────────────────── */

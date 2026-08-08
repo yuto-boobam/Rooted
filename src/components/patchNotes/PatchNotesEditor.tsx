@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PatchNote, PatchNoteType } from '../../types/patchNote';
+import { useAppStore } from '../../store';
 import {
   getPatchNotesByDate,
   removePatchNote,
@@ -9,6 +10,8 @@ import {
   upsertPatchNote,
 } from '../../services/patchNotesService';
 import PatchNoteImageUploadField from './PatchNoteImageUploadField';
+
+const GUEST_DENIED_MESSAGE = 'ゲストモードには編集を保存する権限がありません。';
 
 interface PatchNotesEditorProps {
   selectedDate: string;
@@ -29,6 +32,7 @@ export default function PatchNotesEditor({
   onClose,
 }: PatchNotesEditorProps) {
   const sameDayNotes = useMemo(() => getPatchNotesByDate(notes, selectedDate), [notes, selectedDate]);
+  const isGuest = useAppStore((state) => state.isGuest);
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<EditorMessage | null>(null);
@@ -76,8 +80,22 @@ export default function PatchNotesEditor({
     return nextNotes;
   };
 
+  const handleReflectPreview = () => {
+    if (isGuest) {
+      setMessage({ type: 'error', text: GUEST_DENIED_MESSAGE });
+      return;
+    }
+
+    saveToWorkingNotes();
+  };
+
   const handleSaveToLocalFile = async () => {
     if (!form) {
+      return;
+    }
+
+    if (isGuest) {
+      setMessage({ type: 'error', text: GUEST_DENIED_MESSAGE });
       return;
     }
 
@@ -111,6 +129,11 @@ export default function PatchNotesEditor({
 
   const handleDeleteNote = () => {
     if (!form) {
+      return;
+    }
+
+    if (isGuest) {
+      setMessage({ type: 'error', text: GUEST_DENIED_MESSAGE });
       return;
     }
 
@@ -252,7 +275,7 @@ export default function PatchNotesEditor({
         </div>
 
         <div style={styles.buttonRow}>
-          <button type="button" style={styles.secondaryButton} onClick={() => saveToWorkingNotes()}>
+          <button type="button" style={styles.secondaryButton} onClick={handleReflectPreview}>
             反映（プレビュー）
           </button>
 

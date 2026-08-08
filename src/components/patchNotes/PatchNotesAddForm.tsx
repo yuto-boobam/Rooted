@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PatchNote, PatchNoteType } from '../../types/patchNote';
+import { useAppStore } from '../../store';
 import {
   getDefaultGitHubConfig,
   getMergedPullRequests,
@@ -14,6 +15,8 @@ import {
   upsertPatchNote,
 } from '../../services/patchNotesService';
 import PatchNoteImageUploadField from './PatchNoteImageUploadField';
+
+const GUEST_DENIED_MESSAGE = 'ゲストモードには編集を保存する権限がありません。';
 
 interface PatchNotesAddFormProps {
   selectedDate: string;
@@ -35,6 +38,7 @@ export default function PatchNotesAddForm({
 }: PatchNotesAddFormProps) {
   const githubDefaults = useMemo(() => getDefaultGitHubConfig(), []);
   const autoFetchKeyRef = useRef('');
+  const isGuest = useAppStore((state) => state.isGuest);
 
   const [owner, setOwner] = useState(githubDefaults.owner);
   const [repo, setRepo] = useState(githubDefaults.repo);
@@ -177,6 +181,11 @@ export default function PatchNotesAddForm({
   };
 
   const applyToWorkingNotes = (): PatchNote[] | null => {
+    if (isGuest) {
+      setMessage({ type: 'error', text: GUEST_DENIED_MESSAGE });
+      return null;
+    }
+
     if (isBlankDraft) {
       setMessage({
         type: 'info',

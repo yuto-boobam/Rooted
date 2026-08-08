@@ -301,8 +301,8 @@ const styles: Record<string, CSSProperties> = {
     width: 34,
     height: 34,
     borderRadius: 12,
-    border: '1px solid rgba(148, 163, 184, 0.24)',
-    background: 'rgba(15, 23, 42, 0.65)',
+    border: '1px solid var(--border)',
+    background: 'var(--bg-elevated)',
     color: 'var(--text-secondary, #cbd5e1)',
     cursor: 'pointer',
     fontSize: 22,
@@ -341,10 +341,10 @@ const styles: Record<string, CSSProperties> = {
   input: {
     width: '100%',
     boxSizing: 'border-box',
-    border: '1px solid rgba(148, 163, 184, 0.24)',
+    border: '1px solid var(--border)',
     borderRadius: 14,
     padding: '12px 14px',
-    background: 'rgba(2, 6, 23, 0.68)',
+    background: 'var(--bg-base)',
     color: 'var(--text-primary, #f8fafc)',
     outline: 'none',
     fontSize: 14,
@@ -353,10 +353,10 @@ const styles: Record<string, CSSProperties> = {
   textarea: {
     width: '100%',
     boxSizing: 'border-box',
-    border: '1px solid rgba(148, 163, 184, 0.24)',
+    border: '1px solid var(--border)',
     borderRadius: 14,
     padding: '12px 14px',
-    background: 'rgba(2, 6, 23, 0.68)',
+    background: 'var(--bg-base)',
     color: 'var(--text-primary, #f8fafc)',
     outline: 'none',
     fontSize: 14,
@@ -383,14 +383,14 @@ const styles: Record<string, CSSProperties> = {
   },
 
   optionTitle: {
-    color: '#dbeafe',
+    color: 'var(--accent-blue-text)',
     fontSize: 14,
     fontWeight: 900,
   },
 
   optionText: {
     margin: '5px 0 0',
-    color: '#94a3b8',
+    color: 'var(--text-secondary)',
     fontSize: 12,
     lineHeight: 1.5,
   },
@@ -450,7 +450,7 @@ const styles: Record<string, CSSProperties> = {
 
   priorityTitle: {
     display: 'block',
-    color: '#fecdd3',
+    color: 'var(--accent-rose-text)',
     fontSize: 14,
     fontWeight: 900,
   },
@@ -458,7 +458,7 @@ const styles: Record<string, CSSProperties> = {
   priorityText: {
     display: 'block',
     marginTop: 5,
-    color: '#94a3b8',
+    color: 'var(--text-secondary)',
     fontSize: 12,
     lineHeight: 1.5,
   },
@@ -471,10 +471,10 @@ const styles: Record<string, CSSProperties> = {
   },
 
   cancelButton: {
-    border: '1px solid rgba(148, 163, 184, 0.22)',
+    border: '1px solid var(--border)',
     borderRadius: 13,
     padding: '10px 15px',
-    background: 'rgba(15, 23, 42, 0.55)',
+    background: 'var(--bg-elevated)',
     color: 'var(--text-secondary, #cbd5e1)',
     cursor: 'pointer',
     fontSize: 13,

@@ -1,17 +1,11 @@
 // src/components/RightDrawerPanel.tsx
 
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
-import type { Project, TaskNode } from '../types';
-
-type FlatTask = {
-    projectId: string;
-    projectTitle: string;
-    node: TaskNode;
-    pathIds: string[];
-    pathTitles: string[];
-};
+import { flattenProjectTasks, type FlatTask } from '../utils/taskTree';
+import AccordionSection from './AccordionSection';
+import DrawerLogoutFooter from './DrawerLogoutFooter';
 
 type CalendarDay =
     | {
@@ -444,6 +438,8 @@ export default function RightDrawerPanel() {
                         </AccordionSection>
                     </div>
                 )}
+
+                <DrawerLogoutFooter />
             </aside>
         </>
     );
@@ -559,40 +555,6 @@ function SelectedTaskEditor({
                     )}
                 </div>
             </div>
-        </section>
-    );
-}
-
-function AccordionSection({
-    title,
-    icon,
-    count,
-    isOpen,
-    onToggle,
-    children,
-}: {
-    title: string;
-    icon: string;
-    count: number;
-    isOpen: boolean;
-    onToggle: () => void;
-    children: ReactNode;
-}) {
-    return (
-        <section style={styles.section}>
-            <button type="button" style={styles.sectionHeader} onClick={onToggle}>
-                <span style={styles.sectionTitle}>
-                    <span>{icon}</span>
-                    {title}
-                </span>
-
-                <span style={styles.sectionRight}>
-                    <span style={styles.countBadge}>{count}</span>
-                    <span style={styles.chevron}>{isOpen ? '⌃' : '⌄'}</span>
-                </span>
-            </button>
-
-            {isOpen && <div style={styles.sectionBody}>{children}</div>}
         </section>
     );
 }
@@ -860,35 +822,6 @@ function EmptyMessage({ text }: { text: string }) {
     return <p style={styles.emptyMessage}>{text}</p>;
 }
 
-function flattenProjectTasks(project: Project): FlatTask[] {
-    const result: FlatTask[] = [];
-
-    const walk = (
-        node: TaskNode,
-        pathIds: string[],
-        pathTitles: string[],
-    ) => {
-        const nextPathIds = [...pathIds, node.id];
-        const nextPathTitles = [...pathTitles, node.title];
-
-        result.push({
-            projectId: project.id,
-            projectTitle: project.title,
-            node,
-            pathIds: nextPathIds,
-            pathTitles: nextPathTitles,
-        });
-
-        node.children.forEach((child) => {
-            walk(child, nextPathIds, nextPathTitles);
-        });
-    };
-
-    walk(project.rootTask, [], []);
-
-    return result;
-}
-
 function todayDateKey(): string {
     return toDateKey(new Date());
 }
@@ -939,7 +872,7 @@ const styles: Record<string, CSSProperties> = {
         boxShadow: '-24px 0 70px rgba(0, 0, 0, 0.45)',
         transition: 'transform 220ms ease',
         display: 'grid',
-        gridTemplateRows: 'auto minmax(0, 1fr)',
+        gridTemplateRows: 'auto minmax(0, 1fr) auto',
         overflow: 'hidden',
     },
 
@@ -1026,7 +959,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     selectedTitle: {
-        color: '#bfdbfe',
+        color: 'var(--accent-blue-text)',
         fontSize: 11,
         fontWeight: 900,
     },
@@ -1043,7 +976,7 @@ const styles: Record<string, CSSProperties> = {
     priorityBadge: {
         border: '1px solid rgba(251, 113, 133, 0.42)',
         background: 'rgba(251, 113, 133, 0.14)',
-        color: '#fecdd3',
+        color: 'var(--accent-rose-text)',
         borderRadius: 999,
         padding: '4px 8px',
         fontSize: 11,
@@ -1106,70 +1039,14 @@ const styles: Record<string, CSSProperties> = {
     },
 
     completeButton: {
-        border: '1px solid rgba(34, 197, 94, 0.35)',
-        background: 'rgba(22, 163, 74, 0.16)',
-        color: '#bbf7d0',
+        border: '1px solid var(--accent-green-border)',
+        background: 'var(--accent-green-bg)',
+        color: 'var(--accent-green-text)',
         borderRadius: 10,
         padding: '8px 10px',
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 900,
-    },
-
-    section: {
-        border: '1px solid var(--border)',
-        borderRadius: 14,
-        background: 'var(--bg-elevated)',
-        overflow: 'hidden',
-    },
-
-    sectionHeader: {
-        width: '100%',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 10,
-        border: 0,
-        background: 'var(--bg-elevated)',
-        color: 'var(--text-primary)',
-        padding: '9px 11px',
-        minHeight: 40,
-        cursor: 'pointer',
-    },
-
-    sectionTitle: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 13,
-        fontWeight: 900,
-    },
-
-    sectionRight: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 7,
-    },
-
-    countBadge: {
-        minWidth: 21,
-        height: 19,
-        borderRadius: 999,
-        display: 'inline-grid',
-        placeItems: 'center',
-        background: 'rgba(59, 130, 246, 0.18)',
-        color: '#bfdbfe',
-        fontSize: 11,
-        fontWeight: 900,
-    },
-
-    chevron: {
-        color: 'var(--text-secondary)',
-        fontSize: 13,
-    },
-
-    sectionBody: {
-        padding: 10,
     },
 
     taskList: {
@@ -1225,7 +1102,7 @@ const styles: Record<string, CSSProperties> = {
     textButton: {
         border: 0,
         background: 'transparent',
-        color: '#93c5fd',
+        color: 'var(--accent-blue-text)',
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 800,
@@ -1251,7 +1128,7 @@ const styles: Record<string, CSSProperties> = {
         placeItems: 'center',
         borderRadius: 9,
         background: 'rgba(251, 113, 133, 0.18)',
-        color: '#fecdd3',
+        color: 'var(--accent-rose-text)',
         fontSize: 12,
         fontWeight: 950,
     },
@@ -1297,7 +1174,7 @@ const styles: Record<string, CSSProperties> = {
     calendarTabActive: {
         borderColor: 'rgba(96, 165, 250, 0.42)',
         background: 'rgba(37, 99, 235, 0.18)',
-        color: '#bfdbfe',
+        color: 'var(--accent-blue-text)',
     },
 
     weeklyList: {
@@ -1311,7 +1188,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     weeklyDayTitle: {
-        color: '#fde68a',
+        color: 'var(--accent-amber-text)',
         fontSize: 12,
         fontWeight: 900,
     },
@@ -1379,7 +1256,7 @@ const styles: Record<string, CSSProperties> = {
     monthCellSelected: {
         borderColor: 'rgba(250, 204, 21, 0.54)',
         background: 'rgba(250, 204, 21, 0.12)',
-        color: '#fde68a',
+        color: 'var(--accent-amber-text)',
     },
 
     monthCellHasCompleted: {

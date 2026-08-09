@@ -14,8 +14,15 @@ import {
   buildParentMap,
   ConnectionsOverlay,
   type TreeColumn,
-  type TreeLayoutConfig,
 } from '../lib/tree';
+import {
+  TREE_LAYOUT_CONFIG,
+  CANVAS_PADDING,
+  EXIT_TRANSITION_MS,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  ZOOM_STEP,
+} from './TreePage.config';
 
 type DraggedNodeData = {
   id: string;
@@ -23,24 +30,11 @@ type DraggedNodeData = {
   index: number;
 };
 
-// ── ツリーレイアウト定数（カード実寸・列間隔など） ─────────────────────────
-const TREE_LAYOUT_CONFIG: TreeLayoutConfig = {
-  cardWidth: 245,
-  rootWidth: 220,
-  gapX: 50,
-  dropZoneHeight: 18,
-  defaultNodeHeight: 76,
-  defaultRootHeight: 110,
-};
-const { cardWidth: CARD_WIDTH, rootWidth: ROOT_WIDTH } = TREE_LAYOUT_CONFIG;
-const DROP_ZONE_HEIGHT = TREE_LAYOUT_CONFIG.dropZoneHeight;
-const CANVAS_PADDING = 48;
-const EXIT_TRANSITION_MS = 200;
-
-// ── 画面比率（ズーム）定数 ───────────────────────────────────────────────
-const MIN_ZOOM = 0.3;
-const MAX_ZOOM = 1.5;
-const ZOOM_STEP = 0.1;
+const {
+  cardWidth: CARD_WIDTH,
+  rootWidth: ROOT_WIDTH,
+  dropZoneHeight: DROP_ZONE_HEIGHT,
+} = TREE_LAYOUT_CONFIG;
 
 /** ショートカットキーを無視すべき入力中ターゲットか判定 */
 function shouldIgnoreShortcutTarget(target: EventTarget | null): boolean {

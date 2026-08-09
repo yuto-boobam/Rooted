@@ -174,44 +174,72 @@ function computeTreeLayout(
   return { positions, dropZones, width: totalWidth, height: totalHeight };
 }
 
-/** 現在DOM上にあるノードカードの実寸高さを毎フレーム計測する */
+/**
+ * 現在DOM上にあるノードカードの実寸高さを計測する。
+ * 毎フレームポーリングする代わりに、実際にサイズが変化した時だけ反応する
+ * ResizeObserverを使う（アイドル時のCPU消費を避けるため）。ノードの増減は
+ * MutationObserverで検知し、観測対象を追従させる。
+ */
 function useNodeHeights(zoom: number): Record<string, number> {
   const [heights, setHeights] = useState<Record<string, number>>({});
   const latestRef = useRef<Record<string, number>>({});
+  const observedRef = useRef<Set<Element>>(new Set());
+
+  // ズームは値が変わるたびにobserverを張り直す必要はなく（測定値をズームで
+  // 割った論理サイズはズーム非依存のため）、計測時に最新値を参照できれば十分
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   useEffect(() => {
-    let animationFrameId = 0;
+    const applyMeasurement = (element: Element) => {
+      const id = element.id.slice('node-'.length);
+      // 実測値はズームで拡縮された画面上のサイズなので、論理サイズに戻す
+      const measuredHeight = Math.round(
+        element.getBoundingClientRect().height / zoomRef.current,
+      );
 
-    const measure = () => {
+      if (measuredHeight > 0 && latestRef.current[id] !== measuredHeight) {
+        latestRef.current = { ...latestRef.current, [id]: measuredHeight };
+        setHeights(latestRef.current);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      entries.forEach((entry) => applyMeasurement(entry.target));
+    });
+
+    // 開閉操作でノードカードのDOM要素が増減するたびに、観測対象を同期する
+    const syncObservedElements = () => {
       const elements = document.querySelectorAll<HTMLElement>('[id^="node-"]');
-      const next = { ...latestRef.current };
-      let changed = false;
+      const currentSet = new Set<Element>(elements);
 
-      elements.forEach((element) => {
-        const id = element.id.slice('node-'.length);
-        // 実測値はズームで拡縮された画面上のサイズなので、論理サイズに戻す
-        const measuredHeight = Math.round(
-          element.getBoundingClientRect().height / zoom,
-        );
-
-        if (measuredHeight > 0 && next[id] !== measuredHeight) {
-          next[id] = measuredHeight;
-          changed = true;
+      currentSet.forEach((element) => {
+        if (!observedRef.current.has(element)) {
+          resizeObserver.observe(element);
+          observedRef.current.add(element);
+          applyMeasurement(element);
         }
       });
 
-      if (changed) {
-        latestRef.current = next;
-        setHeights(next);
-      }
-
-      animationFrameId = requestAnimationFrame(measure);
+      observedRef.current.forEach((element) => {
+        if (!currentSet.has(element)) {
+          resizeObserver.unobserve(element);
+          observedRef.current.delete(element);
+        }
+      });
     };
 
-    animationFrameId = requestAnimationFrame(measure);
+    syncObservedElements();
 
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [zoom]);
+    const mutationObserver = new MutationObserver(syncObservedElements);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      observedRef.current.clear();
+    };
+  }, []);
 
   return heights;
 }
@@ -550,6 +578,29 @@ export function TreePage() {
     Map<string, NodePosition>
   >(new Map());
 
+  // ── 開閉アニメーションが仕掛けるタイマーを、アンマウント時にまとめて解除するための管理。
+  // ※ rAFはここでは追跡しない。開発時のStrictModeはマウント時に
+  //   「エフェクト実行→クリーンアップ→再実行」を行うが、rafを共有refで
+  //   キャンセルしてしまうと、この2段構えのrAFが本来の再実行より先に
+  //   打ち切られ、enteringNodesのエントリが永久に残ってしまう不具合があった
+  //   （2回目の実行はprevVisibleIdsRef等が既に更新済みのため何もしない）。
+  //   代わりにisMountedRefで「本当のアンマウント後だけsetStateを避ける」方式にする。
+  const pendingTimersRef = useRef<{ timeouts: Set<number> }>({
+    timeouts: new Set(),
+  });
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    const pendingTimers = pendingTimersRef.current;
+
+    return () => {
+      isMountedRef.current = false;
+      pendingTimers.timeouts.forEach((id) => window.clearTimeout(id));
+      pendingTimers.timeouts.clear();
+    };
+  }, []);
+
   useEffect(() => {
     if (!layout) return;
 
@@ -568,39 +619,44 @@ export function TreePage() {
     // 閉じた直後の1フレーム目はまだ実測高さが揺れていて親の位置が暫定値のことがあるため、
     // 新規に消えたノードだけでなく、フェード中の既存ノードもレイアウトが変わるたびに
     // 収束先を追従・補正し続ける（最終的に親の落ち着き先へ正しく吸い込まれる）。
+    // ※ refの更新はsetStateの更新関数の外（このeffect本体）で行い、更新関数自体は
+    //   Reactが期待する「副作用を持たない」ものに保つ。
     if (removedIds.length > 0 || prevExitingNodesRef.current.size > 0) {
-      setExitingNodes((prev) => {
-        const next = new Map(prev);
+      const next = new Map(prevExitingNodesRef.current);
 
-        removedIds.forEach((id) => {
-          // 生き残っている祖先（＝閉じたノード自身）の現在位置に向けて吸い込む。
-          // 見つからない場合は消える直前の位置に留めてフェードのみ行う。
-          const pos =
-            findConvergenceTarget(id, parentOf, layout.positions) ??
-            framePositions.get(id);
-          if (pos) next.set(id, pos);
-        });
-
-        next.forEach((_, id) => {
-          const pos = findConvergenceTarget(id, parentOf, layout.positions);
-          if (pos) next.set(id, pos);
-        });
-
-        prevExitingNodesRef.current = next;
-        return next;
+      removedIds.forEach((id) => {
+        // 生き残っている祖先（＝閉じたノード自身）の現在位置に向けて吸い込む。
+        // 見つからない場合は消える直前の位置に留めてフェードのみ行う。
+        const pos =
+          findConvergenceTarget(id, parentOf, layout.positions) ??
+          framePositions.get(id);
+        if (pos) next.set(id, pos);
       });
+
+      next.forEach((_, id) => {
+        const pos = findConvergenceTarget(id, parentOf, layout.positions);
+        if (pos) next.set(id, pos);
+      });
+
+      prevExitingNodesRef.current = next;
+      setExitingNodes(next);
     }
 
     if (removedIds.length > 0) {
-      window.setTimeout(() => {
-        setExitingNodes((prev) => {
-          if (removedIds.every((id) => !prev.has(id))) return prev;
-          const next = new Map(prev);
-          removedIds.forEach((id) => next.delete(id));
-          prevExitingNodesRef.current = next;
-          return next;
-        });
+      const timeoutId = window.setTimeout(() => {
+        pendingTimersRef.current.timeouts.delete(timeoutId);
+
+        if (removedIds.every((id) => !prevExitingNodesRef.current.has(id))) {
+          return;
+        }
+
+        const next = new Map(prevExitingNodesRef.current);
+        removedIds.forEach((id) => next.delete(id));
+        prevExitingNodesRef.current = next;
+        setExitingNodes(next);
       }, EXIT_TRANSITION_MS);
+
+      pendingTimersRef.current.timeouts.add(timeoutId);
     }
 
     if (addedIds.length > 0) {
@@ -621,6 +677,8 @@ export function TreePage() {
       // （1回のrAFだと描画前に上書きされることがあるため2段構えにする）
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
+          if (!isMountedRef.current) return;
+
           setEnteringNodes((prev) => {
             if (addedIds.every((id) => !prev.has(id))) return prev;
             const next = new Map(prev);
@@ -727,7 +785,12 @@ export function TreePage() {
                 userSelect: isPanning ? 'none' : undefined,
               }}
             >
-              <ConnectionsOverlay root={root} columns={columns} zoom={zoom} />
+              <ConnectionsOverlay
+                root={root}
+                columns={columns}
+                zoom={zoom}
+                layout={layout}
+              />
 
               {/* ルートノードカード */}
               <div
@@ -1101,20 +1164,30 @@ function DropZone({
 // ドラッグ&ドロップやテキスト入力によるレイアウト変更に即座に追従します
 // ────────────────────────────────────────────────────────────
 
+// 変化が無くなってからこのフレーム数だけ様子を見てポーリングを止める
+// （CSSトランジション中は座標が毎フレーム変わるため自動的に動き続け、
+//  静止したことが分かったら止まる＝アイドル時にCPUを使い続けない）
+const CONNECTOR_IDLE_FRAMES = 8;
+
+const round1 = (value: number) => Math.round(value * 10) / 10;
+
 function ConnectionsOverlay({
   root,
   columns,
   zoom,
+  layout,
 }: {
   root: TaskNode;
   columns: TreeColumn[];
   zoom: number;
+  layout: TreeLayout | null;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [paths, setPaths] = useState<{ id: string; d: string }[]>([]);
 
   useEffect(() => {
     let animationFrameId = 0;
+    let idleFrameCount = 0;
     const lastPositions = new Map<string, string>();
 
     const updateLines = () => {
@@ -1148,16 +1221,19 @@ function ConnectionsOverlay({
         const parentRect = parentElement.getBoundingClientRect();
         const childRect = childElement.getBoundingClientRect();
 
-        // 実測値はズームで拡縮された画面上の座標なので、論理座標に戻す
+        // 実測値はズームで拡縮された画面上の座標なので、論理座標に戻す。
+        // 小数点以下を丸めて、サブピクセルのブレで「変化した」と誤検知しないようにする。
         // 親の右端中央
-        const startX = (parentRect.right - svgRect.left) / zoom;
-        const startY =
-          (parentRect.top + parentRect.height / 2 - svgRect.top) / zoom;
+        const startX = round1((parentRect.right - svgRect.left) / zoom);
+        const startY = round1(
+          (parentRect.top + parentRect.height / 2 - svgRect.top) / zoom,
+        );
 
         // 子の左端中央
-        const endX = (childRect.left - svgRect.left) / zoom;
-        const endY =
-          (childRect.top + childRect.height / 2 - svgRect.top) / zoom;
+        const endX = round1((childRect.left - svgRect.left) / zoom);
+        const endY = round1(
+          (childRect.top + childRect.height / 2 - svgRect.top) / zoom,
+        );
 
         // 滑らかなベジェ曲線の制御点
         const distanceX = Math.max((endX - startX) / 2, 20);
@@ -1196,7 +1272,18 @@ function ConnectionsOverlay({
         }
       }
 
-      animationFrameId = requestAnimationFrame(updateLines);
+      if (changed) {
+        idleFrameCount = 0;
+      } else {
+        idleFrameCount += 1;
+      }
+
+      // 一定フレーム変化がなければ一時停止する。
+      // ノードの開閉・実測高さの確定・ズーム変更などpositionsが変わりうる操作は
+      // すべてlayoutの再計算を経由するため、依存配列のlayoutが変わればeffectごと再始動する。
+      if (idleFrameCount < CONNECTOR_IDLE_FRAMES) {
+        animationFrameId = requestAnimationFrame(updateLines);
+      }
     };
 
     animationFrameId = requestAnimationFrame(updateLines);
@@ -1204,7 +1291,7 @@ function ConnectionsOverlay({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [root, columns, zoom]);
+  }, [root, columns, zoom, layout]);
 
   return (
     <svg

@@ -31,6 +31,11 @@ type Props = {
   dragIndex: number;
   onDragOver: (index: number) => void;
   onDrop: (draggedData: { id: string; parentId: string | null; index: number }) => void;
+
+  // ゲスト向け誘導ガイド(TreePage.tsx)がこのノードを次の操作対象として示す時にtrue。
+  // 光るリング演出＋吹き出しを表示する(詳細はプロジェクトの記憶参照)
+  isGuideTarget?: boolean;
+  guideBubbleText?: string | null;
 };
 
 export function TaskNodeCard({
@@ -51,6 +56,8 @@ export function TaskNodeCard({
   dragIndex,
   onDragOver,
   onDrop,
+  isGuideTarget = false,
+  guideBubbleText = null,
 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -126,7 +133,7 @@ export function TaskNodeCard({
         }
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col cursor-pointer transition-all duration-150 select-none relative z-10"
+      className={`animate-fadeIn flex flex-col cursor-pointer transition-all duration-150 select-none relative z-10${isGuideTarget ? ' tutorial-spotlight-ring' : ''}`}
       style={{
         gap: 6.4,
         borderRadius: 9.6,
@@ -344,6 +351,46 @@ export function TaskNodeCard({
             </div>
           )}
         </>
+      )}
+
+      {/* ── ゲスト向け誘導ガイドの吹き出し(該当ノードの時だけ表示) */}
+      {isGuideTarget && guideBubbleText && (
+        <div
+          className="tutorial-guide-bubble"
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginBottom: 10,
+            width: 168,
+            padding: '6px 9px',
+            borderRadius: 8,
+            background: 'var(--accent)',
+            color: '#fff',
+            fontSize: 9.6,
+            fontWeight: 800,
+            lineHeight: 1.4,
+            textAlign: 'center',
+            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
+            zIndex: 30,
+          }}
+        >
+          {guideBubbleText}
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '5px solid transparent',
+              borderRight: '5px solid transparent',
+              borderTop: '5px solid var(--accent)',
+            }}
+          />
+        </div>
       )}
     </div>
   );

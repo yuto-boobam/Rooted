@@ -15,7 +15,9 @@ import { supabase } from './utils/supabaseClient';
 import { getDueUrgencyColors } from './utils/dueDateColor';
 import {
   SAMPLE_PROJECT_ID,
+  TUTORIAL_NODE_ID,
   makeSampleProject,
+  makeTutorialNode,
 } from './data/guestSampleProject';
 import { BACKUP_PROJECTS } from './data/backupProjects';
 
@@ -525,6 +527,31 @@ function seedInitialProjects(projects: Project[]): Project[] {
   return [makeSampleProject(), ...BACKUP_PROJECTS].map((project) => normalizeProject(project));
 }
 
+// サンプルプロジェクトはmakeSampleProject()で1度だけ初回に差し込まれ、以後は既存の
+// localStorageの内容がそのまま使われる(ユーザーが行った編集を上書きしないため)。
+// そのため、この機能を追加する以前からlocalStorageにサンプルプロジェクトを持っていた
+// ユーザー(過去にゲストログイン済みのブラウザ等)には、サンプルの内容を更新しても
+// 自動的には反映されない。「操作方法」ノードのように後から追加した固定ノードは、
+// 無ければ末尾に補完する形で個別にマイグレーションする
+function ensureSampleProjectHasTutorialNode(project: Project): Project {
+  if (project.id !== SAMPLE_PROJECT_ID) return project;
+
+  const alreadyHasTutorialNode = project.rootTask.children.some(
+    (child) => child.id === TUTORIAL_NODE_ID,
+  );
+  if (alreadyHasTutorialNode) return project;
+
+  const tutorialNode = normalizeTaskNode(
+    makeTutorialNode(),
+    project.rootTask.createdBy,
+  );
+
+  return updateProjectRoot(project, {
+    ...project.rootTask,
+    children: [...project.rootTask.children, tutorialNode],
+  });
+}
+
 function normalizeRightPanelState(value: unknown): RightPanelState {
   const partial =
     value && typeof value === 'object'
@@ -743,6 +770,13 @@ export const useAppStore = create<AppState>()(
         );
         if (!hasSampleProject) {
           get().importProject(makeSampleProject());
+        } else {
+          // ページを再読み込みせずログアウト→ゲストを繰り返した場合、persistの
+          // merge()によるマイグレーション(下記ensureSampleProjectHasTutorialNode)は
+          // 走らないため、ここでも既存のサンプルプロジェクトへの補完を行う
+          set((state) => ({
+            projects: state.projects.map(ensureSampleProjectHasTutorialNode),
+          }));
         }
       },
 
@@ -1416,7 +1450,9 @@ export const useAppStore = create<AppState>()(
           : currentState.projects;
         // 全ユーザー最初からサンプルプロジェクト＋バックアップJSONが存在している仕様のため、
         // プロジェクトが1件もない初回利用時にだけ差し込む
-        const projects = seedInitialProjects(persistedProjects);
+        const projects = seedInitialProjects(persistedProjects).map(
+          ensureSampleProjectHasTutorialNode,
+        );
 
         return {
           ...currentState,

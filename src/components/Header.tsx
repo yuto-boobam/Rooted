@@ -3,6 +3,8 @@ import { useRef, useState } from 'react';
 import { useAppStore, todayDateKey } from '../store';
 import type { Project } from '../types';
 import { getStoredFileHandle, setStoredFileHandle } from '../utils/fileHandleStore';
+import { canEditBackupProjectsLocally } from '../utils/localEditAccess';
+import { SAMPLE_PROJECT_ID } from '../data/guestSampleProject';
 import PatchNotesModal from './patchNotes/PatchNotesModal';
 import { NicknameDisplay } from './NicknameDisplay';
 
@@ -90,6 +92,14 @@ export default function Header({
   const currentProjectId = useAppStore((state) => state.currentProjectId);
   const importProject = useAppStore((state) => state.importProject);
   const currentProject = projects.find((project) => project.id === currentProjectId) ?? null;
+
+  // サンプルプロジェクトはsrc/data/guestSampleProject.tsが供給元なので、
+  // ここからの「プロジェクトへ保存」対象からは除外する
+  const canSaveToProject =
+    !isGuest &&
+    canEditBackupProjectsLocally() &&
+    Boolean(currentProject) &&
+    currentProject?.id !== SAMPLE_PROJECT_ID;
 
   const [isBackupMenuOpen, setIsBackupMenuOpen] = useState(false);
   const [backupMenuPosition, setBackupMenuPosition] = useState({ top: 0, right: 0 });
@@ -194,6 +204,35 @@ export default function Header({
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       window.alert('上書き保存に失敗しました。');
+    }
+  };
+
+  // 開発サーバーを経由して、プロジェクト内のsrc/data/backups/へ直接書き込む
+  // （src/data/backupProjects.ts が起動時に自動で読み込む場所と同じ）。
+  // 「上書き保存」（パソコン内の任意のファイル）とは別に、コミット対象のバックアップ
+  // JSONをVSCode側にも反映させたい場合に使う（Combo-LABの「プロジェクトへ保存」と同じ考え方）
+  const handleSaveToProjectBackup = async () => {
+    setIsBackupMenuOpen(false);
+    if (!currentProject) return;
+
+    try {
+      const response = await fetch('/__rooted-backup-api/project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildProjectExportPayload(currentProject)),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        window.alert(`プロジェクトへの保存に失敗しました。${message}`);
+        return;
+      }
+
+      window.alert(`「${currentProject.title}」をプロジェクトへ保存しました。`);
+    } catch {
+      window.alert(
+        'プロジェクトへの保存に失敗しました。npm run devで起動しているか確認してください。',
+      );
     }
   };
 
@@ -318,6 +357,19 @@ export default function Header({
                         上書き保存{isFileSystemAccessSupported ? '' : '（新規DL）'}
                       </span>
                     </button>
+
+                    {canSaveToProject && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        style={styles.backupMenuItem}
+                        onClick={handleSaveToProjectBackup}
+                        title="開発サーバーを経由して、src/data/backups/ へ直接保存します（VSCode内のファイルが更新されます）"
+                      >
+                        <span>🗂️</span>
+                        <span>プロジェクトへ保存</span>
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -421,9 +473,13 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
     display: 'flex',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 9,
     flex: '1 1 auto',
-    overflow: 'hidden',
+    // 横幅が足りない時、ニックネームがoverflow:hiddenで見えなくなるのではなく
+    // ブランドアイコンの下へ折り返して表示されるようにする（flexWrapのみで対応、
+    // JSでの幅判定は使わない）
+    rowGap: 2,
   },
   brand: {
     flex: '0 0 auto',

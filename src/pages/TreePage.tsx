@@ -13,6 +13,7 @@ import {
   findNode,
   buildParentMap,
   ConnectionsOverlay,
+  isNodeExpanded,
   type TreeColumn,
 } from '../lib/tree';
 import {
@@ -22,6 +23,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
   ZOOM_STEP,
+  DEFAULT_ZOOM,
 } from './TreePage.config';
 
 type DraggedNodeData = {
@@ -89,7 +91,7 @@ export function TreePage() {
   const [modal, setModal] = useState<ModalState>({ open: false });
 
   // ── 画面比率（ズーム）
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
   // ── ドラッグで画面を動かす（パン）
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -285,7 +287,7 @@ export function TreePage() {
     const visit = (node: TaskNode, depth: number) => {
       if (node.children.length === 0) return;
       // ルートは常に展開扱い（開閉トグルを持たないため）
-      if (depth > 0 && collapsedSet.has(node.id)) return;
+      if (depth > 0 && !isNodeExpanded(node, collapsedSet)) return;
 
       nextColumns.push({ parentId: node.id, nodes: node.children, depth });
 
@@ -495,8 +497,14 @@ export function TreePage() {
                         }
                         accentColor={accentColor}
                         onClick={() => selectNode(node.id)}
-                        isExpanded={!collapsedSet.has(node.id)}
-                        onToggleExpand={() => toggleNodeExpanded(node.id)}
+                        isExpanded={isNodeExpanded(node, collapsedSet)}
+                        // 分岐（子が複数）していない開閉は見た目がほぼ変わらないため、
+                        // 分岐しているノードだけ開閉ボタンを出す（Combo-LABと同じ仕様）
+                        onToggleExpand={
+                          node.children.length > 1
+                            ? () => toggleNodeExpanded(node.id)
+                            : undefined
+                        }
                         onToggleComplete={() =>
                           toggleComplete(project.id, node.id)
                         }
@@ -778,7 +786,7 @@ function DropZone({
       <div
         className="w-full rounded-full transition-all duration-150 pointer-events-none"
         style={{
-          height: isOver ? 4 : 0,
+          height: isOver ? 3.2 : 0,
           background: accentColor,
           boxShadow: isOver ? `0 0 8px ${accentColor}` : 'none',
         }}

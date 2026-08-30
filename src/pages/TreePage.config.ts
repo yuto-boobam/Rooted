@@ -1,21 +1,27 @@
 // src/pages/TreePage.config.ts
 // TreePageの見た目に関する調整値をまとめたもの。
 // カードサイズや間隔を変えたいだけならこのファイルの値を編集すればよい。
+//
+// 以前はzoomの初期値を下げてCSSの transform: scale() で画面全体を縮小して
+// 見える範囲を広げていたが、transformによる縮小は文字がぼやける（サブピクセルの
+// フォントヒンティングが効かなくなる）ため、代わりにここの寸法・TaskNodeCard.tsxの
+// フォントサイズ自体を実測0.8倍した値に置き換えて対応している。zoomの初期値は
+// 100%（=変形なし）に戻し、必要な追加ズームだけユーザー操作に委ねる
 
 import type { TreeLayoutConfig } from '../lib/tree';
 
-/** カードサイズ・列間隔など、木構造レイアウト計算に渡す寸法設定 */
+/** カードサイズ・列間隔など、木構造レイアウト計算に渡す寸法設定（元の値の0.8倍） */
 export const TREE_LAYOUT_CONFIG: TreeLayoutConfig = {
-  cardWidth: 245,
-  rootWidth: 220,
-  gapX: 50,
-  dropZoneHeight: 18,
-  defaultNodeHeight: 76,
-  defaultRootHeight: 110,
+  cardWidth: 196,
+  rootWidth: 176,
+  gapX: 40,
+  dropZoneHeight: 14.4,
+  defaultNodeHeight: 60.8,
+  defaultRootHeight: 88,
 };
 
-/** キャンバス端の余白(px) */
-export const CANVAS_PADDING = 48;
+/** キャンバス端の余白(px)（元の48pxの0.8倍） */
+export const CANVAS_PADDING = 38.4;
 
 /** ノードが閉じて消えるフェードアウトの所要時間(ms) */
 export const EXIT_TRANSITION_MS = 200;
@@ -24,3 +30,6 @@ export const EXIT_TRANSITION_MS = 200;
 export const MIN_ZOOM = 0.3;
 export const MAX_ZOOM = 1.5;
 export const ZOOM_STEP = 0.1;
+/** ツリー画面を開いたときの初期ズーム。密度はTREE_LAYOUT_CONFIG側で確保したので、
+ * ここはtransformによる引き伸ばし/縮小を伴わない等倍（100%）を初期値にする */
+export const DEFAULT_ZOOM = 1;

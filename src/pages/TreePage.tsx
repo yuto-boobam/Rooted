@@ -3,6 +3,7 @@ import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
 import { NewTaskModal } from '../components/NewTaskModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import Header from '../components/Header';
 import RightDrawerPanel from '../components/RightDrawerPanel';
 import type { TaskNode } from '../types';
@@ -89,6 +90,9 @@ export function TreePage() {
 
   // ── タスク追加モーダルの状態
   const [modal, setModal] = useState<ModalState>({ open: false });
+
+  // ── タスク削除の確認ダイアログの状態
+  const [nodePendingDelete, setNodePendingDelete] = useState<TaskNode | null>(null);
 
   // ── 画面比率（ズーム）
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -516,15 +520,7 @@ export function TreePage() {
                         }
                         onAddChild={() => openChildModal(node.id)}
                         onAddSibling={() => openSiblingModal(node.id)}
-                        onDelete={() => {
-                          const ok = window.confirm(
-                            `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
-                          );
-
-                          if (ok) {
-                            deleteNode(project.id, node.id);
-                          }
-                        }}
+                        onDelete={() => setNodePendingDelete(node)}
                         parentId={column.parentId}
                         dragIndex={nodeIndex}
                         onDragOver={() => {
@@ -640,6 +636,19 @@ export function TreePage() {
           onClose={closeModal}
         />
       )}
+
+      {/* ── タスク削除の確認 */}
+      <ConfirmDialog
+        isOpen={nodePendingDelete !== null}
+        title="タスクを削除"
+        message={`「${nodePendingDelete?.title ?? ''}」を削除しますか？\n子タスクもすべて削除されます。`}
+        confirmLabel="削除する"
+        onConfirm={() => {
+          if (nodePendingDelete) deleteNode(project.id, nodePendingDelete.id);
+          setNodePendingDelete(null);
+        }}
+        onCancel={() => setNodePendingDelete(null)}
+      />
     </div>
   );
 }

@@ -23,7 +23,14 @@ export default function AccordionSection({
 }: AccordionSectionProps) {
   return (
     <section style={styles.section}>
-      <button type="button" style={styles.sectionHeader} onClick={onToggle}>
+      <button
+        type="button"
+        style={{
+          ...styles.sectionHeader,
+          borderRadius: isOpen ? '13px 13px 0 0' : 13,
+        }}
+        onClick={onToggle}
+      >
         <span style={styles.sectionTitle}>
           <span>{icon}</span>
           {title}
@@ -31,7 +38,14 @@ export default function AccordionSection({
 
         <span style={styles.sectionRight}>
           <span style={styles.countBadge}>{count}</span>
-          <span style={styles.chevron}>{isOpen ? '⌃' : '⌄'}</span>
+          <span
+            style={{
+              ...styles.chevron,
+              transform: isOpen ? 'rotate(180deg)' : 'none',
+            }}
+          >
+            ⌄
+          </span>
         </span>
       </button>
 
@@ -45,11 +59,12 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--border)',
     borderRadius: 14,
     background: 'var(--bg-elevated)',
-    overflow: 'hidden',
-    // drawerBody(display:grid)の子要素はoverflow:hiddenがあると自動最小サイズが0になり、
-    // 中身がどれだけ長くても押し縮められて grid が「はみ出していない」と誤認してしまう
-    // （結果スクロールバーが出ずスクロールもできない）。minHeightで実サイズを明示して回避する。
-    minHeight: 'max-content',
+    // overflow:hiddenは使わない。CSS Grid内でoverflow:hiddenを持つ子は自動最小サイズが0になり、
+    // 高さの計算がずれて中身が押しつぶされる不具合が起きる（drawerBodyがdisplay:gridのため、
+    // 中身が長いセクション（優先的タスク等）が見切れ、後続のセクションと詰まって見える原因に
+    // なっていた。minHeight: 'max-content'で補おうとしたが不十分だった）。角丸のクリップは
+    // ヘッダー側のborder-radiusを合わせることで実現し、overflow:hiddenそのものを排除する
+    // （Combo-LABのAccordionSection.tsxと同じ対応）。
   },
 
   sectionHeader: {
@@ -92,9 +107,16 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
   },
 
+  // 開閉で別の文字（⌃/⌄）に差し替えると字形の重心が微妙にずれて位置が上下して見えるため、
+  // 同じ文字を180度回転させるだけにする
   chevron: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     color: 'var(--text-secondary)',
     fontSize: 13,
+    lineHeight: 1,
+    transition: 'transform 0.15s',
   },
 
   sectionBody: {

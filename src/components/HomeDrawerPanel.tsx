@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
-import { flattenProjectTasks, type FlatTask } from '../utils/taskTree';
+import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
 import { daysUntil } from '../utils/dueDate';
 import { getDueUrgencyColors } from '../utils/dueDateColor';
 import AccordionSection from './AccordionSection';
@@ -77,15 +77,8 @@ export default function HomeDrawerPanel() {
 
   return (
     <>
-      {rightPanel.isOpen && (
-        <button
-          type="button"
-          aria-label="右側パネルを閉じる"
-          style={styles.backdrop}
-          onClick={closeRightPanel}
-        />
-      )}
-
+      {/* 背面をクリックしても閉じない（Combo-LABのSideDrawerPanelと同じく、開いたまま
+          裏の画面を操作できるようにする。閉じるのはヘッダーの開閉ボタンのみ） */}
       <aside
         style={{
           ...styles.drawer,
@@ -146,7 +139,9 @@ export default function HomeDrawerPanel() {
                 <div style={styles.taskList}>
                   {group.items.map(({ task, diffDays }) => {
                     const urgency = getDueUrgencyColors(diffDays);
-                    const breadcrumb = task.pathTitles.slice(0, -1).join(' / ');
+                    const ancestorTitles = task.pathTitles.slice(0, -1);
+                    const breadcrumb = formatCompactPath(ancestorTitles);
+                    const breadcrumbFull = ancestorTitles.join(' / ');
 
                     return (
                       <button
@@ -174,7 +169,11 @@ export default function HomeDrawerPanel() {
                           </span>
                         </div>
 
-                        {breadcrumb && <div style={styles.pathText}>{breadcrumb}</div>}
+                        {breadcrumb && (
+                          <div style={styles.pathText} title={breadcrumbFull}>
+                            {breadcrumb}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -199,14 +198,6 @@ function formatDateWithWeekday(dateKey: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  backdrop: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 699,
-    border: 0,
-    background: 'rgba(2, 6, 23, 0.22)',
-    cursor: 'default',
-  },
 
   drawer: {
     position: 'fixed',
@@ -282,6 +273,11 @@ const styles: Record<string, CSSProperties> = {
     minHeight: 0,
     minWidth: 0,
     overflowY: 'auto',
+    // overflow-yをauto等にすると、overflow-xを明示しない限りブラウザはそちらも
+    // auto扱いにする（CSS仕様上の既定挙動）。中の要素がわずかでも幅をはみ出すと
+    // ドロワー全体が横スクロール可能になり、他のセクションまで巻き込まれてずれて
+    // 見える不具合になるため、横方向のはみ出しは常に隠す
+    overflowX: 'hidden',
     overscrollBehavior: 'contain',
     padding: 12,
     display: 'grid',

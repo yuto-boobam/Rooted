@@ -17,6 +17,7 @@ import {
   isNodeExpanded,
   type TreeColumn,
 } from '../lib/tree';
+import { SAMPLE_PROJECT_ID, TUTORIAL_NODE_ID } from '../data/guestSampleProject';
 import {
   TREE_LAYOUT_CONFIG,
   CANVAS_PADDING,
@@ -63,6 +64,7 @@ export function TreePage() {
     collapsedNodeIds,
     rightPanel,
     isPatchNotesModalOpen,
+    isGuest,
 
     goToDashboard,
     selectNode,
@@ -281,6 +283,44 @@ export function TreePage() {
     () => new Set(collapsedNodeIds),
     [collapsedNodeIds],
   );
+
+  // ── ゲスト向け誘導ガイド:「操作方法」ノードでの子・兄弟タスク追加→チェック→畳む、の
+  // 一連の流れを案内する。ツリーの実際の状態(子の数・完了・開閉)から現在地を毎回
+  // 導出しているだけで、専用のフラグは持たない。そのため、練習で作ったタスクを
+  // 削除・未完了に戻す等すれば自然に該当ステップへ巻き戻る(セッションを跨いだ状態は
+  // 通常のプロジェクトデータと同様zustand persistでlocalStorageに残る)
+  const tutorialNode = root ? findNode(root, TUTORIAL_NODE_ID) : null;
+  const nodeGuideActive = isGuest && project?.id === SAMPLE_PROJECT_ID && Boolean(tutorialNode);
+  const practiceChild = tutorialNode?.children[0] ?? null;
+
+  type NodeGuideStep = 'addChild' | 'addSibling' | 'checkChild' | 'collapseNode' | 'done';
+
+  const nodeGuideStep: NodeGuideStep = !nodeGuideActive || !tutorialNode
+    ? 'done'
+    : tutorialNode.children.length === 0
+      ? 'addChild'
+      : tutorialNode.children.length === 1
+        ? 'addSibling'
+        : !practiceChild?.completed
+          ? 'checkChild'
+          : !collapsedSet.has(tutorialNode.id)
+            ? 'collapseNode'
+            : 'done';
+
+  const guideTargetId =
+    nodeGuideStep === 'addChild' || nodeGuideStep === 'collapseNode'
+      ? (tutorialNode?.id ?? null)
+      : nodeGuideStep === 'addSibling' || nodeGuideStep === 'checkChild'
+        ? (practiceChild?.id ?? null)
+        : null;
+
+  const guideBubbleText: string | null = {
+    addChild: 'Enterで子タスクを追加してみましょう',
+    addSibling: '続けてTabで兄弟タスクも追加してみましょう',
+    checkChild: 'チェックを入れて完了にしてみましょう',
+    collapseNode: 'たたんで整理してみましょう',
+    done: null,
+  }[nodeGuideStep];
 
   // ── 列（カラム）の構築: 開いているノードをすべて辿る（複数の枝を同時に開ける）
   const columns = useMemo<TreeColumn<TaskNode>[]>(() => {
@@ -532,6 +572,8 @@ export function TreePage() {
                           // カードの上へのドロップは常に「子タスク」として追加
                           moveNode(project.id, draggedData.id, node.id);
                         }}
+                        isGuideTarget={node.id === guideTargetId}
+                        guideBubbleText={node.id === guideTargetId ? guideBubbleText : null}
                       />
                     </div>
                   );

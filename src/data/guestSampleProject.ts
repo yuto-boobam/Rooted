@@ -8,6 +8,9 @@ import type { Project } from '../types';
 /** 毎回重複生成しないための固定ID */
 export const SAMPLE_PROJECT_ID = 'guest-sample-project';
 
+/** サンプルツリー内、ノード追加の操作を教える専用ノードの固定ID(誘導ガイドが目印にする) */
+export const TUTORIAL_NODE_ID = 'guest-sample-tutorial-node';
+
 function offsetDateKey(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -126,8 +129,27 @@ function buildSampleProjectData() {
           createdBy: 'ゲスト',
           children: [],
         },
+        makeTutorialNode(),
       ],
     },
+  };
+}
+
+// ゲスト向け誘導ガイド(TreePage.tsx)の目印になる練習用ノード。IDを固定していつでも
+// 見つけられるようにしている。子は初期状態では空で、誘導に沿ってここに実際に
+// 子・兄弟タスクを追加してもらう。
+// store.ts側でも、既にlocalStorageに保存済み(この機能追加より前)のサンプルプロジェクトへ
+// 後から差し込むために再利用する(makeSampleProject()は既存のプロジェクトを上書きしない
+// 仕様のため、新規追加したこのノードだけは別途マイグレーションが必要)
+export function makeTutorialNode() {
+  return {
+    id: TUTORIAL_NODE_ID,
+    title: '操作方法',
+    memo: 'Enterで子タスク、Tabで兄弟タスクを追加できます',
+    detailMemo: 'このノードの下で実際にEnter・Tabキーを使ってタスクを追加してみてください。',
+    completed: false,
+    createdBy: 'ゲスト',
+    children: [],
   };
 }
 

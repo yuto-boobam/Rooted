@@ -82,8 +82,8 @@ export function ConnectionsOverlay<T extends TreeNodeLike>({
           (childRect.top + childRect.height / 2 - svgRect.top) / zoom,
         );
 
-        // 滑らかなベジェ曲線の制御点
-        const distanceX = Math.max((endX - startX) / 2, 20);
+        // 滑らかなベジェ曲線の制御点（最小値はTREE_LAYOUT_CONFIGの0.8倍化に合わせて調整済み）
+        const distanceX = Math.max((endX - startX) / 2, 16);
         const cp1x = startX + distanceX;
         const cp1y = startY;
         const cp2x = endX - distanceX;
@@ -160,7 +160,7 @@ export function ConnectionsOverlay<T extends TreeNodeLike>({
           d={path.d}
           fill="none"
           stroke={strokeColor}
-          strokeWidth="2"
+          strokeWidth="1.6"
           strokeOpacity="0.5"
         />
       ))}

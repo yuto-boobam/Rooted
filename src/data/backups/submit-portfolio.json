@@ -1,0 +1,131 @@
+{
+  "formatVersion": 1,
+  "exportedAt": "2026-08-31T05:00:00.000Z",
+  "project": {
+    "id": "submit-portfolio",
+    "title": "ポートフォリオ提出",
+    "description": "Combo-LABとRootedをポートフォリオとして公開・提出するまでの残タスク",
+    "icon": "🚀",
+    "color": "#f97316",
+    "createdBy": "",
+    "rootTask": {
+      "title": "ポートフォリオ提出",
+      "memo": "Combo-LAB・Rootedの2作品を公開し、紹介スライドとあわせて提出する",
+      "detailMemo": "",
+      "completed": false,
+      "children": [
+        {
+          "title": "Combo-LAB仕上げ",
+          "memo": "",
+          "detailMemo": "",
+          "completed": false,
+          "children": [
+            {
+              "title": "GitHubトークン流出への対応",
+              "memo": "複数セッションにわたり未着手のまま残っている最優先事項",
+              "detailMemo": "流出したトークンの無効化・再発行、履歴からの除去、.gitignore/シークレット管理の見直しまで含めて対応する",
+              "completed": false,
+              "isPriority": true,
+              "dueDate": "2026-09-01",
+              "children": []
+            },
+            {
+              "title": "リュウの実例コンボの作り込み",
+              "memo": "チュートリアル後に見せる実例コンボの内容を仕上げる",
+              "detailMemo": "",
+              "completed": false,
+              "dueDate": "2026-09-05",
+              "children": []
+            }
+          ]
+        },
+        {
+          "title": "Rooted仕上げ",
+          "memo": "",
+          "detailMemo": "",
+          "completed": false,
+          "children": [
+            {
+              "title": "サンプルプロジェクトのチュートリアル化",
+              "memo": "全ユーザー共通の導入コンテンツとして整備する",
+              "detailMemo": "",
+              "completed": false,
+              "children": [
+                {
+                  "title": "ログイン画面でゲストモードを目立たせる",
+                  "memo": "Combo-LABと同じレイアウトで、閲覧専用の誘導文言を追加",
+                  "detailMemo": "",
+                  "completed": true,
+                  "children": []
+                },
+                {
+                  "title": "ログイン後は必ず選択画面に遷移するよう修正",
+                  "memo": "前回開いていたツリー画面やドロワーへ直行してしまう不具合を解消",
+                  "detailMemo": "",
+                  "completed": true,
+                  "children": []
+                },
+                {
+                  "title": "全ユーザーにサンプルプロジェクトを標準搭載",
+                  "memo": "初回は全アカウントにサンプルプロジェクトが存在。ゲストは追加・削除UIなしでサンプルのみ表示",
+                  "detailMemo": "",
+                  "completed": true,
+                  "children": []
+                }
+              ]
+            },
+            {
+              "title": "Combo-LABにあってRootedにない機能の移植",
+              "memo": "使い方ガイド機能などをRootedにも展開する",
+              "detailMemo": "",
+              "completed": false,
+              "dueDate": "2026-09-10",
+              "children": []
+            }
+          ]
+        },
+        {
+          "title": "ポートフォリオサイト仕上げ",
+          "memo": "Create-Portfolio側の更新",
+          "detailMemo": "",
+          "completed": false,
+          "children": [
+            {
+              "title": "Combo-LAB紹介スライドを作成（2枚）",
+              "memo": "①コンセプト・画面イメージ　②技術的な見どころ",
+              "detailMemo": "",
+              "completed": false,
+              "dueDate": "2026-09-08",
+              "children": []
+            },
+            {
+              "title": "Rooted紹介スライドを作成（1枚）",
+              "memo": "",
+              "detailMemo": "",
+              "completed": false,
+              "dueDate": "2026-09-08",
+              "children": []
+            },
+            {
+              "title": "プロジェクトカードのstatusを更新",
+              "memo": "「現在作成中」のままになっているステータスを最新化する",
+              "detailMemo": "",
+              "completed": false,
+              "dueDate": "2026-09-10",
+              "children": []
+            }
+          ]
+        },
+        {
+          "title": "最終レビュー・提出",
+          "memo": "",
+          "detailMemo": "",
+          "completed": false,
+          "isPriority": true,
+          "dueDate": "2026-09-15",
+          "children": []
+        }
+      ]
+    }
+  }
+}

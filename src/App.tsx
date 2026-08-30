@@ -13,6 +13,8 @@ function App() {
   const view = useAppStore((s) => s.view);
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
+  const goToDashboard = useAppStore((s) => s.goToDashboard);
+  const closeRightPanel = useAppStore((s) => s.closeRightPanel);
   const isGuest = useAppStore((s) => s.isGuest);
   const theme = useAppStore((s) => s.theme);
 
@@ -45,13 +47,22 @@ function App() {
       setUser(session?.user ?? null);
     });
 
-    // 認証状態の変化（ログイン・ログアウト等）をリアルタイムに検知して同期
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // 認証状態の変化（ログイン・ログアウト等）をリアルタイムに検知して同期。
+    // 'SIGNED_IN'（実際にサインインした瞬間）の時だけ画面遷移状態をリセットし、
+    // 前回開いていたプロジェクトのツリー画面や右ドロワーへ自動で飛んでしまう
+    // 不具合を防ぐ。'TOKEN_REFRESHED'等、操作中にバックグラウンドで発火する
+    // イベントまでリセット対象にすると、閲覧中に突然選択画面へ戻される規模の
+    // 大きい不具合になるため、対象は厳密に限定する
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        goToDashboard();
+        closeRightPanel();
+      }
       setUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
-  }, [hasHydrated, isGuest, setUser]);
+  }, [hasHydrated, isGuest, setUser, goToDashboard, closeRightPanel]);
 
   if (!hasHydrated) {
     return null;

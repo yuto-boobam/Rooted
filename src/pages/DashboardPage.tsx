@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useAppStore } from '../store';
+import type { Project } from '../types';
 import { SAMPLE_PROJECT_ID } from '../data/guestSampleProject';
 import { ProjectCard } from '../components/ProjectCard';
 import { NewProjectModal } from '../components/NewProjectModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import Header from '../components/Header'; // ★ 追加：共通Headerコンポーネント
 import HomeDrawerPanel from '../components/HomeDrawerPanel';
 
@@ -13,6 +15,7 @@ export function DashboardPage() {
   console.log('★ DashboardPageがレンダリングされました');
   const { projects, addProject, deleteProject, openProject, isGuest } = useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(null);
 
   const visibleProjects = isGuest
     ? projects.filter((project) => project.id === SAMPLE_PROJECT_ID)
@@ -89,13 +92,7 @@ export function DashboardPage() {
                     project={project}
                     onOpen={() => openProject(project.id)}
                     onDelete={
-                      isGuest
-                        ? undefined
-                        : () => {
-                            if (confirm(`「${project.title}」を削除しますか？`)) {
-                              deleteProject(project.id);
-                            }
-                          }
+                      isGuest ? undefined : () => setProjectPendingDelete(project)
                     }
                   />
                 </div>
@@ -141,6 +138,19 @@ export function DashboardPage() {
 
       {/* ── サイドドロワー（期限が近いタスクの横断一覧） */}
       <HomeDrawerPanel />
+
+      {/* ── プロジェクト削除の確認 */}
+      <ConfirmDialog
+        isOpen={projectPendingDelete !== null}
+        title="プロジェクトを削除"
+        message={`「${projectPendingDelete?.title ?? ''}」を削除しますか？`}
+        confirmLabel="削除する"
+        onConfirm={() => {
+          if (projectPendingDelete) deleteProject(projectPendingDelete.id);
+          setProjectPendingDelete(null);
+        }}
+        onCancel={() => setProjectPendingDelete(null)}
+      />
     </div>
   );
 }

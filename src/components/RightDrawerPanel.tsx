@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
-import { flattenProjectTasks, type FlatTask } from '../utils/taskTree';
+import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
 import AccordionSection from './AccordionSection';
 import DrawerLogoutFooter from './DrawerLogoutFooter';
 
@@ -52,6 +52,10 @@ export default function RightDrawerPanel() {
     const reorderPriorityTasks = useAppStore(
         (state) => state.reorderPriorityTasks,
     );
+
+    const clipboardNode = useAppStore((state) => state.clipboardNode);
+    const copyNodeToClipboard = useAppStore((state) => state.copyNodeToClipboard);
+    const pasteClipboardAsChild = useAppStore((state) => state.pasteClipboardAsChild);
 
     const [pendingCompleteIds, setPendingCompleteIds] = useState<Set<string>>(
         () => new Set(),
@@ -152,15 +156,8 @@ export default function RightDrawerPanel() {
 
     return (
         <>
-            {rightPanel.isOpen && (
-                <button
-                    type="button"
-                    aria-label="右側パネルを閉じる"
-                    style={styles.backdrop}
-                    onClick={closeRightPanel}
-                />
-            )}
-
+            {/* 背面をクリックしても閉じない（Combo-LABのSideDrawerPanelと同じく、開いたまま
+                裏のツリーを操作できるようにする。閉じるのはヘッダーの開閉ボタンのみ） */}
             <aside
                 style={{
                     ...styles.drawer,
@@ -259,6 +256,15 @@ export default function RightDrawerPanel() {
                             isPending={
                                 selectedTask ? pendingCompleteIds.has(selectedTask.node.id) : false
                             }
+                            clipboardNodeTitle={clipboardNode?.title ?? null}
+                            onCopy={() => {
+                                if (!selectedTask) return;
+                                copyNodeToClipboard(selectedTask.projectId, selectedTask.node.id);
+                            }}
+                            onPaste={() => {
+                                if (!selectedTask) return;
+                                pasteClipboardAsChild(selectedTask.projectId, selectedTask.node.id);
+                            }}
                         />
 
                         <AccordionSection
@@ -338,8 +344,8 @@ export default function RightDrawerPanel() {
                                                         : '期限未設定'}
                                                 </div>
 
-                                                <div style={styles.pathText}>
-                                                    {task.pathTitles.join(' / ')}
+                                                <div style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                                                    {formatCompactPath(task.pathTitles)}
                                                 </div>
                                             </div>
 
@@ -454,6 +460,9 @@ function SelectedTaskEditor({
     onChangeMemo,
     onChangeDetailMemo,
     onComplete,
+    clipboardNodeTitle,
+    onCopy,
+    onPaste,
 }: {
     task: FlatTask | null;
     isPending: boolean;
@@ -463,6 +472,10 @@ function SelectedTaskEditor({
     onChangeMemo: (memo: string) => void;
     onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
+    /** クリップボードにコピー済みのタスク名（無ければnull）。貼り付けボタンの表示切替に使う */
+    clipboardNodeTitle: string | null;
+    onCopy: () => void;
+    onPaste: () => void;
 }) {
     if (!task) {
         return (
@@ -554,6 +567,35 @@ function SelectedTaskEditor({
                         </button>
                     )}
                 </div>
+
+                {/* ── コピー＆ペースト（このタスクと子タスクをまるごと複製する） */}
+                <div style={styles.selectedButtonGrid}>
+                    <button
+                        type="button"
+                        style={styles.secondaryButton}
+                        onClick={onCopy}
+                        title="このタスクと子タスクをすべてコピーします"
+                    >
+                        📋 コピー
+                    </button>
+
+                    <button
+                        type="button"
+                        style={{
+                            ...styles.secondaryButton,
+                            ...(clipboardNodeTitle ? {} : styles.secondaryButtonDisabled),
+                        }}
+                        onClick={onPaste}
+                        disabled={!clipboardNodeTitle}
+                        title={
+                            clipboardNodeTitle
+                                ? `「${clipboardNodeTitle}」をこのタスクの子として貼り付けます`
+                                : '先にタスクをコピーしてください'
+                        }
+                    >
+                        📥 貼り付け
+                    </button>
+                </div>
             </div>
         </section>
     );
@@ -589,7 +631,9 @@ function TaskRow({
             </div>
 
             <div style={styles.taskFooter}>
-                <span style={styles.pathText}>{task.pathTitles.join(' / ')}</span>
+                <span style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                    {formatCompactPath(task.pathTitles)}
+                </span>
 
                 <button type="button" style={styles.textButton} onClick={onSelect}>
                     選択
@@ -797,8 +841,8 @@ function MonthlyCalendar({
                                 </label>
 
                                 <div style={styles.taskFooter}>
-                                    <span style={styles.pathText}>
-                                        {task.pathTitles.join(' / ')}
+                                    <span style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                                        {formatCompactPath(task.pathTitles)}
                                     </span>
 
                                     <button
@@ -850,15 +894,6 @@ function formatDateWithWeekday(dateKey: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-    backdrop: {
-        position: 'fixed',
-        inset: 0,
-        zIndex: 699,
-        border: 0,
-        background: 'rgba(2, 6, 23, 0.22)',
-        cursor: 'default',
-    },
-
     drawer: {
         position: 'fixed',
         top: 0,
@@ -933,6 +968,11 @@ const styles: Record<string, CSSProperties> = {
         minHeight: 0,
         minWidth: 0,
         overflowY: 'auto',
+        // overflow-yをauto等にすると、overflow-xを明示しない限りブラウザはそちらも
+        // auto扱いにする（CSS仕様上の既定挙動）。中の要素がわずかでも幅をはみ出すと
+        // ドロワー全体が横スクロール可能になり、他のセクションまで巻き込まれて
+        // ずれて見える不具合になっていたため、横方向のはみ出しは常に隠す
+        overflowX: 'hidden',
         overscrollBehavior: 'contain',
         padding: 12,
         display: 'grid',
@@ -1038,6 +1078,11 @@ const styles: Record<string, CSSProperties> = {
         fontWeight: 850,
     },
 
+    secondaryButtonDisabled: {
+        color: 'var(--text-muted)',
+        cursor: 'not-allowed',
+    },
+
     completeButton: {
         border: '1px solid var(--accent-green-border)',
         background: 'var(--accent-green-bg)',
@@ -1092,6 +1137,11 @@ const styles: Record<string, CSSProperties> = {
     },
 
     pathText: {
+        // white-space:nowrapなテキストはflexアイテムの自動最小幅（min-width:auto）が
+        // 内容の全幅になり、overflow/text-overflowを付けていても実際には縮まず横に
+        // はみ出してしまう。minWidth:0で明示的に上書きすることで、隣のボタンを
+        // 押し出さずにこの中で省略記号（…）に切り詰められるようにする
+        minWidth: 0,
         color: 'var(--text-muted)',
         fontSize: 11,
         overflow: 'hidden',
@@ -1100,6 +1150,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     textButton: {
+        flexShrink: 0,
         border: 0,
         background: 'transparent',
         color: 'var(--accent-blue-text)',

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import type { TaskNode } from '../types';
 import { getDueUrgencyColors } from '../utils/dueDateColor';
 import { daysUntil, formatDueDateShort } from '../utils/dueDate';
+import { applyManualLineBreaks } from '../utils/textDisplay';
 import { TREE_LAYOUT_CONFIG } from '../pages/TreePage.config';
 
 const { rootWidth: ROOT_WIDTH, defaultRootHeight: ROOT_HEIGHT, defaultNodeHeight: NODE_HEIGHT } =
@@ -229,6 +230,7 @@ export function TaskNodeCard({
               minWidth: 0,
               overflow: 'hidden',
               wordBreak: 'break-word',
+              whiteSpace: 'pre-line',
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
@@ -240,7 +242,7 @@ export function TaskNodeCard({
               setTimeout(() => titleRef.current?.focus(), 0);
             }}
           >
-            {node.title || '（タイトルなし）'}
+            {node.title ? applyManualLineBreaks(node.title) : '（タイトルなし）'}
           </span>
         )}
 

@@ -6,6 +6,7 @@ import { getStoredFileHandle, setStoredFileHandle } from '../utils/fileHandleSto
 import { canEditBackupProjectsLocally } from '../utils/localEditAccess';
 import { SAMPLE_PROJECT_ID } from '../data/guestSampleProject';
 import PatchNotesModal from './patchNotes/PatchNotesModal';
+import { ConfirmDialog } from './ConfirmDialog';
 import { NicknameDisplay } from './NicknameDisplay';
 
 const isFileSystemAccessSupported =
@@ -102,6 +103,11 @@ export default function Header({
     currentProject?.id !== SAMPLE_PROJECT_ID;
 
   const [isBackupMenuOpen, setIsBackupMenuOpen] = useState(false);
+  const [importPending, setImportPending] = useState<{
+    data: Partial<Project>;
+    isReplacing: boolean;
+    title: string;
+  } | null>(null);
   const [backupMenuPosition, setBackupMenuPosition] = useState({ top: 0, right: 0 });
   const backupButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -150,14 +156,7 @@ export default function Header({
 
     const isReplacing = projects.some((project) => project.id === projectData!.id);
     const projectTitle = projectData.title || '無題のプロジェクト';
-    const confirmed = window.confirm(
-      isReplacing
-        ? `既存のプロジェクト「${projectTitle}」を、インポートしたファイルの内容で置き換えます。よろしいですか？`
-        : `プロジェクト「${projectTitle}」を新規追加します。よろしいですか？`,
-    );
-    if (!confirmed) return;
-
-    importProject(projectData);
+    setImportPending({ data: projectData, isReplacing, title: projectTitle });
   };
 
   const handleSaveOverwrite = async () => {
@@ -445,6 +444,23 @@ export default function Header({
         isOpen={isPatchNotesModalOpen}
         onClose={closePatchNotesModal}
         initialSelectedDate={selectedPatchNoteDate ?? undefined}
+      />
+
+      {/* ── プロジェクトインポートの確認 */}
+      <ConfirmDialog
+        isOpen={importPending !== null}
+        title="プロジェクトをインポート"
+        message={
+          importPending?.isReplacing
+            ? `既存のプロジェクト「${importPending.title}」を、インポートしたファイルの内容で置き換えます。よろしいですか？`
+            : `プロジェクト「${importPending?.title ?? ''}」を新規追加します。よろしいですか？`
+        }
+        confirmLabel="インポートする"
+        onConfirm={() => {
+          if (importPending) importProject(importPending.data);
+          setImportPending(null);
+        }}
+        onCancel={() => setImportPending(null)}
       />
     </>
   );

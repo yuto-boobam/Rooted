@@ -204,6 +204,17 @@ function mapEveryNode(
   return fn({ ...node, children });
 }
 
+/** クリップボードからの貼り付け用に、ノードとその子孫すべてへ新しいidを発行して複製する */
+function cloneNodeWithFreshIds(node: TaskNode, createdBy: string): TaskNode {
+  return {
+    ...node,
+    id: makeId(),
+    createdBy,
+    createdAt: new Date().toISOString(),
+    children: node.children.map((child) => cloneNodeWithFreshIds(child, createdBy)),
+  };
+}
+
 function findNode(node: TaskNode, targetId: string): TaskNode | null {
   if (node.id === targetId) return node;
 
@@ -596,6 +607,14 @@ export type AppState = {
   deleteNode: (projectId: string, nodeId: string) => void;
   toggleComplete: (projectId: string, nodeId: string) => void;
 
+  // クリップボード（タスク＋子タスクのコピー＆ペースト。Combo-LABの
+  // clipboard/pasteClipboardと同じ考え方。リロードでは消える一時的な状態のため
+  // persistのpartializeには含めない）
+  clipboardNode: TaskNode | null;
+  copyNodeToClipboard: (projectId: string, nodeId: string) => void;
+  pasteClipboardAsChild: (projectId: string, targetNodeId: string) => void;
+  clearClipboard: () => void;
+
   setNodeCompletion: (
     projectId: string,
     nodeId: string,
@@ -950,6 +969,42 @@ export const useAppStore = create<AppState>()(
             (id) => id !== nodeId,
           ),
         }));
+      },
+
+      clipboardNode: null,
+
+      copyNodeToClipboard: (projectId, nodeId) => {
+        const project = get().projects.find((item) => item.id === projectId);
+        if (!project) return;
+
+        const node = findNode(project.rootTask, nodeId);
+        if (!node) return;
+
+        set({ clipboardNode: node });
+      },
+
+      pasteClipboardAsChild: (projectId, targetNodeId) => {
+        const { clipboardNode, nickname } = get();
+        if (!clipboardNode) return;
+
+        const pastedNode = cloneNodeWithFreshIds(clipboardNode, nickname);
+
+        set((state) => ({
+          projects: state.projects.map((project) => {
+            if (project.id !== projectId) return project;
+
+            const nextRoot = mapNode(project.rootTask, targetNodeId, (node) => ({
+              ...node,
+              children: [...node.children, pastedNode],
+            }));
+
+            return updateProjectRoot(project, nextRoot);
+          }),
+        }));
+      },
+
+      clearClipboard: () => {
+        set({ clipboardNode: null });
       },
 
       toggleComplete: (projectId, nodeId) => {

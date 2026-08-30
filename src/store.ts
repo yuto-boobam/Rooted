@@ -17,6 +17,7 @@ import {
   SAMPLE_PROJECT_ID,
   makeSampleProject,
 } from './data/guestSampleProject';
+import { BACKUP_PROJECTS } from './data/backupProjects';
 
 // ── UI用定数 ─────────────────────────────────────────────────────────────
 
@@ -503,11 +504,14 @@ function normalizeProject(project: Partial<Project>): Project {
   };
 }
 
-// 全ユーザー最初からサンプルプロジェクトが存在している仕様のため、プロジェクトが
-// 1件もない状態（初回利用時）にだけサンプルプロジェクトを差し込む。既存の
-// プロジェクト（他に追加したものを含む）がある場合は何もしない
-function seedSampleProjectIfEmpty(projects: Project[]): Project[] {
-  return projects.length === 0 ? [normalizeProject(makeSampleProject())] : projects;
+// 全ユーザー最初からサンプルプロジェクト＋src/data/backups/に置かれたバックアップJSONが
+// 存在している仕様のため、プロジェクトが1件もない状態（初回利用時）にだけ差し込む。
+// 既存のプロジェクト（他に追加したものを含む）がある場合は何もしない。
+// なお、ゲストの画面表示はDashboardPage側でサンプルプロジェクトのみに絞り込んでいるため、
+// ここでバックアップ分を一緒に差し込んでもゲストの見え方には影響しない
+function seedInitialProjects(projects: Project[]): Project[] {
+  if (projects.length > 0) return projects;
+  return [makeSampleProject(), ...BACKUP_PROJECTS].map((project) => normalizeProject(project));
 }
 
 function normalizeRightPanelState(value: unknown): RightPanelState {
@@ -1355,9 +1359,9 @@ export const useAppStore = create<AppState>()(
         const persistedProjects = Array.isArray(persisted?.projects)
           ? persisted.projects.map((project) => normalizeProject(project))
           : currentState.projects;
-        // 全ユーザー最初からサンプルプロジェクトが存在している仕様のため、
+        // 全ユーザー最初からサンプルプロジェクト＋バックアップJSONが存在している仕様のため、
         // プロジェクトが1件もない初回利用時にだけ差し込む
-        const projects = seedSampleProjectIfEmpty(persistedProjects);
+        const projects = seedInitialProjects(persistedProjects);
 
         return {
           ...currentState,

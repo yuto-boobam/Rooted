@@ -50,7 +50,7 @@ export function AuthPage() {
       }}
     >
       <div
-        className="w-full max-w-md p-8 rounded-2xl glass animate-scaleIn"
+        className="w-full max-w-lg p-8 rounded-2xl glass animate-scaleIn"
         style={{
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
         }}
@@ -184,7 +184,8 @@ export function AuthPage() {
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
-        {/* ゲストモードボタン */}
+        {/* ゲストモード（閲覧専用）ボタン。クリック可能な要素はこの1つだけにし、
+            直下の説明文はteal色の非ボタンテキストで誘導する */}
         <button
           type="button"
           className="w-full btn-ghost justify-center py-3 text-sm font-semibold"
@@ -195,8 +196,11 @@ export function AuthPage() {
         >
           ゲストモードとしてログイン
         </button>
-        <div className="mt-2 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          ※ 登録不要でサンプルデータを使ってお試しいただけます。
+        <div
+          className="mt-2 text-center text-xs"
+          style={{ color: 'var(--accent-teal-text)', fontWeight: 700, whiteSpace: 'nowrap' }}
+        >
+          内容を試したい方は、登録不要の「ゲストモード」をお試しください
         </div>
 
         <div className="mt-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>

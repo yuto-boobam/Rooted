@@ -14,8 +14,8 @@ import { PROJECT_COLORS, PROJECT_ICONS } from './types';
 import { supabase } from './utils/supabaseClient';
 import { getDueUrgencyColors } from './utils/dueDateColor';
 import {
-  GUEST_SAMPLE_PROJECT_ID,
-  makeGuestSampleProject,
+  SAMPLE_PROJECT_ID,
+  makeSampleProject,
 } from './data/guestSampleProject';
 
 // ── UI用定数 ─────────────────────────────────────────────────────────────
@@ -503,6 +503,13 @@ function normalizeProject(project: Partial<Project>): Project {
   };
 }
 
+// 全ユーザー最初からサンプルプロジェクトが存在している仕様のため、プロジェクトが
+// 1件もない状態（初回利用時）にだけサンプルプロジェクトを差し込む。既存の
+// プロジェクト（他に追加したものを含む）がある場合は何もしない
+function seedSampleProjectIfEmpty(projects: Project[]): Project[] {
+  return projects.length === 0 ? [normalizeProject(makeSampleProject())] : projects;
+}
+
 function normalizeRightPanelState(value: unknown): RightPanelState {
   const partial =
     value && typeof value === 'object'
@@ -696,21 +703,45 @@ export const useAppStore = create<AppState>()(
       isGuest: false,
 
       enterGuestMode: () => {
-        set({ isGuest: true, user: null, nickname: 'ゲスト' });
+        // ログイン/ログアウトを繰り返しても前回開いていたプロジェクトのツリー画面や
+        // 右ドロワーへ直行してしまわないよう、画面遷移状態も必ずリセットする
+        set((state) => ({
+          isGuest: true,
+          user: null,
+          nickname: 'ゲスト',
+          view: 'dashboard',
+          currentProjectId: null,
+          selectedPath: [],
+          rightPanel: { ...state.rightPanel, isOpen: false },
+        }));
 
         const hasSampleProject = get().projects.some(
-          (project) => project.id === GUEST_SAMPLE_PROJECT_ID,
+          (project) => project.id === SAMPLE_PROJECT_ID,
         );
         if (!hasSampleProject) {
-          get().importProject(makeGuestSampleProject());
+          get().importProject(makeSampleProject());
         }
       },
 
       logout: async () => {
         if (get().isGuest) {
-          set({ isGuest: false, user: null, nickname: '' });
+          set((state) => ({
+            isGuest: false,
+            user: null,
+            nickname: '',
+            view: 'dashboard',
+            currentProjectId: null,
+            selectedPath: [],
+            rightPanel: { ...state.rightPanel, isOpen: false },
+          }));
           return;
         }
+        set((state) => ({
+          view: 'dashboard',
+          currentProjectId: null,
+          selectedPath: [],
+          rightPanel: { ...state.rightPanel, isOpen: false },
+        }));
         await supabase.auth.signOut();
       },
 
@@ -757,6 +788,8 @@ export const useAppStore = create<AppState>()(
       },
 
       // ──── プロジェクト操作 ────────────────────────────────────────────
+      // ゲストは追加・削除の操作自体をUIから提供しない（サンプルプロジェクトのみ表示）ため、
+      // ここではガードを設けず、実際の制限はDashboardPage側のUI表示で行う
 
       addProject: (title, description) => {
         const { nickname } = get();
@@ -1319,9 +1352,12 @@ export const useAppStore = create<AppState>()(
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AppState> | undefined;
 
-        const projects = Array.isArray(persisted?.projects)
+        const persistedProjects = Array.isArray(persisted?.projects)
           ? persisted.projects.map((project) => normalizeProject(project))
           : currentState.projects;
+        // 全ユーザー最初からサンプルプロジェクトが存在している仕様のため、
+        // プロジェクトが1件もない初回利用時にだけ差し込む
+        const projects = seedSampleProjectIfEmpty(persistedProjects);
 
         return {
           ...currentState,

@@ -1,12 +1,12 @@
 // src/data/guestSampleProject.ts
-// ゲストモード用のサンプルプロジェクト定義。
+// 全アカウント共通（ゲストも含む）で表示する唯一のサンプルプロジェクト定義。
 // normalizeProject() に通す前提の緩い形（Partial<Project>）で用意し、
 // progress・priorityOrder・backgroundColor 等はstore側の正規化処理に任せる。
 
 import type { Project } from '../types';
 
-/** ゲストモードで毎回重複生成しないための固定ID */
-export const GUEST_SAMPLE_PROJECT_ID = 'guest-sample-project';
+/** 毎回重複生成しないための固定ID */
+export const SAMPLE_PROJECT_ID = 'guest-sample-project';
 
 function offsetDateKey(days: number): string {
   const date = new Date();
@@ -20,10 +20,10 @@ function offsetDateKey(days: number): string {
 
 function buildSampleProjectData() {
   return {
-    id: GUEST_SAMPLE_PROJECT_ID,
+    id: SAMPLE_PROJECT_ID,
     title: 'サンプルプロジェクト',
     description:
-      'ゲストモードの操作感を確認するためのサンプルです。自由に編集・削除して試してください。',
+      'このツールの操作感を確認するためのサンプルです。自由に編集・削除して試してください。',
     icon: '🌱',
     color: '#3b82f6',
     createdBy: 'ゲスト',
@@ -131,6 +131,6 @@ function buildSampleProjectData() {
   };
 }
 
-export function makeGuestSampleProject(): Partial<Project> {
+export function makeSampleProject(): Partial<Project> {
   return buildSampleProjectData() as unknown as Partial<Project>;
 }

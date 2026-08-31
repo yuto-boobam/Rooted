@@ -1,0 +1,59 @@
+// src/utils/guestTutorialSession.ts
+// ゲスト（ログイン無しのお試し閲覧）が「サンプルプロジェクトを開く」誘導を
+// 一度でも達成したかどうかを、タブ/ブラウザを閉じるまでだけ覚えておくためのフラグ。
+//
+// Combo-LABの同種フラグ(guestTutorialSession.ts)と同じ設計。ゲストのデータは
+// zustand persistでlocalStorageへ永続化されないため対応するstoreフラグは無いが、
+// 同じブラウザで後から本アカウントへログインした際に誤って影響しないよう、
+// あえてlocalStorageではなくsessionStorageを使う。
+
+const GUEST_TUTORIAL_SEEN_KEY = 'rooted-guest-tutorial-seen';
+
+export function hasGuestSeenTutorial(): boolean {
+  try {
+    return sessionStorage.getItem(GUEST_TUTORIAL_SEEN_KEY) === '1';
+  } catch {
+    // プライベートブラウジング等でsessionStorageが使えない環境では、常に未達成扱いにする
+    return false;
+  }
+}
+
+export function markGuestTutorialSeen(): void {
+  try {
+    sessionStorage.setItem(GUEST_TUTORIAL_SEEN_KEY, '1');
+  } catch {
+    // 保存できなくても致命的ではない(次回また誘導が出るだけ)
+  }
+}
+
+// サイドドロワー・パッチノートへの誘導(第2段、store.tsのdrawerGuideStep)を最後まで
+// 達成したかどうか。ドロワー開閉やモーダル開閉は一過性のUI状態でツリーの状態からは
+// 導出できないため、こちらも同じくsessionStorageで「達成済みか」だけを覚えておく
+const GUEST_DRAWER_GUIDE_DONE_KEY = 'rooted-guest-drawer-guide-done';
+
+export function hasGuestFinishedDrawerGuide(): boolean {
+  try {
+    return sessionStorage.getItem(GUEST_DRAWER_GUIDE_DONE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markGuestDrawerGuideDone(): void {
+  try {
+    sessionStorage.setItem(GUEST_DRAWER_GUIDE_DONE_KEY, '1');
+  } catch {
+    // noop
+  }
+}
+
+// Header.tsxの「🔁チュートリアル」ボタン(resetSampleTutorial)でノード追加誘導(①)を
+// やり直す際、こちらの達成フラグも一緒に消さないと、②のドロワー誘導が
+// 「もう達成済み」のまま二度と出てこなくなる
+export function clearGuestDrawerGuideDone(): void {
+  try {
+    sessionStorage.removeItem(GUEST_DRAWER_GUIDE_DONE_KEY);
+  } catch {
+    // noop
+  }
+}

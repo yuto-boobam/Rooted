@@ -1,14 +1,41 @@
 // src/data/guestSampleProject.ts
-// ゲストモード用のサンプルプロジェクト定義。
+// 全アカウント共通（ゲストも含む）で表示する唯一のサンプルプロジェクト定義。
 // normalizeProject() に通す前提の緩い形（Partial<Project>）で用意し、
 // progress・priorityOrder・backgroundColor 等はstore側の正規化処理に任せる。
 
 import type { Project } from '../types';
 
-/** ゲストモードで毎回重複生成しないための固定ID */
-export const GUEST_SAMPLE_PROJECT_ID = 'guest-sample-project';
+/** 毎回重複生成しないための固定ID */
+export const SAMPLE_PROJECT_ID = 'guest-sample-project';
 
-function offsetDateKey(days: number): string {
+/** サンプルツリー内、ノード追加の操作を教える専用ノードの固定ID(誘導ガイドが目印にする) */
+export const TUTORIAL_NODE_ID = 'guest-sample-tutorial-node';
+
+// サンプルツリー内、期限を持たせているノードの固定ID。
+// 「サイトを開いた日から計算する」という仕様(下記SAMPLE_DUE_DATE_OFFSETS参照)のため、
+// 既にlocalStorageに保存済みのサンプルプロジェクトに対しても、これらのIDを目印に
+// store.ts側で毎回期限を実際の「今日」基準へ再計算する(通常のプロジェクトは
+// インポートしたJSONの期限をそのまま使うため、この再計算はサンプルプロジェクト限定)
+export const SAMPLE_DESIGN_NODE_ID = 'guest-sample-design-node';
+export const SAMPLE_DESIGN_SCREEN_NODE_ID = 'guest-sample-design-screen-node';
+export const SAMPLE_DB_DESIGN_NODE_ID = 'guest-sample-db-design-node';
+export const SAMPLE_FRONTEND_NODE_ID = 'guest-sample-frontend-node';
+export const SAMPLE_BACKEND_NODE_ID = 'guest-sample-backend-node';
+export const SAMPLE_RELEASE_NODE_ID = 'guest-sample-release-node';
+
+// 各ノードの期限 = 「サイトを開いた日(今日)」からの日数オフセット。増減はここだけ直せばよい。
+// ユーザー指定の内訳: DB設計だけ意図的に期限超過(-2)を見せ、実装は今日から6日後、
+// 設計・リリース準備は2〜3日後(画面設計は完了済みのため設計より少し前倒しの2日後)
+export const SAMPLE_DUE_DATE_OFFSETS: Record<string, number> = {
+  [SAMPLE_DESIGN_NODE_ID]: 3,
+  [SAMPLE_DESIGN_SCREEN_NODE_ID]: 2,
+  [SAMPLE_DB_DESIGN_NODE_ID]: -2,
+  [SAMPLE_FRONTEND_NODE_ID]: 6,
+  [SAMPLE_BACKEND_NODE_ID]: 6,
+  [SAMPLE_RELEASE_NODE_ID]: 2,
+};
+
+export function offsetDateKey(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
 
@@ -20,10 +47,10 @@ function offsetDateKey(days: number): string {
 
 function buildSampleProjectData() {
   return {
-    id: GUEST_SAMPLE_PROJECT_ID,
+    id: SAMPLE_PROJECT_ID,
     title: 'サンプルプロジェクト',
     description:
-      'ゲストモードの操作感を確認するためのサンプルです。自由に編集・削除して試してください。',
+      'このツールの操作感を確認するためのサンプルです。自由に編集・削除して試してください。',
     icon: '🌱',
     color: '#3b82f6',
     createdBy: 'ゲスト',
@@ -60,30 +87,33 @@ function buildSampleProjectData() {
           ],
         },
         {
+          id: SAMPLE_DESIGN_NODE_ID,
           title: '設計',
           memo: 'UI/UXとDB構成を固める',
           detailMemo: '',
           completed: false,
           isPriority: true,
-          dueDate: offsetDateKey(2),
+          dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_DESIGN_NODE_ID]),
           createdBy: 'ゲスト',
           children: [
             {
+              id: SAMPLE_DESIGN_SCREEN_NODE_ID,
               title: '画面設計',
               memo: 'Figmaでワイヤーフレーム作成済み',
               detailMemo: '',
               completed: true,
               isPriority: true,
-              dueDate: offsetDateKey(1),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_DESIGN_SCREEN_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
             {
+              id: SAMPLE_DB_DESIGN_NODE_ID,
               title: 'DB設計',
               memo: 'テーブル定義の見直しに時間がかかっている',
               detailMemo: '正規化のやり直しが必要かもしれない',
               completed: false,
-              dueDate: offsetDateKey(-2),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_DB_DESIGN_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
@@ -97,40 +127,62 @@ function buildSampleProjectData() {
           createdBy: 'ゲスト',
           children: [
             {
+              id: SAMPLE_FRONTEND_NODE_ID,
               title: 'フロントエンド実装',
               memo: '',
               detailMemo: '',
               completed: false,
               isPriority: true,
-              dueDate: offsetDateKey(10),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_FRONTEND_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
             {
+              id: SAMPLE_BACKEND_NODE_ID,
               title: 'バックエンド実装',
               memo: '',
               detailMemo: '',
               completed: false,
-              dueDate: offsetDateKey(10),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_BACKEND_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
           ],
         },
         {
+          id: SAMPLE_RELEASE_NODE_ID,
           title: 'リリース準備',
           memo: '本番環境へのデプロイ手順を確認',
           detailMemo: 'デプロイ後は動作確認チェックリストに沿って検証する',
           completed: false,
-          dueDate: offsetDateKey(5),
+          dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_RELEASE_NODE_ID]),
           createdBy: 'ゲスト',
           children: [],
         },
+        makeTutorialNode(),
       ],
     },
   };
 }
 
-export function makeGuestSampleProject(): Partial<Project> {
+// ゲスト向け誘導ガイド(TreePage.tsx)の目印になる練習用ノード。IDを固定していつでも
+// 見つけられるようにしている。子は初期状態では空で、誘導に沿ってここに実際に
+// 子・兄弟タスクを追加してもらう。
+// store.ts側でも、既にlocalStorageに保存済み(この機能追加より前)のサンプルプロジェクトへ
+// 後から差し込むために再利用する(makeSampleProject()は既存のプロジェクトを上書きしない
+// 仕様のため、新規追加したこのノードだけは別途マイグレーションが必要)
+export function makeTutorialNode() {
+  return {
+    id: TUTORIAL_NODE_ID,
+    title: '操作方法',
+    memo: 'Enterで子タスク、Tabで兄弟タスクを追加できます',
+    detailMemo: 'このノードの下で実際にEnter・Tabキーを使ってタスクを追加してみてください。',
+    completed: false,
+    createdBy: 'ゲスト',
+    children: [],
+  };
+}
+
+export function makeSampleProject(): Partial<Project> {
   return buildSampleProjectData() as unknown as Partial<Project>;
 }

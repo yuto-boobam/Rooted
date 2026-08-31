@@ -1,9 +1,9 @@
 // src/components/RightDrawerPanel.tsx
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
-import { flattenProjectTasks, type FlatTask } from '../utils/taskTree';
+import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
 import AccordionSection from './AccordionSection';
 import DrawerLogoutFooter from './DrawerLogoutFooter';
 
@@ -26,6 +26,8 @@ export default function RightDrawerPanel() {
     const toggleTheme = useAppStore((state) => state.toggleTheme);
 
     const rightPanel = useAppStore((state) => state.rightPanel);
+    const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
+    const setDrawerGuideStep = useAppStore((state) => state.setDrawerGuideStep);
     const closeRightPanel = useAppStore((state) => state.closeRightPanel);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
@@ -95,11 +97,18 @@ export default function RightDrawerPanel() {
 
     const today = todayDateKey();
 
+    // 「今日が期限」だけでなく、既に期限を過ぎた未完了タスクもここに含める
+    // (期限切れタスクが宙に浮いて見えなくなるのを防ぐため)。個々の行では
+    // TaskRow側で「期限切れ」か「本日期限」かを判別して表示する
     const todayDueTasks = useMemo(
         () =>
             tasks
-                .filter((task) => task.node.dueDate === today && !task.node.completed)
-                .sort((a, b) => a.node.title.localeCompare(b.node.title, 'ja')),
+                .filter((task) => task.node.dueDate !== null && task.node.dueDate <= today && !task.node.completed)
+                .sort(
+                    (a, b) =>
+                        (a.node.dueDate ?? '').localeCompare(b.node.dueDate ?? '') ||
+                        a.node.title.localeCompare(b.node.title, 'ja'),
+                ),
         [tasks, today],
     );
 
@@ -152,15 +161,8 @@ export default function RightDrawerPanel() {
 
     return (
         <>
-            {rightPanel.isOpen && (
-                <button
-                    type="button"
-                    aria-label="右側パネルを閉じる"
-                    style={styles.backdrop}
-                    onClick={closeRightPanel}
-                />
-            )}
-
+            {/* 背面をクリックしても閉じない（Combo-LABのSideDrawerPanelと同じく、開いたまま
+                裏のツリーを操作できるようにする。閉じるのはヘッダーの開閉ボタンのみ） */}
             <aside
                 style={{
                     ...styles.drawer,
@@ -262,14 +264,14 @@ export default function RightDrawerPanel() {
                         />
 
                         <AccordionSection
-                            title="今日が期限のタスク"
+                            title="今日・期限切れのタスク"
                             icon="⏰"
                             count={todayDueTasks.length}
                             isOpen={rightPanel.isTodayDueOpen}
                             onToggle={() => toggleRightPanelSection('isTodayDueOpen')}
                         >
                             {todayDueTasks.length === 0 ? (
-                                <EmptyMessage text="今日が期限の未完了タスクはありません。" />
+                                <EmptyMessage text="今日が期限・期限切れの未完了タスクはありません。" />
                             ) : (
                                 <div style={styles.taskList}>
                                     {todayDueTasks.map((task) => (
@@ -291,6 +293,16 @@ export default function RightDrawerPanel() {
                             count={priorityTasks.length}
                             isOpen={rightPanel.isPriorityListOpen}
                             onToggle={() => toggleRightPanelSection('isPriorityListOpen')}
+                            isGuideTarget={drawerGuideStep === 'priorityInfo'}
+                            guideHintText="優先登録したタスクをまとめて確認・並び替えできます"
+                            onGuideNext={() => {
+                                // カレンダーの説明がスクロールなしで見えるよう、
+                                // 見終えた優先的タスクは畳んで縦のスペースを空ける
+                                if (rightPanel.isPriorityListOpen) {
+                                    toggleRightPanelSection('isPriorityListOpen');
+                                }
+                                setDrawerGuideStep('calendarInfo');
+                            }}
                         >
                             {priorityTasks.length === 0 ? (
                                 <EmptyMessage text="優先登録された未完了タスクはありません。" />
@@ -338,8 +350,8 @@ export default function RightDrawerPanel() {
                                                         : '期限未設定'}
                                                 </div>
 
-                                                <div style={styles.pathText}>
-                                                    {task.pathTitles.join(' / ')}
+                                                <div style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                                                    {formatCompactPath(task.pathTitles)}
                                                 </div>
                                             </div>
 
@@ -390,6 +402,9 @@ export default function RightDrawerPanel() {
                             count={tasks.filter((task) => task.node.completedAt).length}
                             isOpen={rightPanel.isCalendarOpen}
                             onToggle={() => toggleRightPanelSection('isCalendarOpen')}
+                            isGuideTarget={drawerGuideStep === 'calendarInfo'}
+                            guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
+                            onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
                         >
                             <div style={styles.calendarTabs}>
                                 <button
@@ -464,6 +479,18 @@ function SelectedTaskEditor({
     onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
 }) {
+    const detailMemoRef = useRef<HTMLTextAreaElement>(null);
+
+    // 詳細メモは初期状態を小さくし、入力量に応じて自動で高さが伸びるようにする
+    // (resize:verticalによる手動リサイズだと、初期表示のたびに大きな空欄が
+    // 目立ってドロワー内の縦スペースを圧迫していた)
+    useLayoutEffect(() => {
+        const el = detailMemoRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [task?.node.detailMemo, task?.node.id]);
+
     if (!task) {
         return (
             <section style={styles.selectedBox}>
@@ -492,6 +519,33 @@ function SelectedTaskEditor({
             </div>
 
             <div style={styles.selectedControls}>
+                {/* 期限・達成日は横に並べて縦のスペースを節約する */}
+                <div style={styles.dateRow}>
+                    <label style={{ ...styles.inputLabel, flex: 1 }}>
+                        期限
+                        <input
+                            type="date"
+                            value={task.node.dueDate ?? ''}
+                            style={styles.dateInput}
+                            onChange={(event) => onChangeDueDate(event.target.value || null)}
+                        />
+                    </label>
+
+                    {task.node.completed && (
+                        <label style={{ ...styles.inputLabel, flex: 1 }}>
+                            達成日
+                            <input
+                                type="date"
+                                value={task.node.completedAt ?? ''}
+                                style={styles.dateInput}
+                                onChange={(event) =>
+                                    onChangeCompletedAt(event.target.value || null)
+                                }
+                            />
+                        </label>
+                    )}
+                </div>
+
                 <label style={styles.inputLabel}>
                     概要メモ
                     <input
@@ -504,36 +558,13 @@ function SelectedTaskEditor({
                 </label>
 
                 <label style={styles.inputLabel}>
-                    期限
-                    <input
-                        type="date"
-                        value={task.node.dueDate ?? ''}
-                        style={styles.dateInput}
-                        onChange={(event) => onChangeDueDate(event.target.value || null)}
-                    />
-                </label>
-
-                {task.node.completed && (
-                    <label style={styles.inputLabel}>
-                        達成日
-                        <input
-                            type="date"
-                            value={task.node.completedAt ?? ''}
-                            style={styles.dateInput}
-                            onChange={(event) =>
-                                onChangeCompletedAt(event.target.value || null)
-                            }
-                        />
-                    </label>
-                )}
-
-                <label style={styles.inputLabel}>
                     詳細メモ
                     <textarea
+                        ref={detailMemoRef}
                         value={task.node.detailMemo}
                         style={styles.detailTextarea}
                         placeholder="具体的な手順・仕様・補足メモを入力..."
-                        rows={4}
+                        rows={1}
                         onChange={(event) => onChangeDetailMemo(event.target.value)}
                     />
                 </label>
@@ -583,13 +614,18 @@ function TaskRow({
             </label>
 
             <div style={styles.taskMeta}>
+                {task.node.dueDate && task.node.dueDate < todayDateKey() && (
+                    <span style={styles.overdueBadge}>期限切れ</span>
+                )}
                 {task.node.dueDate
                     ? `期限: ${formatDateLabel(task.node.dueDate)}`
                     : '期限未設定'}
             </div>
 
             <div style={styles.taskFooter}>
-                <span style={styles.pathText}>{task.pathTitles.join(' / ')}</span>
+                <span style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                    {formatCompactPath(task.pathTitles)}
+                </span>
 
                 <button type="button" style={styles.textButton} onClick={onSelect}>
                     選択
@@ -797,8 +833,8 @@ function MonthlyCalendar({
                                 </label>
 
                                 <div style={styles.taskFooter}>
-                                    <span style={styles.pathText}>
-                                        {task.pathTitles.join(' / ')}
+                                    <span style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                                        {formatCompactPath(task.pathTitles)}
                                     </span>
 
                                     <button
@@ -850,15 +886,6 @@ function formatDateWithWeekday(dateKey: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-    backdrop: {
-        position: 'fixed',
-        inset: 0,
-        zIndex: 699,
-        border: 0,
-        background: 'rgba(2, 6, 23, 0.22)',
-        cursor: 'default',
-    },
-
     drawer: {
         position: 'fixed',
         top: 0,
@@ -933,6 +960,11 @@ const styles: Record<string, CSSProperties> = {
         minHeight: 0,
         minWidth: 0,
         overflowY: 'auto',
+        // overflow-yをauto等にすると、overflow-xを明示しない限りブラウザはそちらも
+        // auto扱いにする（CSS仕様上の既定挙動）。中の要素がわずかでも幅をはみ出すと
+        // ドロワー全体が横スクロール可能になり、他のセクションまで巻き込まれて
+        // ずれて見える不具合になっていたため、横方向のはみ出しは常に隠す
+        overflowX: 'hidden',
         overscrollBehavior: 'contain',
         padding: 12,
         display: 'grid',
@@ -998,6 +1030,11 @@ const styles: Record<string, CSSProperties> = {
         fontWeight: 800,
     },
 
+    dateRow: {
+        display: 'flex',
+        gap: 8,
+    },
+
     dateInput: {
         border: '1px solid var(--border)',
         background: 'var(--bg-base)',
@@ -1008,6 +1045,9 @@ const styles: Record<string, CSSProperties> = {
         colorScheme: 'light dark',
     },
 
+    // 初期状態は1行分程度の小さいテキストボックスにし、入力量に応じてJS側
+    // (SelectedTaskEditorのuseLayoutEffect)がscrollHeightに合わせて高さを伸ばす。
+    // resizeは使わない(自動で伸びるため手動リサイズと競合させない)
     detailTextarea: {
         border: '1px solid var(--border)',
         background: 'var(--bg-base)',
@@ -1016,9 +1056,10 @@ const styles: Record<string, CSSProperties> = {
         padding: '9px 10px',
         fontSize: 12,
         lineHeight: 1.55,
-        resize: 'vertical',
-        minHeight: 96,
+        resize: 'none',
+        minHeight: 34,
         outline: 'none',
+        overflow: 'hidden',
     },
 
     selectedButtonGrid: {
@@ -1083,6 +1124,18 @@ const styles: Record<string, CSSProperties> = {
         fontSize: 11,
     },
 
+    overdueBadge: {
+        display: 'inline-block',
+        marginRight: 6,
+        padding: '1px 6px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+        fontSize: 10,
+        fontWeight: 900,
+    },
+
     taskFooter: {
         marginTop: 7,
         display: 'flex',
@@ -1092,6 +1145,11 @@ const styles: Record<string, CSSProperties> = {
     },
 
     pathText: {
+        // white-space:nowrapなテキストはflexアイテムの自動最小幅（min-width:auto）が
+        // 内容の全幅になり、overflow/text-overflowを付けていても実際には縮まず横に
+        // はみ出してしまう。minWidth:0で明示的に上書きすることで、隣のボタンを
+        // 押し出さずにこの中で省略記号（…）に切り詰められるようにする
+        minWidth: 0,
         color: 'var(--text-muted)',
         fontSize: 11,
         overflow: 'hidden',
@@ -1100,6 +1158,7 @@ const styles: Record<string, CSSProperties> = {
     },
 
     textButton: {
+        flexShrink: 0,
         border: 0,
         background: 'transparent',
         color: 'var(--accent-blue-text)',

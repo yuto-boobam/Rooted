@@ -9,3 +9,9 @@ export function isLoopbackHostname(hostname: string = window.location.hostname):
 export function canEditPatchNotesLocally(): boolean {
   return import.meta.env.DEV && isLoopbackHostname();
 }
+
+// バックアップの「プロジェクトへ保存」（src/data/backups/への直接書き込み）も、
+// メンテナが手元でnpm run devした時だけ行えるようにする
+export function canEditBackupProjectsLocally(): boolean {
+  return import.meta.env.DEV && isLoopbackHostname();
+}

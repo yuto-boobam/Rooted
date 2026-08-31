@@ -283,6 +283,21 @@ body {
 }
 .animate-scaleIn { animation: scaleIn 0.2s ease-out; }
 
+/* チュートリアル: ゲスト初回、サンプルプロジェクトを開くよう誘導する吹き出し・強調枠
+   (Combo-LABのguestTutorialSession.ts/tutorial-guide-bubbleと同じ設計、詳細はDashboardPage.tsx) */
+@keyframes tutorialGuideBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+.tutorial-guide-bubble { animation: tutorialGuideBounce 1.6s ease-in-out infinite; }
+
+@keyframes tutorialSpotlightPulse {
+  0%   { box-shadow: 0 0 0 0 var(--accent-glow); }
+  70%  { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+.tutorial-spotlight-ring { animation: tutorialSpotlightPulse 1.4s ease-out infinite; }
+
 /* ドラッグ中のスタイル */
 .drag-over {
   border-color: var(--accent) !important;

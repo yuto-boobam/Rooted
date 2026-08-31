@@ -3,7 +3,8 @@ import type { Project } from '../types';
 type Props = {
   project: Project;
   onOpen: () => void;
-  onDelete: () => void;
+  /** 未指定ならホバー時の削除ボタンごと出さない（ゲストのサンプルプロジェクト用） */
+  onDelete?: () => void;
 };
 
 /** 日付文字列を「YYYY/MM/DD HH:mm」形式にフォーマットする */
@@ -24,7 +25,7 @@ export function ProjectCard({ project, onOpen, onDelete }: Props) {
     >
       {/* 上部：アイコン＋タイトル（隣接配置でコンパクトに） */}
       {/* 削除ボタンはホバー時のみ絶対配置で重ねて表示し、通常時にタイトル幅を圧迫しないようにする */}
-      <div className="flex items-center gap-2 min-w-0 pr-8">
+      <div className="flex items-center gap-2 min-w-0" style={{ paddingRight: onDelete ? 32 : 0 }}>
         {/* カラー付きアイコン */}
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
@@ -43,25 +44,27 @@ export function ProjectCard({ project, onOpen, onDelete }: Props) {
         </h2>
       </div>
 
-      {/* 削除ボタン（ホバー時にカード右上へ重ねて表示） */}
-      <div
-        className="absolute top-6 right-6 flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={(e) => e.stopPropagation()} // カード全体のクリックを止める
-      >
-        <button
-          id={`delete-project-${project.id}`}
-          className="btn-icon"
-          onClick={onDelete}
-          title="プロジェクトを削除"
+      {/* 削除ボタン（ホバー時にカード右上へ重ねて表示。ゲストは渡されないため表示されない） */}
+      {onDelete && (
+        <div
+          className="absolute top-6 right-6 flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()} // カード全体のクリックを止める
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14H6L5 6" />
-            <path d="M10 11v6M14 11v6" />
-            <path d="M9 6V4h6v2" />
-          </svg>
-        </button>
-      </div>
+          <button
+            id={`delete-project-${project.id}`}
+            className="btn-icon"
+            onClick={onDelete}
+            title="プロジェクトを削除"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* 説明文（1行省略、高さを揃えるため常に表示） */}
       <p

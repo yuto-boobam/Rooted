@@ -14,13 +14,28 @@ import { PROJECT_COLORS, PROJECT_ICONS } from './types';
 import { supabase } from './utils/supabaseClient';
 import { getDueUrgencyColors } from './utils/dueDateColor';
 import {
-  GUEST_SAMPLE_PROJECT_ID,
-  makeGuestSampleProject,
+  SAMPLE_PROJECT_ID,
+  TUTORIAL_NODE_ID,
+  SAMPLE_DUE_DATE_OFFSETS,
+  makeSampleProject,
+  makeTutorialNode,
+  offsetDateKey,
 } from './data/guestSampleProject';
+import { BACKUP_PROJECTS } from './data/backupProjects';
+import { clearGuestDrawerGuideDone } from './utils/guestTutorialSession';
 
 // ── UI用定数 ─────────────────────────────────────────────────────────────
 
 export const PRIORITY_TASK_BORDER_COLOR = '#fb7185';
+
+// ゲスト向け誘導ガイド第2段(サイドドロワー・パッチノート)の段階。詳細はAppState内のコメント参照
+export type DrawerGuideStep =
+  | 'idle'
+  | 'openDrawer'
+  | 'priorityInfo'
+  | 'calendarInfo'
+  | 'openPatchNotes'
+  | 'done';
 
 const DEFAULT_RIGHT_PANEL_STATE: RightPanelState = {
   isOpen: false,
@@ -503,6 +518,63 @@ function normalizeProject(project: Partial<Project>): Project {
   };
 }
 
+// 全ユーザー最初からサンプルプロジェクト＋src/data/backups/に置かれたバックアップJSONが
+// 存在している仕様のため、プロジェクトが1件もない状態（初回利用時）にだけ差し込む。
+// 既存のプロジェクト（他に追加したものを含む）がある場合は何もしない。
+// なお、ゲストの画面表示はDashboardPage側でサンプルプロジェクトのみに絞り込んでいるため、
+// ここでバックアップ分を一緒に差し込んでもゲストの見え方には影響しない
+function seedInitialProjects(projects: Project[]): Project[] {
+  if (projects.length > 0) return projects;
+  return [makeSampleProject(), ...BACKUP_PROJECTS].map((project) => normalizeProject(project));
+}
+
+// サンプルプロジェクトはmakeSampleProject()で1度だけ初回に差し込まれ、以後は既存の
+// localStorageの内容がそのまま使われる(ユーザーが行った編集を上書きしないため)。
+// そのため、この機能を追加する以前からlocalStorageにサンプルプロジェクトを持っていた
+// ユーザー(過去にゲストログイン済みのブラウザ等)には、サンプルの内容を更新しても
+// 自動的には反映されない。「操作方法」ノードのように後から追加した固定ノードは、
+// 無ければ末尾に補完する形で個別にマイグレーションする。
+//
+// 期限については、通常のプロジェクト(インポートしたJSONの期限をそのまま使う)とは
+// 扱いを分け、サンプルプロジェクトの期限だけは「サイトを開いた日」から計算し直す
+// 仕様にした(ユーザー指定)。そのため下のensureSampleProjectFreshで、無ければ足す
+// だけの「操作方法」ノードとは違い、期限は毎回無条件で今日基準の値に上書きする
+function resyncSampleDueDates(rootTask: TaskNode): TaskNode {
+  return mapEveryNode(rootTask, (node) => {
+    const offsetDays = SAMPLE_DUE_DATE_OFFSETS[node.id];
+    if (offsetDays === undefined) return node;
+
+    const dueDate = offsetDateKey(offsetDays);
+    return {
+      ...node,
+      dueDate,
+      backgroundColor: getDueBackgroundColor(dueDate, node.completed),
+    };
+  });
+}
+
+function ensureSampleProjectFresh(project: Project): Project {
+  if (project.id !== SAMPLE_PROJECT_ID) return project;
+
+  const alreadyHasTutorialNode = project.rootTask.children.some(
+    (child) => child.id === TUTORIAL_NODE_ID,
+  );
+
+  const rootTaskWithTutorialNode = alreadyHasTutorialNode
+    ? project.rootTask
+    : {
+        ...project.rootTask,
+        children: [
+          ...project.rootTask.children,
+          normalizeTaskNode(makeTutorialNode(), project.rootTask.createdBy),
+        ],
+      };
+
+  const rootTaskWithFreshDueDates = resyncSampleDueDates(rootTaskWithTutorialNode);
+
+  return updateProjectRoot(project, rootTaskWithFreshDueDates);
+}
+
 function normalizeRightPanelState(value: unknown): RightPanelState {
   const partial =
     value && typeof value === 'object'
@@ -537,6 +609,11 @@ export type AppState = {
   isGuest: boolean;
   enterGuestMode: () => void;
   logout: () => Promise<void>;
+
+  // サンプルプロジェクトの「操作方法」ノードを初期状態(子なし)へ丸ごと差し替え、
+  // 誘導ガイドを最初からやり直せるようにする(TreePage.tsxの誘導は専用フラグを
+  // 持たずツリーの実際の状態から導出しているため、ノードを初期状態へ戻すだけで良い)
+  resetSampleTutorial: () => void;
 
   nickname: string;
   setNickname: (nickname: string) => Promise<void>;
@@ -679,6 +756,20 @@ export type AppState = {
   toggleRightPanel: () => void;
   toggleRightPanelSection: (section: RightPanelSectionKey) => void;
   setRightPanelCalendarMode: (mode: CalendarViewMode) => void;
+
+  // ゲスト向け誘導ガイド(第2段)。「操作方法」ノードの誘導([[TreePage.tsx]]のnodeGuideStep)が
+  // 終わった後、サイドドロワー・パッチノートへ誘導する。ドロワー開閉やモーダル開閉は
+  // 一度開いて閉じると元に戻ってしまう一過性のUI状態なので、ツリーの状態だけからは
+  // 導出できず、この段階だけは明示的なstepを持つ(Header.tsx/RightDrawerPanel.tsxが読む)。
+  // 永続化はしない(persistのpartializeに含めない)
+  drawerGuideStep: DrawerGuideStep;
+  setDrawerGuideStep: (step: DrawerGuideStep) => void;
+
+  // 誘導完了後の締めのメッセージ(TreePage.tsx)を表示中かどうか。この間、
+  // メッセージ内で紹介しているタスクパネルボタンをHeader.tsx側で光らせるため、
+  // TreePage.tsxだけでなくHeader.tsxからも参照できるようstoreに置く
+  showGuideClosingMessage: boolean;
+  setShowGuideClosingMessage: (value: boolean) => void;
 };
 
 // ── ストア本体 ─────────────────────────────────────────────────────────────
@@ -696,21 +787,82 @@ export const useAppStore = create<AppState>()(
       isGuest: false,
 
       enterGuestMode: () => {
-        set({ isGuest: true, user: null, nickname: 'ゲスト' });
+        // ログイン/ログアウトを繰り返しても前回開いていたプロジェクトのツリー画面や
+        // 右ドロワーへ直行してしまわないよう、画面遷移状態も必ずリセットする
+        set((state) => ({
+          isGuest: true,
+          user: null,
+          nickname: 'ゲスト',
+          view: 'dashboard',
+          currentProjectId: null,
+          selectedPath: [],
+          rightPanel: { ...state.rightPanel, isOpen: false },
+        }));
 
         const hasSampleProject = get().projects.some(
-          (project) => project.id === GUEST_SAMPLE_PROJECT_ID,
+          (project) => project.id === SAMPLE_PROJECT_ID,
         );
         if (!hasSampleProject) {
-          get().importProject(makeGuestSampleProject());
+          get().importProject(makeSampleProject());
+        } else {
+          // ページを再読み込みせずログアウト→ゲストを繰り返した場合、persistの
+          // merge()によるマイグレーション(下記ensureSampleProjectFresh)は
+          // 走らないため、ここでも既存のサンプルプロジェクトの補完・期限の再計算を行う
+          set((state) => ({
+            projects: state.projects.map(ensureSampleProjectFresh),
+          }));
         }
+      },
+
+      resetSampleTutorial: () => {
+        set((state) => ({
+          projects: state.projects.map((project) => {
+            if (project.id !== SAMPLE_PROJECT_ID) return project;
+
+            const resetNode = normalizeTaskNode(
+              makeTutorialNode(),
+              project.rootTask.createdBy,
+            );
+
+            return updateProjectRoot(project, {
+              ...project.rootTask,
+              children: project.rootTask.children.map((child) =>
+                child.id === TUTORIAL_NODE_ID ? resetNode : child,
+              ),
+            });
+          }),
+          collapsedNodeIds: state.collapsedNodeIds.filter(
+            (id) => id !== TUTORIAL_NODE_ID,
+          ),
+          // ①(ノード追加)だけでなく②(ドロワー・パッチノート誘導)もやり直せるよう、
+          // こちらの状態・達成フラグも一緒にリセットする
+          drawerGuideStep: 'idle',
+        }));
+        clearGuestDrawerGuideDone();
+
+        get().openProject(SAMPLE_PROJECT_ID);
+        get().selectNode(TUTORIAL_NODE_ID);
       },
 
       logout: async () => {
         if (get().isGuest) {
-          set({ isGuest: false, user: null, nickname: '' });
+          set((state) => ({
+            isGuest: false,
+            user: null,
+            nickname: '',
+            view: 'dashboard',
+            currentProjectId: null,
+            selectedPath: [],
+            rightPanel: { ...state.rightPanel, isOpen: false },
+          }));
           return;
         }
+        set((state) => ({
+          view: 'dashboard',
+          currentProjectId: null,
+          selectedPath: [],
+          rightPanel: { ...state.rightPanel, isOpen: false },
+        }));
         await supabase.auth.signOut();
       },
 
@@ -757,6 +909,8 @@ export const useAppStore = create<AppState>()(
       },
 
       // ──── プロジェクト操作 ────────────────────────────────────────────
+      // ゲストは追加・削除の操作自体をUIから提供しない（サンプルプロジェクトのみ表示）ため、
+      // ここではガードを設けず、実際の制限はDashboardPage側のUI表示で行う
 
       addProject: (title, description) => {
         const { nickname } = get();
@@ -1298,6 +1452,14 @@ export const useAppStore = create<AppState>()(
           },
         }));
       },
+
+      // ──── ゲスト向け誘導ガイド第2段 ────────────────────────────────────
+
+      drawerGuideStep: 'idle',
+      setDrawerGuideStep: (step) => set({ drawerGuideStep: step }),
+
+      showGuideClosingMessage: false,
+      setShowGuideClosingMessage: (value) => set({ showGuideClosingMessage: value }),
     }),
     {
       name: 'rooted-storage',
@@ -1319,9 +1481,14 @@ export const useAppStore = create<AppState>()(
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AppState> | undefined;
 
-        const projects = Array.isArray(persisted?.projects)
+        const persistedProjects = Array.isArray(persisted?.projects)
           ? persisted.projects.map((project) => normalizeProject(project))
           : currentState.projects;
+        // 全ユーザー最初からサンプルプロジェクト＋バックアップJSONが存在している仕様のため、
+        // プロジェクトが1件もない初回利用時にだけ差し込む
+        const projects = seedInitialProjects(persistedProjects).map(
+          ensureSampleProjectFresh,
+        );
 
         return {
           ...currentState,

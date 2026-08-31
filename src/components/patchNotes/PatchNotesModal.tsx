@@ -131,6 +131,9 @@ export default function PatchNotesModal({
             <h2 id="patch-notes-title" style={styles.title}>
               📜 パッチノート
             </h2>
+            <p style={styles.description}>
+              制作者の日々の変更をここに記録しています。
+            </p>
             <p style={styles.subtitle}>
               src/data/patchNotes.json で管理中 / {patchNoteDateCount}日分の更新履歴
             </p>
@@ -313,10 +316,16 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 19,
     fontWeight: 900,
   },
-  subtitle: {
+  description: {
     margin: '5px 0 0',
-    color: '#94a3b8',
-    fontSize: 12,
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  subtitle: {
+    margin: '3px 0 0',
+    color: '#64748b',
+    fontSize: 11,
   },
   headerRight: {
     flex: '0 0 auto',

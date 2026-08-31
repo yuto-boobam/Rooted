@@ -3,6 +3,7 @@ import { useAppStore } from '../store';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TaskNodeCard } from '../components/TaskNodeCard';
 import { NewTaskModal } from '../components/NewTaskModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import Header from '../components/Header';
 import RightDrawerPanel from '../components/RightDrawerPanel';
 import type { TaskNode } from '../types';
@@ -13,8 +14,15 @@ import {
   findNode,
   buildParentMap,
   ConnectionsOverlay,
+  isNodeExpanded,
   type TreeColumn,
 } from '../lib/tree';
+import { SAMPLE_PROJECT_ID, TUTORIAL_NODE_ID } from '../data/guestSampleProject';
+import { GuideConnector, type GuideTargetAnchor } from '../components/GuideConnector';
+import {
+  hasGuestFinishedDrawerGuide,
+  markGuestDrawerGuideDone,
+} from '../utils/guestTutorialSession';
 import {
   TREE_LAYOUT_CONFIG,
   CANVAS_PADDING,
@@ -22,6 +30,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
   ZOOM_STEP,
+  DEFAULT_ZOOM,
 } from './TreePage.config';
 
 type DraggedNodeData = {
@@ -60,11 +69,17 @@ export function TreePage() {
     collapsedNodeIds,
     rightPanel,
     isPatchNotesModalOpen,
+    isGuest,
+    drawerGuideStep,
+    setDrawerGuideStep,
+    showGuideClosingMessage,
+    setShowGuideClosingMessage,
 
     goToDashboard,
     selectNode,
     navigateToPath,
     toggleNodeExpanded,
+    toggleRightPanelSection,
 
     addChildNode,
     addSiblingNode,
@@ -88,8 +103,11 @@ export function TreePage() {
   // ── タスク追加モーダルの状態
   const [modal, setModal] = useState<ModalState>({ open: false });
 
+  // ── タスク削除の確認ダイアログの状態
+  const [nodePendingDelete, setNodePendingDelete] = useState<TaskNode | null>(null);
+
   // ── 画面比率（ズーム）
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
   // ── ドラッグで画面を動かす（パン）
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -220,7 +238,9 @@ export function TreePage() {
   useEffect(() => {
     if (!rootId) return;
     if (modal.open) return;
-    if (rightPanel.isOpen) return;
+    // サイドドロワーが開いていてもEnter/Tabでのノード追加は使えるようにする。
+    // ドロワー内の入力欄にフォーカスしている間はshouldIgnoreShortcutTargetが
+    // 別途弾くため、ここでドロワーの開閉自体をブロックする必要は無い
     if (isPatchNotesModalOpen) return;
 
     const handler = (event: KeyboardEvent) => {
@@ -250,7 +270,6 @@ export function TreePage() {
     };
   }, [
     modal.open,
-    rightPanel.isOpen,
     isPatchNotesModalOpen,
     lastSelectedId,
     rootId,
@@ -276,6 +295,177 @@ export function TreePage() {
     [collapsedNodeIds],
   );
 
+  // ── ゲスト向け誘導ガイド:「操作方法」ノードでの子・兄弟タスク追加→チェック→畳む、の
+  // 一連の流れを案内する。ツリーの実際の状態(子の数・完了・開閉)から現在地を毎回
+  // 導出しているだけで、専用のフラグは持たない。そのため、練習で作ったタスクを
+  // 削除・未完了に戻す等すれば自然に該当ステップへ巻き戻る(セッションを跨いだ状態は
+  // 通常のプロジェクトデータと同様zustand persistでlocalStorageに残る)
+  const tutorialNode = root ? findNode(root, TUTORIAL_NODE_ID) : null;
+  const nodeGuideActive = isGuest && project?.id === SAMPLE_PROJECT_ID && Boolean(tutorialNode);
+  const firstPracticeChild = tutorialNode?.children[0] ?? null;
+  const secondPracticeChild = tutorialNode?.children[1] ?? null;
+
+  type NodeGuideStep =
+    | 'addChild'
+    | 'addSibling'
+    | 'checkFirstChild'
+    | 'checkSecondChild'
+    | 'collapseNode'
+    | 'done';
+
+  // 子・兄弟タスクは2つとも作った本人が実際にチェックを入れて完了させる(片方だけ
+  // 完了した状態でいきなり「たたむ」通知が出るのは不自然、というユーザー指摘を受けて
+  // 2段階に分割済み)
+  const nodeGuideStep: NodeGuideStep = !nodeGuideActive || !tutorialNode
+    ? 'done'
+    : tutorialNode.children.length === 0
+      ? 'addChild'
+      : tutorialNode.children.length === 1
+        ? 'addSibling'
+        : !firstPracticeChild?.completed
+          ? 'checkFirstChild'
+          : !secondPracticeChild?.completed
+            ? 'checkSecondChild'
+            : !collapsedSet.has(tutorialNode.id)
+              ? 'collapseNode'
+              : 'done';
+
+  const guideTargetId: string | null = (
+    {
+      addChild: tutorialNode?.id ?? null,
+      addSibling: firstPracticeChild?.id ?? null,
+      checkFirstChild: firstPracticeChild?.id ?? null,
+      checkSecondChild: secondPracticeChild?.id ?? null,
+      collapseNode: tutorialNode?.id ?? null,
+      done: null,
+    } satisfies Record<NodeGuideStep, string | null>
+  )[nodeGuideStep];
+
+  const guideBubbleText: string | null = {
+    addChild: 'Enterで子タスクを追加してみましょう',
+    addSibling: '続けてTabで兄弟タスクも追加してみましょう',
+    checkFirstChild: 'チェックを入れて完了にしてみましょう',
+    checkSecondChild: 'こちらもチェックを入れてみましょう',
+    collapseNode: 'たたんで整理してみましょう',
+    done: null,
+  }[nodeGuideStep];
+
+  // 吹き出しは常に「操作方法」ノードの真下から出し、そこから点線でその時々の
+  // 操作対象を指す(手を抜いて見えないよう、対象に応じて指す位置を変える)
+  const guideTargetAnchor: GuideTargetAnchor = (
+    {
+      addChild: 'bottom',
+      addSibling: 'center',
+      checkFirstChild: 'checkbox',
+      checkSecondChild: 'checkbox',
+      collapseNode: 'rightMiddle',
+      done: 'top',
+    } satisfies Record<NodeGuideStep, GuideTargetAnchor>
+  )[nodeGuideStep];
+
+  // 現在開いている「タスク追加モーダル」が、誘導ガイドの対象(操作方法ノードへの
+  // 子追加 / 練習用の子ノードへの兄弟追加)かどうか。NewTaskModal側でタイトル・
+  // 概要メモの初期値と「追加する」ボタンの誘導に使う
+  const guidedModalKind: 'child' | 'sibling' | null = !nodeGuideActive || !modal.open
+    ? null
+    : modal.mode === 'child' &&
+        modal.targetId === tutorialNode?.id &&
+        nodeGuideStep === 'addChild'
+      ? 'child'
+      : modal.mode === 'sibling' &&
+          modal.targetId === firstPracticeChild?.id &&
+          nodeGuideStep === 'addSibling'
+        ? 'sibling'
+        : null;
+
+  // ── ゲスト向け誘導ガイド第2段: サイドドロワー(優先タスク・カレンダー)→パッチノート。
+  // 第1段(ノード追加)と違い、ドロワー開閉やモーダル開閉は一過性のUI状態で
+  // ツリーの状態からは導出できないため、store.tsのdrawerGuideStepを明示的に
+  // 進める(Header.tsx/RightDrawerPanel.tsxがこのstepを読んでハイライトを描画する)
+  const drawerGuideEligible =
+    isGuest && project?.id === SAMPLE_PROJECT_ID && nodeGuideStep === 'done';
+
+  // 第1段が終わった直後、まだ始めていなければ第2段を開始する
+  useEffect(() => {
+    if (!drawerGuideEligible) return;
+    if (drawerGuideStep !== 'idle') return;
+    if (hasGuestFinishedDrawerGuide()) return;
+    setDrawerGuideStep('openDrawer');
+  }, [drawerGuideEligible, drawerGuideStep, setDrawerGuideStep]);
+
+  // ドロワーを開いたら「優先的タスク」の説明へ進む
+  useEffect(() => {
+    if (drawerGuideStep === 'openDrawer' && rightPanel.isOpen) {
+      setDrawerGuideStep('priorityInfo');
+    }
+  }, [drawerGuideStep, rightPanel.isOpen, setDrawerGuideStep]);
+
+  // 「優先的タスク」「カレンダー」は開閉状態を保持しており、以前に閉じていると
+  // 説明対象の中身が見えないまま誘導してしまう。案内するステップに入った時点で、
+  // 閉じていれば開いておく(既に開いていれば何もしない)
+  useEffect(() => {
+    if (drawerGuideStep === 'priorityInfo' && !rightPanel.isPriorityListOpen) {
+      toggleRightPanelSection('isPriorityListOpen');
+    }
+    if (drawerGuideStep === 'calendarInfo' && !rightPanel.isCalendarOpen) {
+      toggleRightPanelSection('isCalendarOpen');
+    }
+  }, [
+    drawerGuideStep,
+    rightPanel.isPriorityListOpen,
+    rightPanel.isCalendarOpen,
+    toggleRightPanelSection,
+  ]);
+
+  // パッチノートを開いたら誘導完了
+  useEffect(() => {
+    if (drawerGuideStep === 'openPatchNotes' && isPatchNotesModalOpen) {
+      setDrawerGuideStep('done');
+      markGuestDrawerGuideDone();
+    }
+  }, [drawerGuideStep, isPatchNotesModalOpen, setDrawerGuideStep]);
+
+  // 誘導が完了した状態でパッチノートを閉じたら(=一連の案内をひと通り見終えたら)、
+  // 締めのメッセージを画面中央に一度だけ表示する(Combo-LABのclosingメッセージ相当)
+  const previousPatchNotesOpenRef = useRef(isPatchNotesModalOpen);
+  const hasShownGuideClosingRef = useRef(false);
+
+  // 「🔁チュートリアル」ボタン(resetSampleTutorial)はdrawerGuideStepを'idle'に
+  // 戻すが、この既視refまでは触れられない。リセットしてもう一度やり直した時に
+  // 締めのメッセージが二度と出なくなっていた不具合の修正
+  useEffect(() => {
+    if (drawerGuideStep === 'idle') {
+      hasShownGuideClosingRef.current = false;
+    }
+  }, [drawerGuideStep]);
+
+  useEffect(() => {
+    const wasOpen = previousPatchNotesOpenRef.current;
+    previousPatchNotesOpenRef.current = isPatchNotesModalOpen;
+
+    if (
+      isGuest &&
+      wasOpen &&
+      !isPatchNotesModalOpen &&
+      drawerGuideStep === 'done' &&
+      !hasShownGuideClosingRef.current
+    ) {
+      hasShownGuideClosingRef.current = true;
+      setShowGuideClosingMessage(true);
+    }
+  }, [isPatchNotesModalOpen, isGuest, drawerGuideStep]);
+
+  useEffect(() => {
+    if (!showGuideClosingMessage) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowGuideClosingMessage(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showGuideClosingMessage]);
+
   // ── 列（カラム）の構築: 開いているノードをすべて辿る（複数の枝を同時に開ける）
   const columns = useMemo<TreeColumn<TaskNode>[]>(() => {
     if (!root) return [];
@@ -285,7 +475,7 @@ export function TreePage() {
     const visit = (node: TaskNode, depth: number) => {
       if (node.children.length === 0) return;
       // ルートは常に展開扱い（開閉トグルを持たないため）
-      if (depth > 0 && collapsedSet.has(node.id)) return;
+      if (depth > 0 && !isNodeExpanded(node, collapsedSet)) return;
 
       nextColumns.push({ parentId: node.id, nodes: node.children, depth });
 
@@ -420,6 +610,18 @@ export function TreePage() {
                 layout={layout}
               />
 
+              {/* ゲスト向け誘導ガイド:「操作方法」ノードの真下に吹き出しを1つ出し、
+                  点線で今回の操作対象を指し示す(詳細はプロジェクトの記憶参照) */}
+              {nodeGuideActive && tutorialNode && guideTargetId && guideBubbleText && (
+                <GuideConnector
+                  anchorNodeId={tutorialNode.id}
+                  targetNodeId={guideTargetId}
+                  targetAnchor={guideTargetAnchor}
+                  text={guideBubbleText}
+                  zoom={zoom}
+                />
+              )}
+
               {/* ルートノードカード */}
               <div
                 style={{
@@ -495,8 +697,14 @@ export function TreePage() {
                         }
                         accentColor={accentColor}
                         onClick={() => selectNode(node.id)}
-                        isExpanded={!collapsedSet.has(node.id)}
-                        onToggleExpand={() => toggleNodeExpanded(node.id)}
+                        isExpanded={isNodeExpanded(node, collapsedSet)}
+                        // 分岐（子が複数）していない開閉は見た目がほぼ変わらないため、
+                        // 分岐しているノードだけ開閉ボタンを出す（Combo-LABと同じ仕様）
+                        onToggleExpand={
+                          node.children.length > 1
+                            ? () => toggleNodeExpanded(node.id)
+                            : undefined
+                        }
                         onToggleComplete={() =>
                           toggleComplete(project.id, node.id)
                         }
@@ -508,15 +716,7 @@ export function TreePage() {
                         }
                         onAddChild={() => openChildModal(node.id)}
                         onAddSibling={() => openSiblingModal(node.id)}
-                        onDelete={() => {
-                          const ok = window.confirm(
-                            `「${node.title}」を削除しますか？\n子タスクもすべて削除されます。`,
-                          );
-
-                          if (ok) {
-                            deleteNode(project.id, node.id);
-                          }
-                        }}
+                        onDelete={() => setNodePendingDelete(node)}
                         parentId={column.parentId}
                         dragIndex={nodeIndex}
                         onDragOver={() => {
@@ -528,6 +728,7 @@ export function TreePage() {
                           // カードの上へのドロップは常に「子タスク」として追加
                           moveNode(project.id, draggedData.id, node.id);
                         }}
+                        isGuideTarget={node.id === guideTargetId}
                       />
                     </div>
                   );
@@ -630,7 +831,109 @@ export function TreePage() {
           mode={modal.mode}
           onConfirm={handleModalConfirm}
           onClose={closeModal}
+          defaultTitle={
+            guidedModalKind === 'child'
+              ? '子タスク作成'
+              : guidedModalKind === 'sibling'
+                ? '兄弟タスク作成'
+                : undefined
+          }
+          defaultMemo={
+            guidedModalKind === 'child'
+              ? '子タスクを追加すると、木が下に深くなります'
+              : guidedModalKind === 'sibling'
+                ? '兄弟タスクを追加すると、木が横に広がります'
+                : undefined
+          }
+          guideHintText={
+            guidedModalKind ? '入力できたら「追加する」を押しましょう' : undefined
+          }
         />
+      )}
+
+      {/* ── タスク削除の確認 */}
+      <ConfirmDialog
+        isOpen={nodePendingDelete !== null}
+        title="タスクを削除"
+        message={`「${nodePendingDelete?.title ?? ''}」を削除しますか？\n子タスクもすべて削除されます。`}
+        confirmLabel="削除する"
+        onConfirm={() => {
+          if (nodePendingDelete) deleteNode(project.id, nodePendingDelete.id);
+          setNodePendingDelete(null);
+        }}
+        onCancel={() => setNodePendingDelete(null)}
+      />
+
+      {/* ── 誘導完了後の締めのメッセージ */}
+      {showGuideClosingMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 18,
+            background: 'rgba(2, 6, 23, 0.76)',
+            backdropFilter: 'blur(10px)',
+          }}
+          onMouseDown={() => setShowGuideClosingMessage(false)}
+          role="presentation"
+        >
+          <div
+            style={{
+              width: 'min(360px, 100%)',
+              borderRadius: 22,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              boxShadow: '0 24px 90px rgba(0, 0, 0, 0.55)',
+              padding: '24px 22px',
+              textAlign: 'center',
+            }}
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div style={{ fontSize: 28, lineHeight: 1 }}>🌱</div>
+            <h2
+              style={{
+                margin: '12px 0 0',
+                fontSize: 16,
+                fontWeight: 900,
+                color: 'var(--text-primary)',
+              }}
+            >
+              基本操作は以上です
+            </h2>
+            <p
+              style={{
+                margin: '10px 0 0',
+                fontSize: 12.5,
+                lineHeight: 1.7,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              画面右側のドロワーを使うと、期限の管理や優先タスクの一覧表示もできます。この画面ではサンプルの内容を自由に編集できるので、ぜひ触ってみてください。
+            </p>
+            <button
+              type="button"
+              style={{
+                marginTop: 18,
+                padding: '10px 24px',
+                borderRadius: 999,
+                border: 'none',
+                background: 'var(--accent)',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              onClick={() => setShowGuideClosingMessage(false)}
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -778,7 +1081,7 @@ function DropZone({
       <div
         className="w-full rounded-full transition-all duration-150 pointer-events-none"
         style={{
-          height: isOver ? 4 : 0,
+          height: isOver ? 3.2 : 0,
           background: accentColor,
           boxShadow: isOver ? `0 0 8px ${accentColor}` : 'none',
         }}

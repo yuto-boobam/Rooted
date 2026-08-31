@@ -2,6 +2,11 @@ import { useState, useRef } from 'react';
 import type { TaskNode } from '../types';
 import { getDueUrgencyColors } from '../utils/dueDateColor';
 import { daysUntil, formatDueDateShort } from '../utils/dueDate';
+import { applyManualLineBreaks } from '../utils/textDisplay';
+import { TREE_LAYOUT_CONFIG } from '../pages/TreePage.config';
+
+const { rootWidth: ROOT_WIDTH, defaultRootHeight: ROOT_HEIGHT, defaultNodeHeight: NODE_HEIGHT } =
+  TREE_LAYOUT_CONFIG;
 
 type Props = {
   node: TaskNode;
@@ -26,6 +31,11 @@ type Props = {
   dragIndex: number;
   onDragOver: (index: number) => void;
   onDrop: (draggedData: { id: string; parentId: string | null; index: number }) => void;
+
+  // ゲスト向け誘導ガイド(TreePage.tsx)がこのノードを次の操作対象として示す時にtrue。
+  // 光るリング演出を表示する(吹き出し自体はGuideConnector.tsxが別途描画する。
+  // 詳細はプロジェクトの記憶参照)
+  isGuideTarget?: boolean;
 };
 
 export function TaskNodeCard({
@@ -46,6 +56,7 @@ export function TaskNodeCard({
   dragIndex,
   onDragOver,
   onDrop,
+  isGuideTarget = false,
 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -121,14 +132,16 @@ export function TaskNodeCard({
         }
       }}
       onClick={onClick}
-      className="animate-fadeIn flex flex-col gap-2 rounded-xl cursor-pointer transition-all duration-150 select-none relative z-10"
+      className={`animate-fadeIn flex flex-col cursor-pointer transition-all duration-150 select-none relative z-10${isGuideTarget ? ' tutorial-spotlight-ring' : ''}`}
       style={{
-        padding: '12px 14px',
+        gap: 6.4,
+        borderRadius: 9.6,
+        padding: '9.6px 11.2px',
         background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
         border: `1px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
-        minHeight: node.completed ? undefined : isRoot ? 110 : 76,
-        width: isRoot ? 220 : '100%',
+        minHeight: node.completed ? undefined : isRoot ? ROOT_HEIGHT : NODE_HEIGHT,
+        width: isRoot ? ROOT_WIDTH : '100%',
       }}
     >
       {/* ── 開閉トグル（子を持つノードのみ、右端の接続線上に配置） */}
@@ -137,13 +150,13 @@ export function TaskNodeCard({
           className="flex-shrink-0 flex items-center justify-center transition-all"
           style={{
             position: 'absolute',
-            right: -9,
+            right: -10,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 18,
-            height: 18,
+            width: 20,
+            height: 20,
             borderRadius: '50%',
-            border: `1.5px solid ${borderColor}`,
+            border: `1.4px solid ${borderColor}`,
             background: 'var(--bg-surface)',
             color: 'var(--text-primary)',
             zIndex: 20,
@@ -156,8 +169,8 @@ export function TaskNodeCard({
           title={isExpanded ? '子タスクを閉じる' : '子タスクを開く'}
         >
           <svg
-            width="8"
-            height="8"
+            width="9"
+            height="9"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -173,12 +186,16 @@ export function TaskNodeCard({
       )}
 
       {/* ── 上部：チェックボックス＋タイトル＋削除ボタン */}
-      <div className="flex items-start gap-2">
+      <div className="flex items-start" style={{ gap: 6.4 }}>
         {/* チェックボックス（leafのみ有効） */}
         <button
-          className="mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded flex items-center justify-center transition-all"
+          className="flex-shrink-0 flex items-center justify-center transition-all"
           style={{
-            border: `1.5px solid ${node.completed ? accentColor : 'var(--text-muted)'}`,
+            marginTop: 0.8,
+            width: 15,
+            height: 15,
+            borderRadius: 4,
+            border: `1.4px solid ${node.completed ? accentColor : 'var(--text-muted)'}`,
             background: node.completed ? accentColor : 'transparent',
           }}
           onClick={(e) => {
@@ -188,7 +205,7 @@ export function TaskNodeCard({
           title={isLeaf ? (node.completed ? '未完了に戻す' : '完了にする') : '子タスクが存在するため直接完了できません'}
         >
           {node.completed && (
-            <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
+            <svg width="8.5" height="8.5" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
               <polyline points="1.5,5 4,7.5 8.5,2.5" />
             </svg>
           )}
@@ -198,7 +215,7 @@ export function TaskNodeCard({
         {isEditingTitle ? (
           <textarea
             ref={titleRef}
-            className="input-inline text-xs font-medium flex-1"
+            className="input-inline font-medium flex-1"
             value={node.title}
             autoFocus
             rows={2}
@@ -206,18 +223,23 @@ export function TaskNodeCard({
             onKeyDown={handleTitleKeyDown}
             onBlur={() => setIsEditingTitle(false)}
             onClick={(e) => e.stopPropagation()}
-            style={{ lineHeight: 1.4 }}
+            style={{ fontSize: 9.6, lineHeight: 1.4 }}
           />
         ) : (
           <span
-            className="text-xs font-medium flex-1 leading-snug"
+            className="font-medium flex-1"
             style={{
+              fontSize: 9.6,
+              lineHeight: 1.2,
               color: node.completed ? 'var(--text-muted)' : 'var(--text-primary)',
               textDecoration: node.completed ? 'line-through' : 'none',
               minWidth: 0,
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-line',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
             }}
             title={node.title || undefined}
             onDoubleClick={(e) => {
@@ -226,7 +248,7 @@ export function TaskNodeCard({
               setTimeout(() => titleRef.current?.focus(), 0);
             }}
           >
-            {node.title || '（タイトルなし）'}
+            {node.title ? applyManualLineBreaks(node.title) : '（タイトルなし）'}
           </span>
         )}
 
@@ -234,14 +256,14 @@ export function TaskNodeCard({
         {!isRoot && (
           <button
             className="btn-icon flex-shrink-0 opacity-0 group-hover:opacity-100"
-            style={{ width: 16, height: 16, opacity: isSelected ? 1 : undefined }}
+            style={{ width: 12.8, height: 12.8, opacity: isSelected ? 1 : undefined }}
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
             title="このノードを削除"
           >
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="7.2" height="7.2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
@@ -256,7 +278,7 @@ export function TaskNodeCard({
             <input
               ref={memoRef}
               type="text"
-              className="input-inline text-xs"
+              className="input-inline"
               placeholder="概要メモを入力..."
               value={node.memo}
               autoFocus
@@ -266,14 +288,15 @@ export function TaskNodeCard({
                 if (e.key === 'Enter' || e.key === 'Escape') setIsEditingMemo(false);
               }}
               onClick={(e) => e.stopPropagation()}
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ fontSize: 9.6, color: 'var(--text-secondary)' }}
             />
           ) : (
             <p
-              className="text-xs cursor-text"
+              className="cursor-text"
               style={{
+                fontSize: 9.6,
                 color: node.memo ? 'var(--text-secondary)' : 'var(--text-muted)',
-                minHeight: 16,
+                minHeight: 12.8,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -291,8 +314,8 @@ export function TaskNodeCard({
           {/* ── 期限表示 */}
           {node.dueDate && (
             <div
-              className="flex items-center gap-1 text-xs font-medium"
-              style={{ color: dueUrgency?.accent ?? 'var(--text-primary)' }}
+              className="flex items-center font-medium"
+              style={{ gap: 3.2, fontSize: 9.6, color: dueUrgency?.accent ?? 'var(--text-primary)' }}
             >
               <span>📅</span>
               <span>期限: {formatDueDateShort(node.dueDate)}</span>
@@ -301,14 +324,15 @@ export function TaskNodeCard({
 
           {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
           {!isLeaf && (
-            <div className="flex flex-col gap-1 mt-1">
+            <div className="flex flex-col" style={{ gap: 3.2, marginTop: 3.2 }}>
               <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 9.6, color: 'var(--text-muted)' }}>
                   📋 {node.children.length}
                 </span>
                 <span
-                  className="text-xs font-medium"
+                  className="font-medium"
                   style={{
+                    fontSize: 9.6,
                     color: isSelected
                       ? accentColor
                       : (dueUrgency?.accent ?? 'var(--text-primary)'),

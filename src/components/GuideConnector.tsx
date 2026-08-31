@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export type GuideTargetAnchor = 'top' | 'bottom' | 'rightMiddle' | 'checkbox';
+export type GuideTargetAnchor = 'top' | 'bottom' | 'center' | 'rightMiddle' | 'checkbox';
 
 type Geometry = {
   bubbleX: number;
@@ -30,6 +30,8 @@ function computeLocalPoint(
   switch (anchor) {
     case 'bottom':
       return toLocal(rect.left + rect.width / 2, rect.bottom);
+    case 'center':
+      return toLocal(rect.left + rect.width / 2, rect.top + rect.height / 2);
     case 'rightMiddle':
       return toLocal(rect.right, rect.top + rect.height / 2);
     case 'checkbox':

@@ -1,5 +1,5 @@
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore, todayDateKey } from '../store';
 import type { Project } from '../types';
 import { getStoredFileHandle, setStoredFileHandle } from '../utils/fileHandleStore';
@@ -90,6 +90,30 @@ export default function Header({
   const toggleRightPanel = useAppStore((state) => state.toggleRightPanel);
   const resetSampleTutorial = useAppStore((state) => state.resetSampleTutorial);
   const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
+  const showGuideClosingMessage = useAppStore((state) => state.showGuideClosingMessage);
+
+  // パッチノート紹介バナー(下記styles.patchNotesIntroBanner)を、モーダル本体の
+  // 少し上に来るよう実測して配置する。モーダルは内容量に応じて高さが変わり
+  // 画面中央に配置されるため、固定pxではなく実際のDOM位置を測る
+  const [patchNotesModalTop, setPatchNotesModalTop] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isPatchNotesModalOpen) {
+      setPatchNotesModalTop(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const titleEl = document.getElementById('patch-notes-title');
+      const modalEl = titleEl?.closest('[role="dialog"]');
+      const rect = modalEl?.getBoundingClientRect();
+      if (rect) setPatchNotesModalTop(rect.top);
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [isPatchNotesModalOpen]);
 
   const projects = useAppStore((state) => state.projects);
   const currentProjectId = useAppStore((state) => state.currentProjectId);
@@ -409,7 +433,15 @@ export default function Header({
               </button>
             )}
 
-            <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                position: 'relative',
+                // 締めのメッセージ表示中は、そのオーバーレイ(zIndex:1000・暗転+ぼかし)
+                // より前面に出してボタン本来の明るさ・光るリングをはっきり見せる
+                // (ヴェールの下に埋もれて目立たなかったというユーザー指摘への対応)
+                zIndex: showGuideClosingMessage ? 1001 : undefined,
+              }}
+            >
               {drawerGuideStep === 'openDrawer' && (
                 <div className="tutorial-guide-bubble" style={styles.headerGuideBubble}>
                   サイドドロワーを開いてみましょう
@@ -419,7 +451,11 @@ export default function Header({
 
               <button
                 type="button"
-                className={drawerGuideStep === 'openDrawer' ? 'tutorial-spotlight-ring' : undefined}
+                className={
+                  drawerGuideStep === 'openDrawer' || showGuideClosingMessage
+                    ? 'tutorial-spotlight-ring'
+                    : undefined
+                }
                 style={{
                   ...styles.rightPanelButton,
                   ...(isRightPanelOpen ? styles.rightPanelButtonActive : {}),
@@ -482,6 +518,20 @@ export default function Header({
         onClose={closePatchNotesModal}
         initialSelectedDate={selectedPatchNoteDate ?? undefined}
       />
+
+      {/* ── ゲスト向け誘導: パッチノートモーダルの少し上に紹介文を表示する。
+          モーダル内の説明(パッチノート自身の見出し下)は控えめなため、開いた瞬間に
+          気づいてもらえるようここでも強調表示する(ユーザー指摘を受けて追加) */}
+      {isGuest && isPatchNotesModalOpen && patchNotesModalTop !== null && (
+        <div
+          style={{
+            ...styles.patchNotesIntroBanner,
+            top: patchNotesModalTop - 44,
+          }}
+        >
+          制作者の日々の変更をここに記録しています。
+        </div>
+      )}
 
       {/* ── チュートリアルやり直しの確認 */}
       <ConfirmDialog
@@ -669,15 +719,18 @@ const styles: Record<string, CSSProperties> = {
   hiddenFileInput: {
     display: 'none',
   },
-  // ゲスト向け誘導ガイド第2段の吹き出し。NewTaskModal.tsxのguideHintBubbleと同じ理由
-  // (右寄りのボタンを中心基準で配置すると画面端でちぎれる)でボタンの右端に揃える
+  // ゲスト向け誘導ガイド第2段の吹き出し。このボタン群は画面最上部のヘッダーにあり
+  // 上に表示すると画面外に見切れて何も見えなくなるため、ボタンの下に出す
+  // (右寄りのボタンを中心基準で配置すると画面端でちぎれる問題はNewTaskModal.tsxの
+  // guideHintBubbleと同じ理由でボタンの右端に揃えて回避)
   headerGuideBubble: {
     position: 'absolute',
-    bottom: '100%',
+    top: '100%',
     right: 0,
-    marginBottom: 12,
-    width: 180,
-    padding: '7px 10px',
+    marginTop: 12,
+    width: 'max-content',
+    maxWidth: 260,
+    padding: '7px 12px',
     borderRadius: 9,
     background: 'var(--accent)',
     color: '#fff',
@@ -685,18 +738,37 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     lineHeight: 1.4,
     textAlign: 'center',
+    whiteSpace: 'nowrap',
     boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
     zIndex: 61,
   },
   headerGuideBubbleTriangle: {
     position: 'absolute',
-    top: '100%',
-    right: 24,
+    bottom: '100%',
+    right: 16,
     width: 0,
     height: 0,
     borderLeft: '5px solid transparent',
     borderRight: '5px solid transparent',
-    borderTop: '5px solid var(--accent)',
+    borderBottom: '5px solid var(--accent)',
+  },
+  // パッチノートモーダル(zIndex:1000)より前面に表示する紹介バナー。topは実測して
+  // モーダル本体のすぐ上に来るようJS側で上書きする(Header.tsx側のuseEffect参照)
+  patchNotesIntroBanner: {
+    position: 'fixed',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 1001,
+    padding: '10px 18px',
+    borderRadius: 11,
+    background: 'var(--accent)',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 900,
+    lineHeight: 1.4,
+    textAlign: 'center',
+    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.4)',
+    whiteSpace: 'nowrap',
   },
   tutorialResetButton: {
     height: 32,

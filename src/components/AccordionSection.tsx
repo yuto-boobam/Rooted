@@ -37,18 +37,6 @@ export default function AccordionSection({
       style={styles.section}
       className={isGuideTarget ? 'tutorial-spotlight-ring' : undefined}
     >
-      {isGuideTarget && guideHintText && (
-        <div className="tutorial-guide-bubble" style={styles.guideBubble}>
-          {guideHintText}
-          <div style={styles.guideBubbleTriangle} />
-          {onGuideNext && (
-            <button type="button" style={styles.guideNextButton} onClick={onGuideNext}>
-              次へ
-            </button>
-          )}
-        </div>
-      )}
-
       <button
         type="button"
         style={{
@@ -75,47 +63,41 @@ export default function AccordionSection({
         </span>
       </button>
 
+      {isGuideTarget && guideHintText && (
+        <div style={styles.guideBanner}>
+          <span>{guideHintText}</span>
+          {onGuideNext && (
+            <button type="button" style={styles.guideNextButton} onClick={onGuideNext}>
+              次へ
+            </button>
+          )}
+        </div>
+      )}
+
       {isOpen && <div style={styles.sectionBody}>{children}</div>}
     </section>
   );
 }
 
 const styles: Record<string, CSSProperties> = {
-  // 誘導ガイドの吹き出し。セクションの右上隅に少しはみ出す形で固定表示する
-  // (ドロワー内はセクションが縦に詰まって並ぶため、上下どちらに置いても隣の
-  // セクションとわずかに重なるが、独立した背景・影・z-indexを持たせているため
-  // フローティングタグとして自然に読める)
-  guideBubble: {
-    position: 'absolute',
-    top: -14,
-    right: 16,
-    zIndex: 40,
-    width: 220,
-    padding: '8px 10px',
-    borderRadius: 9,
+  // 誘導ガイドの案内帯。絶対配置の吹き出しだとドロワー内の縦の余白が乏しく、
+  // セクション自身の中身(カレンダーのタブ等)や隣のセクションと重なってクリックの
+  // 邪魔になってしまった(ユーザー指摘)。見出しの直下に通常のレイアウト要素として
+  // 挿入し、中身を押し下げる形にすることで、何にも重ならないようにしている
+  guideBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    padding: '8px 11px',
     background: 'var(--accent)',
     color: '#fff',
     fontSize: 11,
     fontWeight: 800,
     lineHeight: 1.4,
-    textAlign: 'center',
-    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.4)',
-  },
-  guideBubbleTriangle: {
-    position: 'absolute',
-    top: '100%',
-    right: 20,
-    width: 0,
-    height: 0,
-    borderLeft: '5px solid transparent',
-    borderRight: '5px solid transparent',
-    borderTop: '5px solid var(--accent)',
   },
   guideNextButton: {
-    display: 'block',
-    marginTop: 6,
-    marginLeft: 'auto',
-    marginRight: 'auto',
+    flexShrink: 0,
     border: '1px solid rgba(255, 255, 255, 0.6)',
     borderRadius: 999,
     padding: '3px 12px',
@@ -124,6 +106,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 10,
     fontWeight: 900,
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   section: {
     position: 'relative',

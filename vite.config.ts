@@ -6,6 +6,9 @@ import { backupProjectsLocalApiPlugin } from './vite-plugins/backupProjectsLocal
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages ではリポジトリ名がパスに含まれる
+  // (https://yuto-boobam.github.io/Rooted/) ため、base を合わせる
+  base: '/Rooted/',
   plugins: [
     react(),
     tailwindcss(),

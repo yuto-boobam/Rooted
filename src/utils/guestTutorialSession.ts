@@ -25,3 +25,24 @@ export function markGuestTutorialSeen(): void {
     // 保存できなくても致命的ではない(次回また誘導が出るだけ)
   }
 }
+
+// サイドドロワー・パッチノートへの誘導(第2段、store.tsのdrawerGuideStep)を最後まで
+// 達成したかどうか。ドロワー開閉やモーダル開閉は一過性のUI状態でツリーの状態からは
+// 導出できないため、こちらも同じくsessionStorageで「達成済みか」だけを覚えておく
+const GUEST_DRAWER_GUIDE_DONE_KEY = 'rooted-guest-drawer-guide-done';
+
+export function hasGuestFinishedDrawerGuide(): boolean {
+  try {
+    return sessionStorage.getItem(GUEST_DRAWER_GUIDE_DONE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markGuestDrawerGuideDone(): void {
+  try {
+    sessionStorage.setItem(GUEST_DRAWER_GUIDE_DONE_KEY, '1');
+  } catch {
+    // noop
+  }
+}

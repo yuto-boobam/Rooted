@@ -18,6 +18,11 @@ import {
   type TreeColumn,
 } from '../lib/tree';
 import { SAMPLE_PROJECT_ID, TUTORIAL_NODE_ID } from '../data/guestSampleProject';
+import { GuideConnector, type GuideTargetAnchor } from '../components/GuideConnector';
+import {
+  hasGuestFinishedDrawerGuide,
+  markGuestDrawerGuideDone,
+} from '../utils/guestTutorialSession';
 import {
   TREE_LAYOUT_CONFIG,
   CANVAS_PADDING,
@@ -65,6 +70,8 @@ export function TreePage() {
     rightPanel,
     isPatchNotesModalOpen,
     isGuest,
+    drawerGuideStep,
+    setDrawerGuideStep,
 
     goToDashboard,
     selectNode,
@@ -291,36 +298,111 @@ export function TreePage() {
   // 通常のプロジェクトデータと同様zustand persistでlocalStorageに残る)
   const tutorialNode = root ? findNode(root, TUTORIAL_NODE_ID) : null;
   const nodeGuideActive = isGuest && project?.id === SAMPLE_PROJECT_ID && Boolean(tutorialNode);
-  const practiceChild = tutorialNode?.children[0] ?? null;
+  const firstPracticeChild = tutorialNode?.children[0] ?? null;
+  const secondPracticeChild = tutorialNode?.children[1] ?? null;
 
-  type NodeGuideStep = 'addChild' | 'addSibling' | 'checkChild' | 'collapseNode' | 'done';
+  type NodeGuideStep =
+    | 'addChild'
+    | 'addSibling'
+    | 'checkFirstChild'
+    | 'checkSecondChild'
+    | 'collapseNode'
+    | 'done';
 
+  // 子・兄弟タスクは2つとも作った本人が実際にチェックを入れて完了させる(片方だけ
+  // 完了した状態でいきなり「たたむ」通知が出るのは不自然、というユーザー指摘を受けて
+  // 2段階に分割済み)
   const nodeGuideStep: NodeGuideStep = !nodeGuideActive || !tutorialNode
     ? 'done'
     : tutorialNode.children.length === 0
       ? 'addChild'
       : tutorialNode.children.length === 1
         ? 'addSibling'
-        : !practiceChild?.completed
-          ? 'checkChild'
-          : !collapsedSet.has(tutorialNode.id)
-            ? 'collapseNode'
-            : 'done';
+        : !firstPracticeChild?.completed
+          ? 'checkFirstChild'
+          : !secondPracticeChild?.completed
+            ? 'checkSecondChild'
+            : !collapsedSet.has(tutorialNode.id)
+              ? 'collapseNode'
+              : 'done';
 
-  const guideTargetId =
-    nodeGuideStep === 'addChild' || nodeGuideStep === 'collapseNode'
-      ? (tutorialNode?.id ?? null)
-      : nodeGuideStep === 'addSibling' || nodeGuideStep === 'checkChild'
-        ? (practiceChild?.id ?? null)
-        : null;
+  const guideTargetId: string | null = (
+    {
+      addChild: tutorialNode?.id ?? null,
+      addSibling: firstPracticeChild?.id ?? null,
+      checkFirstChild: firstPracticeChild?.id ?? null,
+      checkSecondChild: secondPracticeChild?.id ?? null,
+      collapseNode: tutorialNode?.id ?? null,
+      done: null,
+    } satisfies Record<NodeGuideStep, string | null>
+  )[nodeGuideStep];
 
   const guideBubbleText: string | null = {
     addChild: 'Enterで子タスクを追加してみましょう',
     addSibling: '続けてTabで兄弟タスクも追加してみましょう',
-    checkChild: 'チェックを入れて完了にしてみましょう',
+    checkFirstChild: 'チェックを入れて完了にしてみましょう',
+    checkSecondChild: 'こちらもチェックを入れてみましょう',
     collapseNode: 'たたんで整理してみましょう',
     done: null,
   }[nodeGuideStep];
+
+  // 吹き出しは常に「操作方法」ノードの真下から出し、そこから点線でその時々の
+  // 操作対象を指す(手を抜いて見えないよう、対象に応じて指す位置を変える)
+  const guideTargetAnchor: GuideTargetAnchor = (
+    {
+      addChild: 'bottom',
+      addSibling: 'top',
+      checkFirstChild: 'checkbox',
+      checkSecondChild: 'checkbox',
+      collapseNode: 'rightMiddle',
+      done: 'top',
+    } satisfies Record<NodeGuideStep, GuideTargetAnchor>
+  )[nodeGuideStep];
+
+  // 現在開いている「タスク追加モーダル」が、誘導ガイドの対象(操作方法ノードへの
+  // 子追加 / 練習用の子ノードへの兄弟追加)かどうか。NewTaskModal側でタイトル・
+  // 概要メモの初期値と「追加する」ボタンの誘導に使う
+  const guidedModalKind: 'child' | 'sibling' | null = !nodeGuideActive || !modal.open
+    ? null
+    : modal.mode === 'child' &&
+        modal.targetId === tutorialNode?.id &&
+        nodeGuideStep === 'addChild'
+      ? 'child'
+      : modal.mode === 'sibling' &&
+          modal.targetId === firstPracticeChild?.id &&
+          nodeGuideStep === 'addSibling'
+        ? 'sibling'
+        : null;
+
+  // ── ゲスト向け誘導ガイド第2段: サイドドロワー(優先タスク・カレンダー)→パッチノート。
+  // 第1段(ノード追加)と違い、ドロワー開閉やモーダル開閉は一過性のUI状態で
+  // ツリーの状態からは導出できないため、store.tsのdrawerGuideStepを明示的に
+  // 進める(Header.tsx/RightDrawerPanel.tsxがこのstepを読んでハイライトを描画する)
+  const drawerGuideEligible =
+    isGuest && project?.id === SAMPLE_PROJECT_ID && nodeGuideStep === 'done';
+
+  // 第1段が終わった直後、まだ始めていなければ第2段を開始する
+  useEffect(() => {
+    if (!drawerGuideEligible) return;
+    if (drawerGuideStep !== 'idle') return;
+    if (hasGuestFinishedDrawerGuide()) return;
+    setDrawerGuideStep('openDrawer');
+  }, [drawerGuideEligible, drawerGuideStep, setDrawerGuideStep]);
+
+  // ドロワーを開いたら「優先的タスク」の説明へ進む
+  useEffect(() => {
+    if (drawerGuideStep === 'openDrawer' && rightPanel.isOpen) {
+      setDrawerGuideStep('priorityInfo');
+    }
+  }, [drawerGuideStep, rightPanel.isOpen, setDrawerGuideStep]);
+
+  // パッチノートを開いたら誘導完了
+  useEffect(() => {
+    if (drawerGuideStep === 'openPatchNotes' && isPatchNotesModalOpen) {
+      setDrawerGuideStep('done');
+      markGuestDrawerGuideDone();
+    }
+  }, [drawerGuideStep, isPatchNotesModalOpen, setDrawerGuideStep]);
 
   // ── 列（カラム）の構築: 開いているノードをすべて辿る（複数の枝を同時に開ける）
   const columns = useMemo<TreeColumn<TaskNode>[]>(() => {
@@ -466,6 +548,18 @@ export function TreePage() {
                 layout={layout}
               />
 
+              {/* ゲスト向け誘導ガイド:「操作方法」ノードの真下に吹き出しを1つ出し、
+                  点線で今回の操作対象を指し示す(詳細はプロジェクトの記憶参照) */}
+              {nodeGuideActive && tutorialNode && guideTargetId && guideBubbleText && (
+                <GuideConnector
+                  anchorNodeId={tutorialNode.id}
+                  targetNodeId={guideTargetId}
+                  targetAnchor={guideTargetAnchor}
+                  text={guideBubbleText}
+                  zoom={zoom}
+                />
+              )}
+
               {/* ルートノードカード */}
               <div
                 style={{
@@ -573,7 +667,6 @@ export function TreePage() {
                           moveNode(project.id, draggedData.id, node.id);
                         }}
                         isGuideTarget={node.id === guideTargetId}
-                        guideBubbleText={node.id === guideTargetId ? guideBubbleText : null}
                       />
                     </div>
                   );
@@ -676,6 +769,23 @@ export function TreePage() {
           mode={modal.mode}
           onConfirm={handleModalConfirm}
           onClose={closeModal}
+          defaultTitle={
+            guidedModalKind === 'child'
+              ? '子タスク作成'
+              : guidedModalKind === 'sibling'
+                ? '兄弟タスク作成'
+                : undefined
+          }
+          defaultMemo={
+            guidedModalKind === 'child'
+              ? '子タスクを追加すると、木が下に深くなります'
+              : guidedModalKind === 'sibling'
+                ? '兄弟タスクを追加すると、木が横に広がります'
+                : undefined
+          }
+          guideHintText={
+            guidedModalKind ? '入力できたら「追加する」を押しましょう' : undefined
+          }
         />
       )}
 

@@ -88,6 +88,8 @@ export default function Header({
 
   const isRightPanelOpen = useAppStore((state) => state.rightPanel.isOpen);
   const toggleRightPanel = useAppStore((state) => state.toggleRightPanel);
+  const resetSampleTutorial = useAppStore((state) => state.resetSampleTutorial);
+  const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
 
   const projects = useAppStore((state) => state.projects);
   const currentProjectId = useAppStore((state) => state.currentProjectId);
@@ -102,6 +104,7 @@ export default function Header({
     Boolean(currentProject) &&
     currentProject?.id !== SAMPLE_PROJECT_ID;
 
+  const [isResetTutorialConfirmOpen, setIsResetTutorialConfirmOpen] = useState(false);
   const [isBackupMenuOpen, setIsBackupMenuOpen] = useState(false);
   const [importPending, setImportPending] = useState<{
     data: Partial<Project>;
@@ -273,15 +276,27 @@ export default function Header({
           <div style={styles.actions}>
             {rightSlot}
 
-            <button
-              type="button"
-              style={styles.patchNotesButton}
-              onClick={() => openPatchNotesModal()}
-              title="パッチノートを開く"
-            >
-              <span>📜</span>
-              <span style={styles.compactButtonText}>パッチノート</span>
-            </button>
+            <div style={{ position: 'relative' }}>
+              {drawerGuideStep === 'openPatchNotes' && (
+                <div className="tutorial-guide-bubble" style={styles.headerGuideBubble}>
+                  パッチノートも覗いてみましょう
+                  <div style={styles.headerGuideBubbleTriangle} />
+                </div>
+              )}
+
+              <button
+                type="button"
+                className={
+                  drawerGuideStep === 'openPatchNotes' ? 'tutorial-spotlight-ring' : undefined
+                }
+                style={styles.patchNotesButton}
+                onClick={() => openPatchNotesModal()}
+                title="パッチノートを開く"
+              >
+                <span>📜</span>
+                <span style={styles.compactButtonText}>パッチノート</span>
+              </button>
+            </div>
 
             <div style={styles.backupMenuWrapper}>
               <button
@@ -382,21 +397,43 @@ export default function Header({
               />
             </div>
 
-            <button
-              type="button"
-              style={{
-                ...styles.rightPanelButton,
-                ...(isRightPanelOpen ? styles.rightPanelButtonActive : {}),
-              }}
-              onClick={toggleRightPanel}
-              title="タスクパネルを開閉"
-              aria-pressed={isRightPanelOpen}
-            >
-              <span>⚡</span>
-              <span style={styles.compactButtonText}>
-                {isRightPanelOpen ? 'パネル閉じる' : 'タスクパネル'}
-              </span>
-            </button>
+            {isGuest && (
+              <button
+                type="button"
+                style={styles.tutorialResetButton}
+                onClick={() => setIsResetTutorialConfirmOpen(true)}
+                title="サンプルプロジェクトの「操作方法」ノードをリセットして、誘導ガイドを最初からやり直します"
+              >
+                <span>🔁</span>
+                <span style={styles.compactButtonText}>チュートリアル</span>
+              </button>
+            )}
+
+            <div style={{ position: 'relative' }}>
+              {drawerGuideStep === 'openDrawer' && (
+                <div className="tutorial-guide-bubble" style={styles.headerGuideBubble}>
+                  サイドドロワーを開いてみましょう
+                  <div style={styles.headerGuideBubbleTriangle} />
+                </div>
+              )}
+
+              <button
+                type="button"
+                className={drawerGuideStep === 'openDrawer' ? 'tutorial-spotlight-ring' : undefined}
+                style={{
+                  ...styles.rightPanelButton,
+                  ...(isRightPanelOpen ? styles.rightPanelButtonActive : {}),
+                }}
+                onClick={toggleRightPanel}
+                title="タスクパネルを開閉"
+                aria-pressed={isRightPanelOpen}
+              >
+                <span>⚡</span>
+                <span style={styles.compactButtonText}>
+                  {isRightPanelOpen ? 'パネル閉じる' : 'タスクパネル'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -444,6 +481,19 @@ export default function Header({
         isOpen={isPatchNotesModalOpen}
         onClose={closePatchNotesModal}
         initialSelectedDate={selectedPatchNoteDate ?? undefined}
+      />
+
+      {/* ── チュートリアルやり直しの確認 */}
+      <ConfirmDialog
+        isOpen={isResetTutorialConfirmOpen}
+        title="チュートリアルをやり直す"
+        message="サンプルプロジェクトの「操作方法」ノードで作った練習用のタスクをリセットして、誘導ガイドを最初からやり直します。よろしいですか？"
+        confirmLabel="やり直す"
+        onConfirm={() => {
+          resetSampleTutorial();
+          setIsResetTutorialConfirmOpen(false);
+        }}
+        onCancel={() => setIsResetTutorialConfirmOpen(false)}
       />
 
       {/* ── プロジェクトインポートの確認 */}
@@ -618,6 +668,50 @@ const styles: Record<string, CSSProperties> = {
   },
   hiddenFileInput: {
     display: 'none',
+  },
+  // ゲスト向け誘導ガイド第2段の吹き出し。NewTaskModal.tsxのguideHintBubbleと同じ理由
+  // (右寄りのボタンを中心基準で配置すると画面端でちぎれる)でボタンの右端に揃える
+  headerGuideBubble: {
+    position: 'absolute',
+    bottom: '100%',
+    right: 0,
+    marginBottom: 12,
+    width: 180,
+    padding: '7px 10px',
+    borderRadius: 9,
+    background: 'var(--accent)',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 800,
+    lineHeight: 1.4,
+    textAlign: 'center',
+    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
+    zIndex: 61,
+  },
+  headerGuideBubbleTriangle: {
+    position: 'absolute',
+    top: '100%',
+    right: 24,
+    width: 0,
+    height: 0,
+    borderLeft: '5px solid transparent',
+    borderRight: '5px solid transparent',
+    borderTop: '5px solid var(--accent)',
+  },
+  tutorialResetButton: {
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 11,
+    border: '1px solid var(--accent-green-border)',
+    background: 'var(--accent-green-bg)',
+    color: 'var(--accent-green-text)',
+    padding: '0 9px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   rightPanelButton: {
     height: 32,

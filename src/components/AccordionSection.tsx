@@ -11,6 +11,14 @@ type AccordionSectionProps = {
   isOpen: boolean;
   onToggle: () => void;
   children: ReactNode;
+
+  // ゲスト向け誘導ガイド用。指定時、セクション全体を光らせ、見出しの上に説明の
+  // 吹き出しを出す。onGuideNextを渡すと吹き出しに「次へ」ボタンが付く
+  // (このセクションは開閉に関わらず既に開いた状態で初期表示されるため、これ以上
+  // ユーザーに操作させる要素が無く、案内を読んだら手動で次へ進んでもらう)
+  isGuideTarget?: boolean;
+  guideHintText?: string;
+  onGuideNext?: () => void;
 };
 
 export default function AccordionSection({
@@ -20,9 +28,27 @@ export default function AccordionSection({
   isOpen,
   onToggle,
   children,
+  isGuideTarget = false,
+  guideHintText,
+  onGuideNext,
 }: AccordionSectionProps) {
   return (
-    <section style={styles.section}>
+    <section
+      style={styles.section}
+      className={isGuideTarget ? 'tutorial-spotlight-ring' : undefined}
+    >
+      {isGuideTarget && guideHintText && (
+        <div className="tutorial-guide-bubble" style={styles.guideBubble}>
+          {guideHintText}
+          <div style={styles.guideBubbleTriangle} />
+          {onGuideNext && (
+            <button type="button" style={styles.guideNextButton} onClick={onGuideNext}>
+              次へ
+            </button>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
         style={{
@@ -55,7 +81,52 @@ export default function AccordionSection({
 }
 
 const styles: Record<string, CSSProperties> = {
+  // 誘導ガイドの吹き出し。セクションの右上隅に少しはみ出す形で固定表示する
+  // (ドロワー内はセクションが縦に詰まって並ぶため、上下どちらに置いても隣の
+  // セクションとわずかに重なるが、独立した背景・影・z-indexを持たせているため
+  // フローティングタグとして自然に読める)
+  guideBubble: {
+    position: 'absolute',
+    top: -14,
+    right: 16,
+    zIndex: 40,
+    width: 220,
+    padding: '8px 10px',
+    borderRadius: 9,
+    background: 'var(--accent)',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 800,
+    lineHeight: 1.4,
+    textAlign: 'center',
+    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.4)',
+  },
+  guideBubbleTriangle: {
+    position: 'absolute',
+    top: '100%',
+    right: 20,
+    width: 0,
+    height: 0,
+    borderLeft: '5px solid transparent',
+    borderRight: '5px solid transparent',
+    borderTop: '5px solid var(--accent)',
+  },
+  guideNextButton: {
+    display: 'block',
+    marginTop: 6,
+    marginLeft: 'auto',
+    marginRight: 'auto',
+    border: '1px solid rgba(255, 255, 255, 0.6)',
+    borderRadius: 999,
+    padding: '3px 12px',
+    background: 'rgba(255, 255, 255, 0.16)',
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 900,
+    cursor: 'pointer',
+  },
   section: {
+    position: 'relative',
     border: '1px solid var(--border)',
     borderRadius: 14,
     background: 'var(--bg-elevated)',

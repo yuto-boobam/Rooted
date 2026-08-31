@@ -25,6 +25,15 @@ import { BACKUP_PROJECTS } from './data/backupProjects';
 
 export const PRIORITY_TASK_BORDER_COLOR = '#fb7185';
 
+// ゲスト向け誘導ガイド第2段(サイドドロワー・パッチノート)の段階。詳細はAppState内のコメント参照
+export type DrawerGuideStep =
+  | 'idle'
+  | 'openDrawer'
+  | 'priorityInfo'
+  | 'calendarInfo'
+  | 'openPatchNotes'
+  | 'done';
+
 const DEFAULT_RIGHT_PANEL_STATE: RightPanelState = {
   isOpen: false,
   isTodayDueOpen: true,
@@ -587,6 +596,11 @@ export type AppState = {
   enterGuestMode: () => void;
   logout: () => Promise<void>;
 
+  // サンプルプロジェクトの「操作方法」ノードを初期状態(子なし)へ丸ごと差し替え、
+  // 誘導ガイドを最初からやり直せるようにする(TreePage.tsxの誘導は専用フラグを
+  // 持たずツリーの実際の状態から導出しているため、ノードを初期状態へ戻すだけで良い)
+  resetSampleTutorial: () => void;
+
   nickname: string;
   setNickname: (nickname: string) => Promise<void>;
 
@@ -736,6 +750,14 @@ export type AppState = {
   toggleRightPanel: () => void;
   toggleRightPanelSection: (section: RightPanelSectionKey) => void;
   setRightPanelCalendarMode: (mode: CalendarViewMode) => void;
+
+  // ゲスト向け誘導ガイド(第2段)。「操作方法」ノードの誘導([[TreePage.tsx]]のnodeGuideStep)が
+  // 終わった後、サイドドロワー・パッチノートへ誘導する。ドロワー開閉やモーダル開閉は
+  // 一度開いて閉じると元に戻ってしまう一過性のUI状態なので、ツリーの状態だけからは
+  // 導出できず、この段階だけは明示的なstepを持つ(Header.tsx/RightDrawerPanel.tsxが読む)。
+  // 永続化はしない(persistのpartializeに含めない)
+  drawerGuideStep: DrawerGuideStep;
+  setDrawerGuideStep: (step: DrawerGuideStep) => void;
 };
 
 // ── ストア本体 ─────────────────────────────────────────────────────────────
@@ -778,6 +800,32 @@ export const useAppStore = create<AppState>()(
             projects: state.projects.map(ensureSampleProjectHasTutorialNode),
           }));
         }
+      },
+
+      resetSampleTutorial: () => {
+        set((state) => ({
+          projects: state.projects.map((project) => {
+            if (project.id !== SAMPLE_PROJECT_ID) return project;
+
+            const resetNode = normalizeTaskNode(
+              makeTutorialNode(),
+              project.rootTask.createdBy,
+            );
+
+            return updateProjectRoot(project, {
+              ...project.rootTask,
+              children: project.rootTask.children.map((child) =>
+                child.id === TUTORIAL_NODE_ID ? resetNode : child,
+              ),
+            });
+          }),
+          collapsedNodeIds: state.collapsedNodeIds.filter(
+            (id) => id !== TUTORIAL_NODE_ID,
+          ),
+        }));
+
+        get().openProject(SAMPLE_PROJECT_ID);
+        get().selectNode(TUTORIAL_NODE_ID);
       },
 
       logout: async () => {
@@ -1424,6 +1472,11 @@ export const useAppStore = create<AppState>()(
           },
         }));
       },
+
+      // ──── ゲスト向け誘導ガイド第2段 ────────────────────────────────────
+
+      drawerGuideStep: 'idle',
+      setDrawerGuideStep: (step) => set({ drawerGuideStep: step }),
     }),
     {
       name: 'rooted-storage',

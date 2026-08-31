@@ -26,6 +26,8 @@ export default function RightDrawerPanel() {
     const toggleTheme = useAppStore((state) => state.toggleTheme);
 
     const rightPanel = useAppStore((state) => state.rightPanel);
+    const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
+    const setDrawerGuideStep = useAppStore((state) => state.setDrawerGuideStep);
     const closeRightPanel = useAppStore((state) => state.closeRightPanel);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
@@ -297,6 +299,9 @@ export default function RightDrawerPanel() {
                             count={priorityTasks.length}
                             isOpen={rightPanel.isPriorityListOpen}
                             onToggle={() => toggleRightPanelSection('isPriorityListOpen')}
+                            isGuideTarget={drawerGuideStep === 'priorityInfo'}
+                            guideHintText="優先登録したタスクをここでまとめて確認・並び替えできます"
+                            onGuideNext={() => setDrawerGuideStep('calendarInfo')}
                         >
                             {priorityTasks.length === 0 ? (
                                 <EmptyMessage text="優先登録された未完了タスクはありません。" />
@@ -396,6 +401,15 @@ export default function RightDrawerPanel() {
                             count={tasks.filter((task) => task.node.completedAt).length}
                             isOpen={rightPanel.isCalendarOpen}
                             onToggle={() => toggleRightPanelSection('isCalendarOpen')}
+                            isGuideTarget={drawerGuideStep === 'calendarInfo'}
+                            guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
+                            onGuideNext={() => {
+                                // ドロワーはヘッダーの右側ボタン(パッチノート等)を覆う位置に
+                                // 固定表示されるため、開いたままだと次のパッチノート誘導の
+                                // ボタンがクリックできない。ここで閉じてから誘導を進める
+                                setDrawerGuideStep('openPatchNotes');
+                                closeRightPanel();
+                            }}
                         >
                             <div style={styles.calendarTabs}>
                                 <button
@@ -506,17 +520,6 @@ function SelectedTaskEditor({
 
             <div style={styles.selectedControls}>
                 <label style={styles.inputLabel}>
-                    概要メモ
-                    <input
-                        type="text"
-                        value={task.node.memo}
-                        placeholder="概要メモを入力..."
-                        style={styles.dateInput}
-                        onChange={(event) => onChangeMemo(event.target.value)}
-                    />
-                </label>
-
-                <label style={styles.inputLabel}>
                     期限
                     <input
                         type="date"
@@ -539,6 +542,17 @@ function SelectedTaskEditor({
                         />
                     </label>
                 )}
+
+                <label style={styles.inputLabel}>
+                    概要メモ
+                    <input
+                        type="text"
+                        value={task.node.memo}
+                        placeholder="概要メモを入力..."
+                        style={styles.dateInput}
+                        onChange={(event) => onChangeMemo(event.target.value)}
+                    />
+                </label>
 
                 <label style={styles.inputLabel}>
                     詳細メモ

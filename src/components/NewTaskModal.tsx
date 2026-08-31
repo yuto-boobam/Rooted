@@ -24,11 +24,25 @@ type Props = {
   ) => void;
 
   onClose: () => void;
+
+  /** 誘導ガイド中など、タイトルを考える手間を省きたい場面で初期値を渡す(編集は可能) */
+  defaultTitle?: string;
+  /** 概要メモの初期値。誘導ガイド中に「この欄が何のためにあるか」を実例で示す用途 */
+  defaultMemo?: string;
+  /** 指定時、「追加する」ボタンを光らせて吹き出しで最後の一押しを案内する(誘導ガイド用) */
+  guideHintText?: string;
 };
 
-export function NewTaskModal({ mode, onConfirm, onClose }: Props) {
-  const [title, setTitle] = useState('');
-  const [memo, setMemo] = useState('');
+export function NewTaskModal({
+  mode,
+  onConfirm,
+  onClose,
+  defaultTitle = '',
+  defaultMemo = '',
+  guideHintText,
+}: Props) {
+  const [title, setTitle] = useState(defaultTitle);
+  const [memo, setMemo] = useState(defaultMemo);
   const [detailMemo, setDetailMemo] = useState('');
   const [hasDueDate, setHasDueDate] = useState(false);
   const [dueDate, setDueDate] = useState('');
@@ -220,19 +234,32 @@ export function NewTaskModal({ mode, onConfirm, onClose }: Props) {
               キャンセル
             </button>
 
-            <button
-              id="confirm-new-task"
-              type="submit"
-              style={{
-                ...styles.primaryButton,
-                opacity: canSubmit ? 1 : 0.45,
-                cursor: canSubmit ? 'pointer' : 'not-allowed',
-              }}
-              disabled={!canSubmit}
-            >
-              <span style={styles.plusIcon}>＋</span>
-              追加する
-            </button>
+            <div style={{ position: 'relative' }}>
+              {guideHintText && (
+                <div
+                  className="tutorial-guide-bubble"
+                  style={styles.guideHintBubble}
+                >
+                  {guideHintText}
+                  <div style={styles.guideHintBubbleTriangle} />
+                </div>
+              )}
+
+              <button
+                id="confirm-new-task"
+                type="submit"
+                className={guideHintText ? 'tutorial-spotlight-ring' : undefined}
+                style={{
+                  ...styles.primaryButton,
+                  opacity: canSubmit ? 1 : 0.45,
+                  cursor: canSubmit ? 'pointer' : 'not-allowed',
+                }}
+                disabled={!canSubmit}
+              >
+                <span style={styles.plusIcon}>＋</span>
+                追加する
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -479,6 +506,40 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 800,
+  },
+
+  guideHintBubble: {
+    // ボタンを中心に据えると、右寄りのこのボタンではモーダル右端からはみ出して
+    // overflow-yに巻き込まれたoverflow-x(auto化)でちぎれる(実測して判明)ため、
+    // ボタンの右端に揃えて左側にだけ伸ばす
+    position: 'absolute',
+    bottom: '100%',
+    right: 0,
+    marginBottom: 12,
+    width: 180,
+    padding: '7px 10px',
+    borderRadius: 9,
+    background: 'var(--accent)',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 800,
+    lineHeight: 1.4,
+    textAlign: 'center',
+    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
+  },
+
+  guideHintBubbleTriangle: {
+    // 吹き出し自体はボタンの右端基準で左に伸びているため、三角形もボタンの
+    // だいたい中心に来るよう右寄りに固定する(吹き出し中央に置くとボタンから
+    // 離れた位置を指してしまう)
+    position: 'absolute',
+    top: '100%',
+    right: 24,
+    width: 0,
+    height: 0,
+    borderLeft: '5px solid transparent',
+    borderRight: '5px solid transparent',
+    borderTop: '5px solid var(--accent)',
   },
 
   primaryButton: {

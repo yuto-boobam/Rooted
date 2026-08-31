@@ -1,5 +1,15 @@
 [
   {
+    "id": "2026-08-31-f0e452ae",
+    "date": "2026-08-31",
+    "buildNumber": 18,
+    "type": "feature",
+    "title": "チュートリアルに新規用の誘導を追加",
+    "description": "誘導による操作で基本的なサイトの使い方がわかるものにする。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/08/20260831-build18-after.png?v=1788157661602"
+  },
+  {
     "id": "2026-08-08-123f5b2d",
     "date": "2026-08-08",
     "buildNumber": 17,

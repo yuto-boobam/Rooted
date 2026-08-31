@@ -16,10 +16,13 @@ import { getDueUrgencyColors } from './utils/dueDateColor';
 import {
   SAMPLE_PROJECT_ID,
   TUTORIAL_NODE_ID,
+  SAMPLE_DUE_DATE_OFFSETS,
   makeSampleProject,
   makeTutorialNode,
+  offsetDateKey,
 } from './data/guestSampleProject';
 import { BACKUP_PROJECTS } from './data/backupProjects';
+import { clearGuestDrawerGuideDone } from './utils/guestTutorialSession';
 
 // ── UI用定数 ─────────────────────────────────────────────────────────────
 
@@ -213,17 +216,6 @@ function mapEveryNode(
 ): TaskNode {
   const children = node.children.map((child) => mapEveryNode(child, fn));
   return fn({ ...node, children });
-}
-
-/** クリップボードからの貼り付け用に、ノードとその子孫すべてへ新しいidを発行して複製する */
-function cloneNodeWithFreshIds(node: TaskNode, createdBy: string): TaskNode {
-  return {
-    ...node,
-    id: makeId(),
-    createdBy,
-    createdAt: new Date().toISOString(),
-    children: node.children.map((child) => cloneNodeWithFreshIds(child, createdBy)),
-  };
 }
 
 function findNode(node: TaskNode, targetId: string): TaskNode | null {
@@ -541,24 +533,46 @@ function seedInitialProjects(projects: Project[]): Project[] {
 // そのため、この機能を追加する以前からlocalStorageにサンプルプロジェクトを持っていた
 // ユーザー(過去にゲストログイン済みのブラウザ等)には、サンプルの内容を更新しても
 // 自動的には反映されない。「操作方法」ノードのように後から追加した固定ノードは、
-// 無ければ末尾に補完する形で個別にマイグレーションする
-function ensureSampleProjectHasTutorialNode(project: Project): Project {
+// 無ければ末尾に補完する形で個別にマイグレーションする。
+//
+// 期限については、通常のプロジェクト(インポートしたJSONの期限をそのまま使う)とは
+// 扱いを分け、サンプルプロジェクトの期限だけは「サイトを開いた日」から計算し直す
+// 仕様にした(ユーザー指定)。そのため下のensureSampleProjectFreshで、無ければ足す
+// だけの「操作方法」ノードとは違い、期限は毎回無条件で今日基準の値に上書きする
+function resyncSampleDueDates(rootTask: TaskNode): TaskNode {
+  return mapEveryNode(rootTask, (node) => {
+    const offsetDays = SAMPLE_DUE_DATE_OFFSETS[node.id];
+    if (offsetDays === undefined) return node;
+
+    const dueDate = offsetDateKey(offsetDays);
+    return {
+      ...node,
+      dueDate,
+      backgroundColor: getDueBackgroundColor(dueDate, node.completed),
+    };
+  });
+}
+
+function ensureSampleProjectFresh(project: Project): Project {
   if (project.id !== SAMPLE_PROJECT_ID) return project;
 
   const alreadyHasTutorialNode = project.rootTask.children.some(
     (child) => child.id === TUTORIAL_NODE_ID,
   );
-  if (alreadyHasTutorialNode) return project;
 
-  const tutorialNode = normalizeTaskNode(
-    makeTutorialNode(),
-    project.rootTask.createdBy,
-  );
+  const rootTaskWithTutorialNode = alreadyHasTutorialNode
+    ? project.rootTask
+    : {
+        ...project.rootTask,
+        children: [
+          ...project.rootTask.children,
+          normalizeTaskNode(makeTutorialNode(), project.rootTask.createdBy),
+        ],
+      };
 
-  return updateProjectRoot(project, {
-    ...project.rootTask,
-    children: [...project.rootTask.children, tutorialNode],
-  });
+  const rootTaskWithFreshDueDates = resyncSampleDueDates(rootTaskWithTutorialNode);
+
+  return updateProjectRoot(project, rootTaskWithFreshDueDates);
 }
 
 function normalizeRightPanelState(value: unknown): RightPanelState {
@@ -647,14 +661,6 @@ export type AppState = {
 
   deleteNode: (projectId: string, nodeId: string) => void;
   toggleComplete: (projectId: string, nodeId: string) => void;
-
-  // クリップボード（タスク＋子タスクのコピー＆ペースト。Combo-LABの
-  // clipboard/pasteClipboardと同じ考え方。リロードでは消える一時的な状態のため
-  // persistのpartializeには含めない）
-  clipboardNode: TaskNode | null;
-  copyNodeToClipboard: (projectId: string, nodeId: string) => void;
-  pasteClipboardAsChild: (projectId: string, targetNodeId: string) => void;
-  clearClipboard: () => void;
 
   setNodeCompletion: (
     projectId: string,
@@ -758,6 +764,12 @@ export type AppState = {
   // 永続化はしない(persistのpartializeに含めない)
   drawerGuideStep: DrawerGuideStep;
   setDrawerGuideStep: (step: DrawerGuideStep) => void;
+
+  // 誘導完了後の締めのメッセージ(TreePage.tsx)を表示中かどうか。この間、
+  // メッセージ内で紹介しているタスクパネルボタンをHeader.tsx側で光らせるため、
+  // TreePage.tsxだけでなくHeader.tsxからも参照できるようstoreに置く
+  showGuideClosingMessage: boolean;
+  setShowGuideClosingMessage: (value: boolean) => void;
 };
 
 // ── ストア本体 ─────────────────────────────────────────────────────────────
@@ -794,10 +806,10 @@ export const useAppStore = create<AppState>()(
           get().importProject(makeSampleProject());
         } else {
           // ページを再読み込みせずログアウト→ゲストを繰り返した場合、persistの
-          // merge()によるマイグレーション(下記ensureSampleProjectHasTutorialNode)は
-          // 走らないため、ここでも既存のサンプルプロジェクトへの補完を行う
+          // merge()によるマイグレーション(下記ensureSampleProjectFresh)は
+          // 走らないため、ここでも既存のサンプルプロジェクトの補完・期限の再計算を行う
           set((state) => ({
-            projects: state.projects.map(ensureSampleProjectHasTutorialNode),
+            projects: state.projects.map(ensureSampleProjectFresh),
           }));
         }
       },
@@ -822,7 +834,11 @@ export const useAppStore = create<AppState>()(
           collapsedNodeIds: state.collapsedNodeIds.filter(
             (id) => id !== TUTORIAL_NODE_ID,
           ),
+          // ①(ノード追加)だけでなく②(ドロワー・パッチノート誘導)もやり直せるよう、
+          // こちらの状態・達成フラグも一緒にリセットする
+          drawerGuideStep: 'idle',
         }));
+        clearGuestDrawerGuideDone();
 
         get().openProject(SAMPLE_PROJECT_ID);
         get().selectNode(TUTORIAL_NODE_ID);
@@ -1051,42 +1067,6 @@ export const useAppStore = create<AppState>()(
             (id) => id !== nodeId,
           ),
         }));
-      },
-
-      clipboardNode: null,
-
-      copyNodeToClipboard: (projectId, nodeId) => {
-        const project = get().projects.find((item) => item.id === projectId);
-        if (!project) return;
-
-        const node = findNode(project.rootTask, nodeId);
-        if (!node) return;
-
-        set({ clipboardNode: node });
-      },
-
-      pasteClipboardAsChild: (projectId, targetNodeId) => {
-        const { clipboardNode, nickname } = get();
-        if (!clipboardNode) return;
-
-        const pastedNode = cloneNodeWithFreshIds(clipboardNode, nickname);
-
-        set((state) => ({
-          projects: state.projects.map((project) => {
-            if (project.id !== projectId) return project;
-
-            const nextRoot = mapNode(project.rootTask, targetNodeId, (node) => ({
-              ...node,
-              children: [...node.children, pastedNode],
-            }));
-
-            return updateProjectRoot(project, nextRoot);
-          }),
-        }));
-      },
-
-      clearClipboard: () => {
-        set({ clipboardNode: null });
       },
 
       toggleComplete: (projectId, nodeId) => {
@@ -1477,6 +1457,9 @@ export const useAppStore = create<AppState>()(
 
       drawerGuideStep: 'idle',
       setDrawerGuideStep: (step) => set({ drawerGuideStep: step }),
+
+      showGuideClosingMessage: false,
+      setShowGuideClosingMessage: (value) => set({ showGuideClosingMessage: value }),
     }),
     {
       name: 'rooted-storage',
@@ -1504,7 +1487,7 @@ export const useAppStore = create<AppState>()(
         // 全ユーザー最初からサンプルプロジェクト＋バックアップJSONが存在している仕様のため、
         // プロジェクトが1件もない初回利用時にだけ差し込む
         const projects = seedInitialProjects(persistedProjects).map(
-          ensureSampleProjectHasTutorialNode,
+          ensureSampleProjectFresh,
         );
 
         return {

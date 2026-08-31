@@ -46,3 +46,14 @@ export function markGuestDrawerGuideDone(): void {
     // noop
   }
 }
+
+// Header.tsxの「🔁チュートリアル」ボタン(resetSampleTutorial)でノード追加誘導(①)を
+// やり直す際、こちらの達成フラグも一緒に消さないと、②のドロワー誘導が
+// 「もう達成済み」のまま二度と出てこなくなる
+export function clearGuestDrawerGuideDone(): void {
+  try {
+    sessionStorage.removeItem(GUEST_DRAWER_GUIDE_DONE_KEY);
+  } catch {
+    // noop
+  }
+}

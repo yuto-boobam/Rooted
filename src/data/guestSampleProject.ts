@@ -11,7 +11,31 @@ export const SAMPLE_PROJECT_ID = 'guest-sample-project';
 /** サンプルツリー内、ノード追加の操作を教える専用ノードの固定ID(誘導ガイドが目印にする) */
 export const TUTORIAL_NODE_ID = 'guest-sample-tutorial-node';
 
-function offsetDateKey(days: number): string {
+// サンプルツリー内、期限を持たせているノードの固定ID。
+// 「サイトを開いた日から計算する」という仕様(下記SAMPLE_DUE_DATE_OFFSETS参照)のため、
+// 既にlocalStorageに保存済みのサンプルプロジェクトに対しても、これらのIDを目印に
+// store.ts側で毎回期限を実際の「今日」基準へ再計算する(通常のプロジェクトは
+// インポートしたJSONの期限をそのまま使うため、この再計算はサンプルプロジェクト限定)
+export const SAMPLE_DESIGN_NODE_ID = 'guest-sample-design-node';
+export const SAMPLE_DESIGN_SCREEN_NODE_ID = 'guest-sample-design-screen-node';
+export const SAMPLE_DB_DESIGN_NODE_ID = 'guest-sample-db-design-node';
+export const SAMPLE_FRONTEND_NODE_ID = 'guest-sample-frontend-node';
+export const SAMPLE_BACKEND_NODE_ID = 'guest-sample-backend-node';
+export const SAMPLE_RELEASE_NODE_ID = 'guest-sample-release-node';
+
+// 各ノードの期限 = 「サイトを開いた日(今日)」からの日数オフセット。増減はここだけ直せばよい。
+// ユーザー指定の内訳: DB設計だけ意図的に期限超過(-2)を見せ、実装は今日から6日後、
+// 設計・リリース準備は2〜3日後(画面設計は完了済みのため設計より少し前倒しの2日後)
+export const SAMPLE_DUE_DATE_OFFSETS: Record<string, number> = {
+  [SAMPLE_DESIGN_NODE_ID]: 3,
+  [SAMPLE_DESIGN_SCREEN_NODE_ID]: 2,
+  [SAMPLE_DB_DESIGN_NODE_ID]: -2,
+  [SAMPLE_FRONTEND_NODE_ID]: 6,
+  [SAMPLE_BACKEND_NODE_ID]: 6,
+  [SAMPLE_RELEASE_NODE_ID]: 2,
+};
+
+export function offsetDateKey(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
 
@@ -63,30 +87,33 @@ function buildSampleProjectData() {
           ],
         },
         {
+          id: SAMPLE_DESIGN_NODE_ID,
           title: '設計',
           memo: 'UI/UXとDB構成を固める',
           detailMemo: '',
           completed: false,
           isPriority: true,
-          dueDate: offsetDateKey(7),
+          dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_DESIGN_NODE_ID]),
           createdBy: 'ゲスト',
           children: [
             {
+              id: SAMPLE_DESIGN_SCREEN_NODE_ID,
               title: '画面設計',
               memo: 'Figmaでワイヤーフレーム作成済み',
               detailMemo: '',
               completed: true,
               isPriority: true,
-              dueDate: offsetDateKey(6),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_DESIGN_SCREEN_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
             {
+              id: SAMPLE_DB_DESIGN_NODE_ID,
               title: 'DB設計',
               memo: 'テーブル定義の見直しに時間がかかっている',
               detailMemo: '正規化のやり直しが必要かもしれない',
               completed: false,
-              dueDate: offsetDateKey(3),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_DB_DESIGN_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
@@ -100,32 +127,35 @@ function buildSampleProjectData() {
           createdBy: 'ゲスト',
           children: [
             {
+              id: SAMPLE_FRONTEND_NODE_ID,
               title: 'フロントエンド実装',
               memo: '',
               detailMemo: '',
               completed: false,
               isPriority: true,
-              dueDate: offsetDateKey(15),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_FRONTEND_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
             {
+              id: SAMPLE_BACKEND_NODE_ID,
               title: 'バックエンド実装',
               memo: '',
               detailMemo: '',
               completed: false,
-              dueDate: offsetDateKey(15),
+              dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_BACKEND_NODE_ID]),
               createdBy: 'ゲスト',
               children: [],
             },
           ],
         },
         {
+          id: SAMPLE_RELEASE_NODE_ID,
           title: 'リリース準備',
           memo: '本番環境へのデプロイ手順を確認',
           detailMemo: 'デプロイ後は動作確認チェックリストに沿って検証する',
           completed: false,
-          dueDate: offsetDateKey(10),
+          dueDate: offsetDateKey(SAMPLE_DUE_DATE_OFFSETS[SAMPLE_RELEASE_NODE_ID]),
           createdBy: 'ゲスト',
           children: [],
         },

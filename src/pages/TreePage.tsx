@@ -72,11 +72,14 @@ export function TreePage() {
     isGuest,
     drawerGuideStep,
     setDrawerGuideStep,
+    showGuideClosingMessage,
+    setShowGuideClosingMessage,
 
     goToDashboard,
     selectNode,
     navigateToPath,
     toggleNodeExpanded,
+    toggleRightPanelSection,
 
     addChildNode,
     addSiblingNode,
@@ -235,7 +238,9 @@ export function TreePage() {
   useEffect(() => {
     if (!rootId) return;
     if (modal.open) return;
-    if (rightPanel.isOpen) return;
+    // サイドドロワーが開いていてもEnter/Tabでのノード追加は使えるようにする。
+    // ドロワー内の入力欄にフォーカスしている間はshouldIgnoreShortcutTargetが
+    // 別途弾くため、ここでドロワーの開閉自体をブロックする必要は無い
     if (isPatchNotesModalOpen) return;
 
     const handler = (event: KeyboardEvent) => {
@@ -265,7 +270,6 @@ export function TreePage() {
     };
   }, [
     modal.open,
-    rightPanel.isOpen,
     isPatchNotesModalOpen,
     lastSelectedId,
     rootId,
@@ -351,7 +355,7 @@ export function TreePage() {
   const guideTargetAnchor: GuideTargetAnchor = (
     {
       addChild: 'bottom',
-      addSibling: 'top',
+      addSibling: 'center',
       checkFirstChild: 'checkbox',
       checkSecondChild: 'checkbox',
       collapseNode: 'rightMiddle',
@@ -396,6 +400,23 @@ export function TreePage() {
     }
   }, [drawerGuideStep, rightPanel.isOpen, setDrawerGuideStep]);
 
+  // 「優先的タスク」「カレンダー」は開閉状態を保持しており、以前に閉じていると
+  // 説明対象の中身が見えないまま誘導してしまう。案内するステップに入った時点で、
+  // 閉じていれば開いておく(既に開いていれば何もしない)
+  useEffect(() => {
+    if (drawerGuideStep === 'priorityInfo' && !rightPanel.isPriorityListOpen) {
+      toggleRightPanelSection('isPriorityListOpen');
+    }
+    if (drawerGuideStep === 'calendarInfo' && !rightPanel.isCalendarOpen) {
+      toggleRightPanelSection('isCalendarOpen');
+    }
+  }, [
+    drawerGuideStep,
+    rightPanel.isPriorityListOpen,
+    rightPanel.isCalendarOpen,
+    toggleRightPanelSection,
+  ]);
+
   // パッチノートを開いたら誘導完了
   useEffect(() => {
     if (drawerGuideStep === 'openPatchNotes' && isPatchNotesModalOpen) {
@@ -403,6 +424,47 @@ export function TreePage() {
       markGuestDrawerGuideDone();
     }
   }, [drawerGuideStep, isPatchNotesModalOpen, setDrawerGuideStep]);
+
+  // 誘導が完了した状態でパッチノートを閉じたら(=一連の案内をひと通り見終えたら)、
+  // 締めのメッセージを画面中央に一度だけ表示する(Combo-LABのclosingメッセージ相当)
+  const previousPatchNotesOpenRef = useRef(isPatchNotesModalOpen);
+  const hasShownGuideClosingRef = useRef(false);
+
+  // 「🔁チュートリアル」ボタン(resetSampleTutorial)はdrawerGuideStepを'idle'に
+  // 戻すが、この既視refまでは触れられない。リセットしてもう一度やり直した時に
+  // 締めのメッセージが二度と出なくなっていた不具合の修正
+  useEffect(() => {
+    if (drawerGuideStep === 'idle') {
+      hasShownGuideClosingRef.current = false;
+    }
+  }, [drawerGuideStep]);
+
+  useEffect(() => {
+    const wasOpen = previousPatchNotesOpenRef.current;
+    previousPatchNotesOpenRef.current = isPatchNotesModalOpen;
+
+    if (
+      isGuest &&
+      wasOpen &&
+      !isPatchNotesModalOpen &&
+      drawerGuideStep === 'done' &&
+      !hasShownGuideClosingRef.current
+    ) {
+      hasShownGuideClosingRef.current = true;
+      setShowGuideClosingMessage(true);
+    }
+  }, [isPatchNotesModalOpen, isGuest, drawerGuideStep]);
+
+  useEffect(() => {
+    if (!showGuideClosingMessage) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowGuideClosingMessage(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showGuideClosingMessage]);
 
   // ── 列（カラム）の構築: 開いているノードをすべて辿る（複数の枝を同時に開ける）
   const columns = useMemo<TreeColumn<TaskNode>[]>(() => {
@@ -801,6 +863,78 @@ export function TreePage() {
         }}
         onCancel={() => setNodePendingDelete(null)}
       />
+
+      {/* ── 誘導完了後の締めのメッセージ */}
+      {showGuideClosingMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 18,
+            background: 'rgba(2, 6, 23, 0.76)',
+            backdropFilter: 'blur(10px)',
+          }}
+          onMouseDown={() => setShowGuideClosingMessage(false)}
+          role="presentation"
+        >
+          <div
+            style={{
+              width: 'min(360px, 100%)',
+              borderRadius: 22,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              boxShadow: '0 24px 90px rgba(0, 0, 0, 0.55)',
+              padding: '24px 22px',
+              textAlign: 'center',
+            }}
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div style={{ fontSize: 28, lineHeight: 1 }}>🌱</div>
+            <h2
+              style={{
+                margin: '12px 0 0',
+                fontSize: 16,
+                fontWeight: 900,
+                color: 'var(--text-primary)',
+              }}
+            >
+              基本操作は以上です
+            </h2>
+            <p
+              style={{
+                margin: '10px 0 0',
+                fontSize: 12.5,
+                lineHeight: 1.7,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              画面右側のドロワーを使うと、期限の管理や優先タスクの一覧表示もできます。この画面ではサンプルの内容を自由に編集できるので、ぜひ触ってみてください。
+            </p>
+            <button
+              type="button"
+              style={{
+                marginTop: 18,
+                padding: '10px 24px',
+                borderRadius: 999,
+                border: 'none',
+                background: 'var(--accent)',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              onClick={() => setShowGuideClosingMessage(false)}
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

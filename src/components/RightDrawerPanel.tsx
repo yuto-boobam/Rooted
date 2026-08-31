@@ -1,6 +1,6 @@
 // src/components/RightDrawerPanel.tsx
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
 import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
@@ -55,10 +55,6 @@ export default function RightDrawerPanel() {
         (state) => state.reorderPriorityTasks,
     );
 
-    const clipboardNode = useAppStore((state) => state.clipboardNode);
-    const copyNodeToClipboard = useAppStore((state) => state.copyNodeToClipboard);
-    const pasteClipboardAsChild = useAppStore((state) => state.pasteClipboardAsChild);
-
     const [pendingCompleteIds, setPendingCompleteIds] = useState<Set<string>>(
         () => new Set(),
     );
@@ -101,11 +97,18 @@ export default function RightDrawerPanel() {
 
     const today = todayDateKey();
 
+    // 「今日が期限」だけでなく、既に期限を過ぎた未完了タスクもここに含める
+    // (期限切れタスクが宙に浮いて見えなくなるのを防ぐため)。個々の行では
+    // TaskRow側で「期限切れ」か「本日期限」かを判別して表示する
     const todayDueTasks = useMemo(
         () =>
             tasks
-                .filter((task) => task.node.dueDate === today && !task.node.completed)
-                .sort((a, b) => a.node.title.localeCompare(b.node.title, 'ja')),
+                .filter((task) => task.node.dueDate !== null && task.node.dueDate <= today && !task.node.completed)
+                .sort(
+                    (a, b) =>
+                        (a.node.dueDate ?? '').localeCompare(b.node.dueDate ?? '') ||
+                        a.node.title.localeCompare(b.node.title, 'ja'),
+                ),
         [tasks, today],
     );
 
@@ -258,26 +261,17 @@ export default function RightDrawerPanel() {
                             isPending={
                                 selectedTask ? pendingCompleteIds.has(selectedTask.node.id) : false
                             }
-                            clipboardNodeTitle={clipboardNode?.title ?? null}
-                            onCopy={() => {
-                                if (!selectedTask) return;
-                                copyNodeToClipboard(selectedTask.projectId, selectedTask.node.id);
-                            }}
-                            onPaste={() => {
-                                if (!selectedTask) return;
-                                pasteClipboardAsChild(selectedTask.projectId, selectedTask.node.id);
-                            }}
                         />
 
                         <AccordionSection
-                            title="今日が期限のタスク"
+                            title="今日・期限切れのタスク"
                             icon="⏰"
                             count={todayDueTasks.length}
                             isOpen={rightPanel.isTodayDueOpen}
                             onToggle={() => toggleRightPanelSection('isTodayDueOpen')}
                         >
                             {todayDueTasks.length === 0 ? (
-                                <EmptyMessage text="今日が期限の未完了タスクはありません。" />
+                                <EmptyMessage text="今日が期限・期限切れの未完了タスクはありません。" />
                             ) : (
                                 <div style={styles.taskList}>
                                     {todayDueTasks.map((task) => (
@@ -300,8 +294,15 @@ export default function RightDrawerPanel() {
                             isOpen={rightPanel.isPriorityListOpen}
                             onToggle={() => toggleRightPanelSection('isPriorityListOpen')}
                             isGuideTarget={drawerGuideStep === 'priorityInfo'}
-                            guideHintText="優先登録したタスクをここでまとめて確認・並び替えできます"
-                            onGuideNext={() => setDrawerGuideStep('calendarInfo')}
+                            guideHintText="優先登録したタスクをまとめて確認・並び替えできます"
+                            onGuideNext={() => {
+                                // カレンダーの説明がスクロールなしで見えるよう、
+                                // 見終えた優先的タスクは畳んで縦のスペースを空ける
+                                if (rightPanel.isPriorityListOpen) {
+                                    toggleRightPanelSection('isPriorityListOpen');
+                                }
+                                setDrawerGuideStep('calendarInfo');
+                            }}
                         >
                             {priorityTasks.length === 0 ? (
                                 <EmptyMessage text="優先登録された未完了タスクはありません。" />
@@ -403,13 +404,7 @@ export default function RightDrawerPanel() {
                             onToggle={() => toggleRightPanelSection('isCalendarOpen')}
                             isGuideTarget={drawerGuideStep === 'calendarInfo'}
                             guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
-                            onGuideNext={() => {
-                                // ドロワーはヘッダーの右側ボタン(パッチノート等)を覆う位置に
-                                // 固定表示されるため、開いたままだと次のパッチノート誘導の
-                                // ボタンがクリックできない。ここで閉じてから誘導を進める
-                                setDrawerGuideStep('openPatchNotes');
-                                closeRightPanel();
-                            }}
+                            onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
                         >
                             <div style={styles.calendarTabs}>
                                 <button
@@ -474,9 +469,6 @@ function SelectedTaskEditor({
     onChangeMemo,
     onChangeDetailMemo,
     onComplete,
-    clipboardNodeTitle,
-    onCopy,
-    onPaste,
 }: {
     task: FlatTask | null;
     isPending: boolean;
@@ -486,11 +478,19 @@ function SelectedTaskEditor({
     onChangeMemo: (memo: string) => void;
     onChangeDetailMemo: (detailMemo: string) => void;
     onComplete: () => void;
-    /** クリップボードにコピー済みのタスク名（無ければnull）。貼り付けボタンの表示切替に使う */
-    clipboardNodeTitle: string | null;
-    onCopy: () => void;
-    onPaste: () => void;
 }) {
+    const detailMemoRef = useRef<HTMLTextAreaElement>(null);
+
+    // 詳細メモは初期状態を小さくし、入力量に応じて自動で高さが伸びるようにする
+    // (resize:verticalによる手動リサイズだと、初期表示のたびに大きな空欄が
+    // 目立ってドロワー内の縦スペースを圧迫していた)
+    useLayoutEffect(() => {
+        const el = detailMemoRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [task?.node.detailMemo, task?.node.id]);
+
     if (!task) {
         return (
             <section style={styles.selectedBox}>
@@ -519,29 +519,32 @@ function SelectedTaskEditor({
             </div>
 
             <div style={styles.selectedControls}>
-                <label style={styles.inputLabel}>
-                    期限
-                    <input
-                        type="date"
-                        value={task.node.dueDate ?? ''}
-                        style={styles.dateInput}
-                        onChange={(event) => onChangeDueDate(event.target.value || null)}
-                    />
-                </label>
-
-                {task.node.completed && (
-                    <label style={styles.inputLabel}>
-                        達成日
+                {/* 期限・達成日は横に並べて縦のスペースを節約する */}
+                <div style={styles.dateRow}>
+                    <label style={{ ...styles.inputLabel, flex: 1 }}>
+                        期限
                         <input
                             type="date"
-                            value={task.node.completedAt ?? ''}
+                            value={task.node.dueDate ?? ''}
                             style={styles.dateInput}
-                            onChange={(event) =>
-                                onChangeCompletedAt(event.target.value || null)
-                            }
+                            onChange={(event) => onChangeDueDate(event.target.value || null)}
                         />
                     </label>
-                )}
+
+                    {task.node.completed && (
+                        <label style={{ ...styles.inputLabel, flex: 1 }}>
+                            達成日
+                            <input
+                                type="date"
+                                value={task.node.completedAt ?? ''}
+                                style={styles.dateInput}
+                                onChange={(event) =>
+                                    onChangeCompletedAt(event.target.value || null)
+                                }
+                            />
+                        </label>
+                    )}
+                </div>
 
                 <label style={styles.inputLabel}>
                     概要メモ
@@ -557,10 +560,11 @@ function SelectedTaskEditor({
                 <label style={styles.inputLabel}>
                     詳細メモ
                     <textarea
+                        ref={detailMemoRef}
                         value={task.node.detailMemo}
                         style={styles.detailTextarea}
                         placeholder="具体的な手順・仕様・補足メモを入力..."
-                        rows={4}
+                        rows={1}
                         onChange={(event) => onChangeDetailMemo(event.target.value)}
                     />
                 </label>
@@ -580,35 +584,6 @@ function SelectedTaskEditor({
                             {isPending ? '完了処理中...' : '完了にする'}
                         </button>
                     )}
-                </div>
-
-                {/* ── コピー＆ペースト（このタスクと子タスクをまるごと複製する） */}
-                <div style={styles.selectedButtonGrid}>
-                    <button
-                        type="button"
-                        style={styles.secondaryButton}
-                        onClick={onCopy}
-                        title="このタスクと子タスクをすべてコピーします"
-                    >
-                        📋 コピー
-                    </button>
-
-                    <button
-                        type="button"
-                        style={{
-                            ...styles.secondaryButton,
-                            ...(clipboardNodeTitle ? {} : styles.secondaryButtonDisabled),
-                        }}
-                        onClick={onPaste}
-                        disabled={!clipboardNodeTitle}
-                        title={
-                            clipboardNodeTitle
-                                ? `「${clipboardNodeTitle}」をこのタスクの子として貼り付けます`
-                                : '先にタスクをコピーしてください'
-                        }
-                    >
-                        📥 貼り付け
-                    </button>
                 </div>
             </div>
         </section>
@@ -639,6 +614,9 @@ function TaskRow({
             </label>
 
             <div style={styles.taskMeta}>
+                {task.node.dueDate && task.node.dueDate < todayDateKey() && (
+                    <span style={styles.overdueBadge}>期限切れ</span>
+                )}
                 {task.node.dueDate
                     ? `期限: ${formatDateLabel(task.node.dueDate)}`
                     : '期限未設定'}
@@ -1052,6 +1030,11 @@ const styles: Record<string, CSSProperties> = {
         fontWeight: 800,
     },
 
+    dateRow: {
+        display: 'flex',
+        gap: 8,
+    },
+
     dateInput: {
         border: '1px solid var(--border)',
         background: 'var(--bg-base)',
@@ -1062,6 +1045,9 @@ const styles: Record<string, CSSProperties> = {
         colorScheme: 'light dark',
     },
 
+    // 初期状態は1行分程度の小さいテキストボックスにし、入力量に応じてJS側
+    // (SelectedTaskEditorのuseLayoutEffect)がscrollHeightに合わせて高さを伸ばす。
+    // resizeは使わない(自動で伸びるため手動リサイズと競合させない)
     detailTextarea: {
         border: '1px solid var(--border)',
         background: 'var(--bg-base)',
@@ -1070,9 +1056,10 @@ const styles: Record<string, CSSProperties> = {
         padding: '9px 10px',
         fontSize: 12,
         lineHeight: 1.55,
-        resize: 'vertical',
-        minHeight: 96,
+        resize: 'none',
+        minHeight: 34,
         outline: 'none',
+        overflow: 'hidden',
     },
 
     selectedButtonGrid: {
@@ -1090,11 +1077,6 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 850,
-    },
-
-    secondaryButtonDisabled: {
-        color: 'var(--text-muted)',
-        cursor: 'not-allowed',
     },
 
     completeButton: {
@@ -1140,6 +1122,18 @@ const styles: Record<string, CSSProperties> = {
         marginTop: 5,
         color: 'var(--text-secondary)',
         fontSize: 11,
+    },
+
+    overdueBadge: {
+        display: 'inline-block',
+        marginRight: 6,
+        padding: '1px 6px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+        fontSize: 10,
+        fontWeight: 900,
     },
 
     taskFooter: {

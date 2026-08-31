@@ -150,13 +150,13 @@ export function TaskNodeCard({
           className="flex-shrink-0 flex items-center justify-center transition-all"
           style={{
             position: 'absolute',
-            right: -7.2,
+            right: -10,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 14.4,
-            height: 14.4,
+            width: 20,
+            height: 20,
             borderRadius: '50%',
-            border: `1.2px solid ${borderColor}`,
+            border: `1.4px solid ${borderColor}`,
             background: 'var(--bg-surface)',
             color: 'var(--text-primary)',
             zIndex: 20,
@@ -169,8 +169,8 @@ export function TaskNodeCard({
           title={isExpanded ? '子タスクを閉じる' : '子タスクを開く'}
         >
           <svg
-            width="6.4"
-            height="6.4"
+            width="9"
+            height="9"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -191,11 +191,11 @@ export function TaskNodeCard({
         <button
           className="flex-shrink-0 flex items-center justify-center transition-all"
           style={{
-            marginTop: 1.6,
-            width: 11.2,
-            height: 11.2,
-            borderRadius: 3.2,
-            border: `1.2px solid ${node.completed ? accentColor : 'var(--text-muted)'}`,
+            marginTop: 0.8,
+            width: 15,
+            height: 15,
+            borderRadius: 4,
+            border: `1.4px solid ${node.completed ? accentColor : 'var(--text-muted)'}`,
             background: node.completed ? accentColor : 'transparent',
           }}
           onClick={(e) => {
@@ -205,7 +205,7 @@ export function TaskNodeCard({
           title={isLeaf ? (node.completed ? '未完了に戻す' : '完了にする') : '子タスクが存在するため直接完了できません'}
         >
           {node.completed && (
-            <svg width="6.4" height="6.4" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
+            <svg width="8.5" height="8.5" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2">
               <polyline points="1.5,5 4,7.5 8.5,2.5" />
             </svg>
           )}

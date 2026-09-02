@@ -19,9 +19,11 @@ export function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(null);
 
-  const visibleProjects = isGuest
-    ? projects.filter((project) => project.id === SAMPLE_PROJECT_ID)
-    : projects;
+  const visibleProjects = (
+    isGuest ? projects.filter((project) => project.id === SAMPLE_PROJECT_ID) : projects
+  )
+    .slice()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   const sampleProject = visibleProjects.find((project) => project.id === SAMPLE_PROJECT_ID);
 

@@ -1,5 +1,15 @@
 [
   {
+    "id": "2026-09-02-6324fbad",
+    "date": "2026-09-02",
+    "buildNumber": 19,
+    "type": "spec-change",
+    "title": "進捗率の表示位置を変更",
+    "description": "進捗率が原因で、ノードの縦幅がやたら大きなものになってしまっていた。",
+    "beforeImageUrl": "/images/patch-notes/2026/09/20260902-build19-before.png?v=1788329150935",
+    "afterImageUrl": "/images/patch-notes/2026/09/20260902-build19-after.png?v=1788328296717"
+  },
+  {
     "id": "2026-08-31-f0e452ae",
     "date": "2026-08-31",
     "buildNumber": 18,

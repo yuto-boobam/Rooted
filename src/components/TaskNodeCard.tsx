@@ -322,26 +322,22 @@ export function TaskNodeCard({
             </div>
           )}
 
-          {/* ── 子ノード数＋進捗バー（子がある場合のみ） */}
+          {/* ── 進捗バー（子がある場合のみ） */}
           {!isLeaf && (
-            <div className="flex flex-col" style={{ gap: 3.2, marginTop: 3.2 }}>
-              <div className="flex items-center justify-between">
-                <span style={{ fontSize: 9.6, color: 'var(--text-muted)' }}>
-                  📋 {node.children.length}
-                </span>
-                <span
-                  className="font-medium"
-                  style={{
-                    fontSize: 9.6,
-                    color: isSelected
-                      ? accentColor
-                      : (dueUrgency?.accent ?? 'var(--text-primary)'),
-                  }}
-                >
-                  {progress}%
-                </span>
-              </div>
-              <div className="progress-bar">
+            <div className="flex items-center" style={{ gap: 6.4, marginTop: 3.2 }}>
+              <span
+                className="font-medium"
+                style={{
+                  flex: '0 0 auto',
+                  fontSize: 9.6,
+                  color: isSelected
+                    ? accentColor
+                    : (dueUrgency?.accent ?? 'var(--text-primary)'),
+                }}
+              >
+                {progress}%
+              </span>
+              <div className="progress-bar" style={{ flex: 1 }}>
                 <div
                   className="progress-bar__fill"
                   style={{ width: `${progress}%`, background: accentColor }}

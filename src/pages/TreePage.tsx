@@ -31,6 +31,7 @@ import {
   MAX_ZOOM,
   ZOOM_STEP,
   DEFAULT_ZOOM,
+  DRAWER_RESERVED_WIDTH,
 } from './TreePage.config';
 
 type DraggedNodeData = {
@@ -591,7 +592,7 @@ export function TreePage() {
         <div
           style={{
             position: 'relative',
-            width: ((layout?.width ?? 0) + CANVAS_PADDING * 2) * zoom,
+            width: ((layout?.width ?? 0) + CANVAS_PADDING * 2) * zoom + DRAWER_RESERVED_WIDTH,
             height: ((layout?.height ?? 0) + CANVAS_PADDING * 2) * zoom,
           }}
         >
@@ -601,7 +602,7 @@ export function TreePage() {
                 position: 'absolute',
                 top: 0,
                 left: 0,
-                width: (layout?.width ?? 0) + CANVAS_PADDING * 2,
+                width: (layout?.width ?? 0) + CANVAS_PADDING * 2 + DRAWER_RESERVED_WIDTH / zoom,
                 height: (layout?.height ?? 0) + CANVAS_PADDING * 2,
                 transform: `scale(${zoom})`,
                 transformOrigin: 'top left',

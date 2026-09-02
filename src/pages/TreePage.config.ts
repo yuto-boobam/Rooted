@@ -23,6 +23,13 @@ export const TREE_LAYOUT_CONFIG: TreeLayoutConfig = {
 /** キャンバス端の余白(px)（元の48pxの0.8倍） */
 export const CANVAS_PADDING = 38.4;
 
+// タスク集中パネル（RightDrawerPanel.tsx）の最大幅と合わせた値。ドロワーが開くと
+// 画面右端のノードが隠れてしまうが、キャンバスの横スクロール範囲がノードの存在する
+// 範囲までしかないため、それ以上右へスクロールしてドロワーの裏から逃がすことが
+// できなかった。ズーム倍率に関わらずドロワー自体は画面上で常に同じ幅なので、この
+// 余白もズームでスケールさせず画面ピクセル固定で加算する
+export const DRAWER_RESERVED_WIDTH = 420;
+
 /** ノードが閉じて消えるフェードアウトの所要時間(ms) */
 export const EXIT_TRANSITION_MS = 200;
 

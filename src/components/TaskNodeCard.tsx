@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import type { TaskNode } from '../types';
+import { COPY_PASTE_MIME_TYPE } from '../types';
 import { getDueUrgencyColors } from '../utils/dueDateColor';
 import { daysUntil, formatDueDateShort } from '../utils/dueDate';
 import { applyManualLineBreaks } from '../utils/textDisplay';
@@ -36,6 +37,15 @@ type Props = {
   // 光るリング演出を表示する(吹き出し自体はGuideConnector.tsxが別途描画する。
   // 詳細はプロジェクトの記憶参照)
   isGuideTarget?: boolean;
+
+  // コピーモード中の複数選択用（isCopyModeActiveがtrueの間だけ意味を持つ）
+  isCopyModeActive?: boolean;
+  isCopySelected?: boolean;
+  onToggleCopySelect?: () => void;
+
+  // コピー内容（RightDrawerPanel.tsxのプレビューカード）をこのカードへドロップして
+  // 貼り付けるためのハンドラ。既存のonDrop（ノード移動）とは別経路で呼ばれる
+  onPasteDrop?: () => void;
 };
 
 export function TaskNodeCard({
@@ -57,6 +67,10 @@ export function TaskNodeCard({
   onDragOver,
   onDrop,
   isGuideTarget = false,
+  isCopyModeActive = false,
+  isCopySelected = false,
+  onToggleCopySelect,
+  onPasteDrop,
 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -93,13 +107,20 @@ export function TaskNodeCard({
       ? getDueUrgencyColors(daysUntil(node.dueDate))
       : null;
   const DEFAULT_BORDER_COLOR = 'color-mix(in srgb, var(--text-primary) 50%, transparent)';
+  const COPY_SELECTED_COLOR = '#22c55e'; // 通常の単一選択色(accentColor)と混同しないよう固定色にする
 
-  const borderColor = isSelected
-    ? accentColor
-    : node.completed
-      ? 'var(--border)'
-      : (dueUrgency?.accent ?? DEFAULT_BORDER_COLOR);
-  const glowStyle = isSelected ? `0 0 0 1px ${accentColor}40` : 'none';
+  const borderColor = isCopySelected
+    ? COPY_SELECTED_COLOR
+    : isSelected
+      ? accentColor
+      : node.completed
+        ? 'var(--border)'
+        : (dueUrgency?.accent ?? DEFAULT_BORDER_COLOR);
+  const glowStyle = isCopySelected
+    ? `0 0 0 2px ${COPY_SELECTED_COLOR}55`
+    : isSelected
+      ? `0 0 0 1px ${accentColor}40`
+      : 'none';
 
   return (
     <div
@@ -114,7 +135,8 @@ export function TaskNodeCard({
       }}
       onDragOver={(e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        const isPasteDrag = e.dataTransfer.types.includes(COPY_PASTE_MIME_TYPE);
+        e.dataTransfer.dropEffect = isPasteDrag ? 'copy' : 'move';
         setIsDragOver(true);
         onDragOver(dragIndex);
       }}
@@ -122,6 +144,12 @@ export function TaskNodeCard({
       onDrop={(e) => {
         e.preventDefault();
         setIsDragOver(false);
+
+        if (e.dataTransfer.types.includes(COPY_PASTE_MIME_TYPE)) {
+          onPasteDrop?.();
+          return;
+        }
+
         try {
           const data = JSON.parse(e.dataTransfer.getData('application/json'));
           if (data && data.id) {
@@ -131,7 +159,13 @@ export function TaskNodeCard({
           console.error('Drop error', err);
         }
       }}
-      onClick={onClick}
+      onClick={() => {
+        if (isCopyModeActive) {
+          onToggleCopySelect?.();
+          return;
+        }
+        onClick();
+      }}
       className={`animate-fadeIn flex flex-col cursor-pointer transition-all duration-150 select-none relative z-10${isGuideTarget ? ' tutorial-spotlight-ring' : ''}`}
       style={{
         gap: 6.4,
@@ -144,6 +178,30 @@ export function TaskNodeCard({
         width: isRoot ? ROOT_WIDTH : '100%',
       }}
     >
+      {isCopySelected && (
+        <div
+          style={{
+            position: 'absolute',
+            left: -8,
+            top: -8,
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: COPY_SELECTED_COLOR,
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            fontWeight: 900,
+            zIndex: 25,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+          }}
+        >
+          ✓
+        </div>
+      )}
+
       {/* ── 開閉トグル（子を持つノードのみ、右端の接続線上に配置） */}
       {!isLeaf && onToggleExpand && (
         <button

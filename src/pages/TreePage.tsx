@@ -88,6 +88,11 @@ export function TreePage() {
     updateNodeTitle,
     updateNodeMemo,
     moveNode,
+
+    isCopyModeActive,
+    copySelectionIds,
+    toggleCopySelection,
+    pasteCopiedNodesInto,
   } = useAppStore();
 
   const project = useMemo(
@@ -666,6 +671,10 @@ export function TreePage() {
                     // ルートにドロップした場合は常にルートの子になる
                     moveNode(project.id, draggedData.id, root.id);
                   }}
+                  isCopyModeActive={isCopyModeActive}
+                  isCopySelected={copySelectionIds.includes(root.id)}
+                  onToggleCopySelect={() => toggleCopySelection(root.id)}
+                  onPasteDrop={() => pasteCopiedNodesInto(project.id, root.id)}
                 />
               </div>
 
@@ -729,6 +738,10 @@ export function TreePage() {
                           moveNode(project.id, draggedData.id, node.id);
                         }}
                         isGuideTarget={node.id === guideTargetId}
+                        isCopyModeActive={isCopyModeActive}
+                        isCopySelected={copySelectionIds.includes(node.id)}
+                        onToggleCopySelect={() => toggleCopySelection(node.id)}
+                        onPasteDrop={() => pasteCopiedNodesInto(project.id, node.id)}
                       />
                     </div>
                   );

@@ -1,8 +1,9 @@
 // src/components/RightDrawerPanel.tsx
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
+import { COPY_PASTE_MIME_TYPE } from '../types';
 import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
 import AccordionSection from './AccordionSection';
 import DrawerLogoutFooter from './DrawerLogoutFooter';
@@ -29,6 +30,9 @@ export default function RightDrawerPanel() {
     const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
     const setDrawerGuideStep = useAppStore((state) => state.setDrawerGuideStep);
     const closeRightPanel = useAppStore((state) => state.closeRightPanel);
+    const openRightPanel = useAppStore((state) => state.openRightPanel);
+    const startCopyMode = useAppStore((state) => state.startCopyMode);
+    const copiedNodes = useAppStore((state) => state.copiedNodes);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
     );
@@ -61,6 +65,38 @@ export default function RightDrawerPanel() {
     const [draggedPriorityId, setDraggedPriorityId] = useState<string | null>(
         null,
     );
+
+    const drawerRef = useRef<HTMLElement>(null);
+    const dragStartDrawerWidthRef = useRef(0);
+
+    // ドロワー内のコピー内容プレビューカードをドラッグ中、カーソルがドロワーの
+    // 元の幅の範囲外に出たら（＝ツリーキャンバス上に来たら）ドロワーを自動で閉じ、
+    // 逆に画面右端（同じ幅の範囲）へ戻ったら自動で開き直す。開き直すとドロワーの
+    // 内容（ドロップ先として機能しない）がカーソルの下に来るだけなので、
+    // それだけで「そこにドロップしても貼り付けはキャンセル扱い」を実現できる
+    const handleWindowDragOverDuringCopyPreviewDrag = useCallback(
+        (event: DragEvent) => {
+            const drawerWidth = dragStartDrawerWidthRef.current;
+            if (drawerWidth <= 0) return;
+
+            const isCursorInDrawerZone = event.clientX >= window.innerWidth - drawerWidth;
+            const isDrawerCurrentlyOpen = useAppStore.getState().rightPanel.isOpen;
+
+            if (isDrawerCurrentlyOpen && !isCursorInDrawerZone) {
+                closeRightPanel();
+            } else if (!isDrawerCurrentlyOpen && isCursorInDrawerZone) {
+                openRightPanel();
+            }
+        },
+        [closeRightPanel, openRightPanel],
+    );
+
+    // ドラッグ中に予期せずアンマウントされた場合のリスナー解放（安全策）
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('dragover', handleWindowDragOverDuringCopyPreviewDrag);
+        };
+    }, [handleWindowDragOverDuringCopyPreviewDrag]);
 
     const currentProject = useMemo(
         () => projects.find((project) => project.id === currentProjectId) ?? null,
@@ -164,6 +200,7 @@ export default function RightDrawerPanel() {
             {/* 背面をクリックしても閉じない（Combo-LABのSideDrawerPanelと同じく、開いたまま
                 裏のツリーを操作できるようにする。閉じるのはヘッダーの開閉ボタンのみ） */}
             <aside
+                ref={drawerRef}
                 style={{
                     ...styles.drawer,
                     transform: rightPanel.isOpen ? 'translateX(0)' : 'translateX(105%)',
@@ -191,6 +228,16 @@ export default function RightDrawerPanel() {
                             }
                         >
                             {theme === 'dark' ? '🌙' : '☀️'}
+                        </button>
+
+                        <button
+                            type="button"
+                            style={styles.copyStartButton}
+                            onClick={startCopyMode}
+                            disabled={!currentProject}
+                            title="複数のノードを選んでコピーします"
+                        >
+                            📋 コピー開始
                         </button>
                     </div>
 
@@ -451,6 +498,48 @@ export default function RightDrawerPanel() {
                                 />
                             )}
                         </AccordionSection>
+
+                        {copiedNodes.length > 0 && (
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <p style={styles.copyPreviewSectionTitle}>
+                                    現在コピーしているノード
+                                </p>
+
+                                <div
+                                    draggable
+                                    onDragStart={(event) => {
+                                        event.dataTransfer.setData(COPY_PASTE_MIME_TYPE, '1');
+                                        event.dataTransfer.effectAllowed = 'copy';
+
+                                        const rect = drawerRef.current?.getBoundingClientRect();
+                                        dragStartDrawerWidthRef.current = rect?.width ?? 0;
+                                        window.addEventListener(
+                                            'dragover',
+                                            handleWindowDragOverDuringCopyPreviewDrag,
+                                        );
+                                    }}
+                                    onDragEnd={() => {
+                                        window.removeEventListener(
+                                            'dragover',
+                                            handleWindowDragOverDuringCopyPreviewDrag,
+                                        );
+                                    }}
+                                    style={styles.copyPreviewCard}
+                                    title="このカードをツリー上のノードへドラッグ＆ドロップすると、その子として貼り付けられます"
+                                >
+                                    <p style={styles.copyPreviewHint}>
+                                        🖐 ドラッグしてツリーのノードに重ねると、その子として貼り付けられます
+                                    </p>
+                                    <ul style={styles.copyPreviewList}>
+                                        {copiedNodes.map((node) => (
+                                            <li key={node.id} style={styles.copyPreviewListItem}>
+                                                {node.title || '（タイトルなし）'}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -954,6 +1043,62 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 20,
         lineHeight: 1,
+    },
+
+    copyStartButton: {
+        flex: '0 0 auto',
+        height: 28,
+        padding: '0 10px',
+        borderRadius: 9,
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
+        cursor: 'pointer',
+        fontSize: 11,
+        fontWeight: 800,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        whiteSpace: 'nowrap',
+    },
+
+    copyPreviewSectionTitle: {
+        margin: 0,
+        color: 'var(--text-primary)',
+        fontSize: 12,
+        fontWeight: 900,
+    },
+
+    copyPreviewCard: {
+        border: '1.5px dashed var(--border)',
+        borderRadius: 16,
+        padding: 12,
+        background: 'var(--bg-elevated)',
+        cursor: 'grab',
+        display: 'grid',
+        gap: 8,
+    },
+
+    copyPreviewHint: {
+        margin: 0,
+        color: 'var(--text-secondary)',
+        fontSize: 11,
+        fontWeight: 700,
+        lineHeight: 1.5,
+    },
+
+    copyPreviewList: {
+        margin: 0,
+        padding: '0 0 0 18px',
+        display: 'grid',
+        gap: 4,
+    },
+
+    copyPreviewListItem: {
+        color: 'var(--text-primary)',
+        fontSize: 12,
+        fontWeight: 800,
+        overflowWrap: 'anywhere',
     },
 
     drawerBody: {

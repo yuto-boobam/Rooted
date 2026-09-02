@@ -218,6 +218,34 @@ function mapEveryNode(
   return fn({ ...node, children });
 }
 
+// コピー機能: サブツリーを丸ごと複製し、ノード自身とすべての子孫に新しいidを振り直す
+// （同じクリップボードを複数回貼り付けても id が衝突しないようにするため）。
+// resetWorkflowState=true（貼り付け時）は、コピー元の完了状態・優先タスク登録状態を
+// 持ち込まず「まだ達成していない新しい作業」として初期化する（priorityOrderはツリー
+// 全体で一意な順位のため、そのまま持ち込むと優先的タスク一覧の順位が重複する）。
+// resetWorkflowState=false（コピー開始→終了でクリップボードに取り込む時）は単なる
+// スナップショットなので id 以外は変更しない
+function cloneNodeDeep(
+  node: TaskNode,
+  resetWorkflowState: boolean,
+  createdBy?: string,
+): TaskNode {
+  return mapEveryNode(node, (n) => ({
+    ...n,
+    id: makeId(),
+    ...(resetWorkflowState
+      ? {
+          completed: false,
+          completedAt: null,
+          isPriority: false,
+          priorityOrder: null,
+          createdBy: createdBy ?? n.createdBy,
+          createdAt: new Date().toISOString(),
+        }
+      : {}),
+  }));
+}
+
 function findNode(node: TaskNode, targetId: string): TaskNode | null {
   if (node.id === targetId) return node;
 
@@ -738,6 +766,20 @@ export type AppState = {
     toIndex?: number,
   ) => void;
 
+  // ──── コピー機能（複数ノードを選択→複製→別ノードへ貼り付け） ──────────────
+  // isCopyModeActive中はツリー上のクリックがノード選択トグルに切り替わり、ドロワーは
+  // 強制的に閉じる。ドロワーが閉じている間の唯一の操作口として、常時表示の
+  // Header.tsx外部ボタンが「コピー終了」ボタンに切り替わる。
+  // copiedNodesは貼り付けても消費されず、次にstartCopyModeが呼ばれるまで保持される
+  // （同じ内容を何度でもドラッグ&ドロップで貼り付けられるようにするため）
+  isCopyModeActive: boolean;
+  copySelectionIds: string[];
+  copiedNodes: TaskNode[];
+  startCopyMode: () => void;
+  toggleCopySelection: (nodeId: string) => void;
+  endCopyMode: () => void;
+  pasteCopiedNodesInto: (projectId: string, targetNodeId: string) => void;
+
   // ナビゲーション
   selectNode: (nodeId: string) => void;
   navigateToPath: (path: string[]) => void;
@@ -797,6 +839,8 @@ export const useAppStore = create<AppState>()(
           currentProjectId: null,
           selectedPath: [],
           rightPanel: { ...state.rightPanel, isOpen: false },
+          isCopyModeActive: false,
+          copySelectionIds: [],
         }));
 
         const hasSampleProject = get().projects.some(
@@ -854,6 +898,8 @@ export const useAppStore = create<AppState>()(
             currentProjectId: null,
             selectedPath: [],
             rightPanel: { ...state.rightPanel, isOpen: false },
+            isCopyModeActive: false,
+            copySelectionIds: [],
           }));
           return;
         }
@@ -862,6 +908,8 @@ export const useAppStore = create<AppState>()(
           currentProjectId: null,
           selectedPath: [],
           rightPanel: { ...state.rightPanel, isOpen: false },
+          isCopyModeActive: false,
+          copySelectionIds: [],
         }));
         await supabase.auth.signOut();
       },
@@ -1450,6 +1498,71 @@ export const useAppStore = create<AppState>()(
             ...state.rightPanel,
             calendarMode: mode,
           },
+        }));
+      },
+
+      // ──── コピー機能 ──────────────────────────────────────────────────
+
+      isCopyModeActive: false,
+      copySelectionIds: [],
+      copiedNodes: [],
+
+      startCopyMode: () => {
+        set({ isCopyModeActive: true, copySelectionIds: [] });
+        get().closeRightPanel();
+      },
+
+      toggleCopySelection: (nodeId) => {
+        set((state) => ({
+          copySelectionIds: state.copySelectionIds.includes(nodeId)
+            ? state.copySelectionIds.filter((id) => id !== nodeId)
+            : [...state.copySelectionIds, nodeId],
+        }));
+      },
+
+      endCopyMode: () => {
+        const { copySelectionIds, projects, currentProjectId } = get();
+
+        if (copySelectionIds.length > 0) {
+          const project = projects.find((item) => item.id === currentProjectId);
+          const nextClipboard = project
+            ? copySelectionIds
+                .map((id) => findNode(project.rootTask, id))
+                .filter((node): node is TaskNode => node !== null)
+                .map((node) => cloneNodeDeep(node, false))
+            : [];
+
+          // 選択ノードが何も見つからなかった場合（プロジェクトが切り替わった等）は
+          // 既存のクリップボードを壊さず、そのまま維持する
+          if (nextClipboard.length > 0) {
+            set({ copiedNodes: nextClipboard });
+          }
+        }
+
+        set({ isCopyModeActive: false, copySelectionIds: [] });
+        get().openRightPanel();
+      },
+
+      pasteCopiedNodesInto: (projectId, targetNodeId) => {
+        const { copiedNodes, nickname } = get();
+        if (copiedNodes.length === 0) return;
+
+        set((state) => ({
+          projects: state.projects.map((project) => {
+            if (project.id !== projectId) return project;
+            if (!findNode(project.rootTask, targetNodeId)) return project;
+
+            const newChildren = copiedNodes.map((node) =>
+              cloneNodeDeep(node, true, nickname),
+            );
+
+            const nextRoot = mapNode(project.rootTask, targetNodeId, (node) => ({
+              ...node,
+              children: [...node.children, ...newChildren],
+            }));
+
+            return updateProjectRoot(project, nextRoot);
+          }),
         }));
       },
 

@@ -88,6 +88,8 @@ export default function Header({
 
   const isRightPanelOpen = useAppStore((state) => state.rightPanel.isOpen);
   const toggleRightPanel = useAppStore((state) => state.toggleRightPanel);
+  const isCopyModeActive = useAppStore((state) => state.isCopyModeActive);
+  const endCopyMode = useAppStore((state) => state.endCopyMode);
   const resetSampleTutorial = useAppStore((state) => state.resetSampleTutorial);
   const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
   const showGuideClosingMessage = useAppStore((state) => state.showGuideClosingMessage);
@@ -458,15 +460,21 @@ export default function Header({
                 }
                 style={{
                   ...styles.rightPanelButton,
-                  ...(isRightPanelOpen ? styles.rightPanelButtonActive : {}),
+                  ...(isCopyModeActive || isRightPanelOpen
+                    ? styles.rightPanelButtonActive
+                    : {}),
                 }}
-                onClick={toggleRightPanel}
-                title="タスクパネルを開閉"
-                aria-pressed={isRightPanelOpen}
+                onClick={isCopyModeActive ? endCopyMode : toggleRightPanel}
+                title={isCopyModeActive ? 'コピーを終了する' : 'タスクパネルを開閉'}
+                aria-pressed={isCopyModeActive ? true : isRightPanelOpen}
               >
                 <span>⚡</span>
                 <span style={styles.compactButtonText}>
-                  {isRightPanelOpen ? 'パネル閉じる' : 'タスクパネル'}
+                  {isCopyModeActive
+                    ? 'コピー終了'
+                    : isRightPanelOpen
+                      ? 'パネル閉じる'
+                      : 'タスクパネル'}
                 </span>
               </button>
             </div>

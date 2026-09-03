@@ -780,6 +780,11 @@ export type AppState = {
   endCopyMode: () => void;
   pasteCopiedNodesInto: (projectId: string, targetNodeId: string) => void;
 
+  // デモ録画用の操作可視化演出（キー入力ポップ＋クリック波紋）のON/OFF。
+  // 録画時だけ使う一時的な見た目のトグルなので永続化しない
+  isDemoEffectsEnabled: boolean;
+  toggleDemoEffects: () => void;
+
   // ナビゲーション
   selectNode: (nodeId: string) => void;
   navigateToPath: (path: string[]) => void;
@@ -1564,6 +1569,13 @@ export const useAppStore = create<AppState>()(
             return updateProjectRoot(project, nextRoot);
           }),
         }));
+      },
+
+      // ──── デモ演出 ──────────────────────────────────────────────────
+
+      isDemoEffectsEnabled: false,
+      toggleDemoEffects: () => {
+        set((state) => ({ isDemoEffectsEnabled: !state.isDemoEffectsEnabled }));
       },
 
       // ──── ゲスト向け誘導ガイド第2段 ────────────────────────────────────

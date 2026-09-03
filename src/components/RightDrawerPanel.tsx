@@ -32,6 +32,8 @@ export default function RightDrawerPanel() {
     const closeRightPanel = useAppStore((state) => state.closeRightPanel);
     const openRightPanel = useAppStore((state) => state.openRightPanel);
     const startCopyMode = useAppStore((state) => state.startCopyMode);
+    const isDemoEffectsEnabled = useAppStore((state) => state.isDemoEffectsEnabled);
+    const toggleDemoEffects = useAppStore((state) => state.toggleDemoEffects);
     const copiedNodes = useAppStore((state) => state.copiedNodes);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
@@ -237,7 +239,19 @@ export default function RightDrawerPanel() {
                             disabled={!currentProject}
                             title="複数のノードを選んでコピーします"
                         >
-                            📋 コピー開始
+                            📋 コピー
+                        </button>
+
+                        <button
+                            type="button"
+                            style={{
+                                ...styles.copyStartButton,
+                                ...(isDemoEffectsEnabled ? styles.demoEffectsButtonActive : {}),
+                            }}
+                            onClick={toggleDemoEffects}
+                            title="デモ録画用の操作可視化演出（キー入力ポップ・クリック波紋）を切り替えます"
+                        >
+                            🎬 演出 {isDemoEffectsEnabled ? 'ON' : 'OFF'}
                         </button>
                     </div>
 
@@ -1060,6 +1074,12 @@ const styles: Record<string, CSSProperties> = {
         alignItems: 'center',
         gap: 4,
         whiteSpace: 'nowrap',
+    },
+
+    demoEffectsButtonActive: {
+        borderColor: '#f472b6',
+        color: '#f472b6',
+        background: 'rgba(244, 114, 182, 0.12)',
     },
 
     copyPreviewSectionTitle: {

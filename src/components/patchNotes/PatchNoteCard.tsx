@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PatchNote, PatchNoteType } from '../../types/patchNote';
+import { resolvePublicImageUrl } from '../../utils/publicUrl';
 
 interface PatchNoteCardProps {
   note: PatchNote;
@@ -106,8 +107,9 @@ export default function PatchNoteCard({ note, showDate = false }: PatchNoteCardP
   );
 }
 
-function ImageCard({ label, src, title }: { label: string; src: string; title: string }) {
+function ImageCard({ label, src: rawSrc, title }: { label: string; src: string; title: string }) {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const src = resolvePublicImageUrl(rawSrc);
 
   useEffect(() => {
     if (!isLightboxOpen) {

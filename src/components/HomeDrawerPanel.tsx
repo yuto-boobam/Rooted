@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
+import { SAMPLE_PROJECT_ID } from '../data/guestSampleProject';
 import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
 import { daysUntil } from '../utils/dueDate';
 import { getDueUrgencyColors } from '../utils/dueDateColor';
@@ -24,6 +25,7 @@ type ProjectGroup = {
 
 export default function HomeDrawerPanel() {
   const projects = useAppStore((state) => state.projects);
+  const isGuest = useAppStore((state) => state.isGuest);
   const rightPanel = useAppStore((state) => state.rightPanel);
   const closeRightPanel = useAppStore((state) => state.closeRightPanel);
   const theme = useAppStore((state) => state.theme);
@@ -37,6 +39,7 @@ export default function HomeDrawerPanel() {
 
   const projectGroups = useMemo<ProjectGroup[]>(() => {
     const groups = projects
+      .filter((project) => isGuest || project.id !== SAMPLE_PROJECT_ID)
       .map((project) => {
         const items = flattenProjectTasks(project)
           .filter((task) => !task.node.completed && task.node.dueDate)
@@ -54,7 +57,7 @@ export default function HomeDrawerPanel() {
       .filter((group) => group.items.length > 0);
 
     return groups.sort((a, b) => a.items[0].diffDays - b.items[0].diffDays);
-  }, [projects]);
+  }, [projects, isGuest]);
 
   const totalCount = projectGroups.reduce((sum, group) => sum + group.items.length, 0);
 

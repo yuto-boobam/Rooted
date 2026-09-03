@@ -87,3 +87,8 @@ export const PROJECT_ICONS = [
   '🚀',
   '💡',
 ] as const;
+
+// コピー機能: ノード移動用のD&Dペイロード（application/jsonの{id,parentId,index}）とは
+// 完全に独立させ、コピー内容の貼り付けドラッグだけを既存のドロップ処理から区別するための
+// 専用MIMEタイプ。dataTransfer.types はdrop前でも安全に参照できるため判定に使う
+export const COPY_PASTE_MIME_TYPE = 'application/x-rooted-copy-paste';

@@ -94,7 +94,41 @@ export function TreePage() {
     copySelectionIds,
     toggleCopySelection,
     pasteCopiedNodesInto,
+
+    priorityBulkActionType,
+    priorityBulkSelectionIds,
+    togglePriorityBulkSelection,
+
+    isDueDateBulkActive,
+    dueDateBulkTargetDate,
+    dueDateBulkSelectionIds,
+    toggleDueDateBulkSelection,
   } = useAppStore();
+
+  // コピー/優先タスク一括操作/期限一括登録は、どれか1つだけが同時にアクティブになる
+  // （いずれも開始時にドロワーを閉じるため、閉じている間は他の開始ボタンに
+  // アクセスできない）。期限一括登録は「日付をまだ選んでいない」フェーズでは
+  // ドロワーが開いたままなので、ツリー上のノード選択はまだ始めない
+  const activeSelectionMode: 'copy' | 'priority' | 'dueDate' | null = isCopyModeActive
+    ? 'copy'
+    : priorityBulkActionType
+      ? 'priority'
+      : isDueDateBulkActive && dueDateBulkTargetDate
+        ? 'dueDate'
+        : null;
+
+  const isNodeSelectedInActiveMode = (nodeId: string): boolean => {
+    if (activeSelectionMode === 'copy') return copySelectionIds.includes(nodeId);
+    if (activeSelectionMode === 'priority') return priorityBulkSelectionIds.includes(nodeId);
+    if (activeSelectionMode === 'dueDate') return dueDateBulkSelectionIds.includes(nodeId);
+    return false;
+  };
+
+  const toggleNodeSelectionInActiveMode = (nodeId: string) => {
+    if (activeSelectionMode === 'copy') toggleCopySelection(nodeId);
+    else if (activeSelectionMode === 'priority') togglePriorityBulkSelection(nodeId);
+    else if (activeSelectionMode === 'dueDate') toggleDueDateBulkSelection(nodeId);
+  };
 
   const project = useMemo(
     () => projects.find((p) => p.id === currentProjectId) ?? null,
@@ -413,13 +447,13 @@ export function TreePage() {
     if (drawerGuideStep === 'priorityInfo' && !rightPanel.isPriorityListOpen) {
       toggleRightPanelSection('isPriorityListOpen');
     }
-    if (drawerGuideStep === 'calendarInfo' && !rightPanel.isCalendarOpen) {
-      toggleRightPanelSection('isCalendarOpen');
+    if (drawerGuideStep === 'calendarInfo' && !rightPanel.isWeeklyOpen) {
+      toggleRightPanelSection('isWeeklyOpen');
     }
   }, [
     drawerGuideStep,
     rightPanel.isPriorityListOpen,
-    rightPanel.isCalendarOpen,
+    rightPanel.isWeeklyOpen,
     toggleRightPanelSection,
   ]);
 
@@ -672,9 +706,9 @@ export function TreePage() {
                     // ルートにドロップした場合は常にルートの子になる
                     moveNode(project.id, draggedData.id, root.id);
                   }}
-                  isCopyModeActive={isCopyModeActive}
-                  isCopySelected={copySelectionIds.includes(root.id)}
-                  onToggleCopySelect={() => toggleCopySelection(root.id)}
+                  selectionMode={activeSelectionMode ?? undefined}
+                  isSelectedInMode={isNodeSelectedInActiveMode(root.id)}
+                  onToggleSelection={() => toggleNodeSelectionInActiveMode(root.id)}
                   onPasteDrop={() => pasteCopiedNodesInto(project.id, root.id)}
                 />
               </div>
@@ -739,9 +773,9 @@ export function TreePage() {
                           moveNode(project.id, draggedData.id, node.id);
                         }}
                         isGuideTarget={node.id === guideTargetId}
-                        isCopyModeActive={isCopyModeActive}
-                        isCopySelected={copySelectionIds.includes(node.id)}
-                        onToggleCopySelect={() => toggleCopySelection(node.id)}
+                        selectionMode={activeSelectionMode ?? undefined}
+                        isSelectedInMode={isNodeSelectedInActiveMode(node.id)}
+                        onToggleSelection={() => toggleNodeSelectionInActiveMode(node.id)}
                         onPasteDrop={() => pasteCopiedNodesInto(project.id, node.id)}
                       />
                     </div>

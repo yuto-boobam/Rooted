@@ -38,10 +38,14 @@ type Props = {
   // 詳細はプロジェクトの記憶参照)
   isGuideTarget?: boolean;
 
-  // コピーモード中の複数選択用（isCopyModeActiveがtrueの間だけ意味を持つ）
-  isCopyModeActive?: boolean;
-  isCopySelected?: boolean;
-  onToggleCopySelect?: () => void;
+  // コピー/優先タスク一括操作/期限一括登録など、複数ノードを選んでから一括で
+  // 何かを適用する系の操作で共通して使う選択モード。同時に複数のモードが
+  // アクティブになることはない（どれも開始時にドロワーを閉じ、閉じている間は
+  // 他の開始ボタンにアクセスできないため）。undefinedの間はクリックが通常の
+  // onClick（単一選択）として扱われる
+  selectionMode?: 'copy' | 'priority' | 'dueDate';
+  isSelectedInMode?: boolean;
+  onToggleSelection?: () => void;
 
   // コピー内容（RightDrawerPanel.tsxのプレビューカード）をこのカードへドロップして
   // 貼り付けるためのハンドラ。既存のonDrop（ノード移動）とは別経路で呼ばれる
@@ -67,9 +71,9 @@ export function TaskNodeCard({
   onDragOver,
   onDrop,
   isGuideTarget = false,
-  isCopyModeActive = false,
-  isCopySelected = false,
-  onToggleCopySelect,
+  selectionMode,
+  isSelectedInMode = false,
+  onToggleSelection,
   onPasteDrop,
 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -107,20 +111,43 @@ export function TaskNodeCard({
       ? getDueUrgencyColors(daysUntil(node.dueDate))
       : null;
   const DEFAULT_BORDER_COLOR = 'color-mix(in srgb, var(--text-primary) 50%, transparent)';
-  const COPY_SELECTED_COLOR = '#22c55e'; // 通常の単一選択色(accentColor)と混同しないよう固定色にする
+  // モードごとに見分けられるよう別色にする（コピー=緑、優先タスク一括操作=アンバー、
+  // 期限一括登録=水色）
+  const SELECTION_MODE_COLORS: Record<string, string> = {
+    copy: '#22c55e',
+    priority: '#16a34a',
+    dueDate: '#38bdf8',
+  };
+  const selectionModeColor = selectionMode ? SELECTION_MODE_COLORS[selectionMode] : null;
+  const isBulkSelected = Boolean(selectionMode) && isSelectedInMode;
 
-  const borderColor = isCopySelected
-    ? COPY_SELECTED_COLOR
+  // ルートは兄弟タスクが存在せず幅を気にする必要がないため、選択中でも期限警告中
+  // でもない「平常時」だけ、プロジェクトのアクセントカラーで縁取り、目立たせる
+  // （選択/一括選択/期限警告の色は従来通り最優先で表示する）
+  //
+  // 優先タスク登録中は枠線だけをドロワーの優先タスクと同じ緑にする（Combo-LABでも
+  // 使っていた方式）。期限が近い場合でも枠線は緑を優先し、「期限: a/b」の文字色は
+  // dueUrgency.accentのまま独立させることで、優先登録済みでも期限の逼迫度を見逃さない
+  const borderColor = isBulkSelected && selectionModeColor
+    ? selectionModeColor
     : isSelected
       ? accentColor
       : node.completed
         ? 'var(--border)'
-        : (dueUrgency?.accent ?? DEFAULT_BORDER_COLOR);
-  const glowStyle = isCopySelected
-    ? `0 0 0 2px ${COPY_SELECTED_COLOR}55`
+        : node.isPriority
+          ? SELECTION_MODE_COLORS.priority
+          : dueUrgency
+            ? dueUrgency.accent
+            : isRoot
+              ? `color-mix(in srgb, ${accentColor} 55%, transparent)`
+              : DEFAULT_BORDER_COLOR;
+  const glowStyle = isBulkSelected && selectionModeColor
+    ? `0 0 0 2px ${selectionModeColor}55`
     : isSelected
       ? `0 0 0 1px ${accentColor}40`
-      : 'none';
+      : isRoot && !node.completed && !dueUrgency
+        ? `0 0 0 1px ${accentColor}25, 0 6px 22px ${accentColor}20`
+        : 'none';
 
   return (
     <div
@@ -160,8 +187,8 @@ export function TaskNodeCard({
         }
       }}
       onClick={() => {
-        if (isCopyModeActive) {
-          onToggleCopySelect?.();
+        if (selectionMode) {
+          onToggleSelection?.();
           return;
         }
         onClick();
@@ -169,16 +196,20 @@ export function TaskNodeCard({
       className={`animate-fadeIn flex flex-col cursor-pointer transition-all duration-150 select-none relative z-10${isGuideTarget ? ' tutorial-spotlight-ring' : ''}`}
       style={{
         gap: 6.4,
-        borderRadius: 9.6,
-        padding: '9.6px 11.2px',
-        background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
-        border: `1px solid ${isDragOver ? accentColor : borderColor}`,
+        borderRadius: isRoot ? 14 : 9.6,
+        padding: isRoot ? '13px 14px' : '9.6px 11.2px',
+        background: isSelected
+          ? `${accentColor}10`
+          : isRoot
+            ? `linear-gradient(135deg, ${accentColor}22, ${accentColor}05)`
+            : 'var(--bg-surface)',
+        border: `${isRoot ? 2 : 1}px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
         minHeight: node.completed ? undefined : isRoot ? ROOT_HEIGHT : NODE_HEIGHT,
         width: isRoot ? ROOT_WIDTH : '100%',
       }}
     >
-      {isCopySelected && (
+      {isBulkSelected && selectionModeColor && (
         <div
           style={{
             position: 'absolute',
@@ -187,7 +218,7 @@ export function TaskNodeCard({
             width: 18,
             height: 18,
             borderRadius: '50%',
-            background: COPY_SELECTED_COLOR,
+            background: selectionModeColor,
             color: '#fff',
             display: 'flex',
             alignItems: 'center',
@@ -281,14 +312,15 @@ export function TaskNodeCard({
             onKeyDown={handleTitleKeyDown}
             onBlur={() => setIsEditingTitle(false)}
             onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: 9.6, lineHeight: 1.4 }}
+            style={{ fontSize: isRoot ? 13 : 9.6, lineHeight: 1.4 }}
           />
         ) : (
           <span
             className="font-medium flex-1"
             style={{
-              fontSize: 9.6,
-              lineHeight: 1.2,
+              fontSize: isRoot ? 13 : 9.6,
+              fontWeight: isRoot ? 800 : undefined,
+              lineHeight: 1.25,
               color: node.completed ? 'var(--text-muted)' : 'var(--text-primary)',
               textDecoration: node.completed ? 'line-through' : 'none',
               minWidth: 0,

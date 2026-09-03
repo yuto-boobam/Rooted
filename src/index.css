@@ -298,6 +298,22 @@ body {
 }
 .tutorial-spotlight-ring { animation: tutorialSpotlightPulse 1.4s ease-out infinite; }
 
+/* デモ録画用の操作可視化演出（DemoEffectsOverlay.tsx）:
+   キー入力を画面中央にポップ表示、クリック位置に波紋を表示する */
+@keyframes demoKeyPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  75%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+.demo-key-pop { animation: demoKeyPop 0.9s ease-out forwards; }
+
+@keyframes demoRippleExpand {
+  0%   { opacity: 0.6; transform: translate(-50%, -50%) scale(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
+}
+.demo-ripple { animation: demoRippleExpand 0.55s ease-out forwards; }
+
 /* ドラッグ中のスタイル */
 .drag-over {
   border-color: var(--accent) !important;

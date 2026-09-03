@@ -4,7 +4,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@supabase/supabase-js';
 import type {
-  CalendarViewMode,
   Project,
   RightPanelState,
   TaskNode,
@@ -40,13 +39,14 @@ export type DrawerGuideStep =
 const DEFAULT_RIGHT_PANEL_STATE: RightPanelState = {
   isOpen: false,
   isTodayDueOpen: true,
+  isWeeklyOpen: true,
   isPriorityListOpen: true,
   isCalendarOpen: true,
-  calendarMode: 'weekly',
 };
 
 export type RightPanelSectionKey =
   | 'isTodayDueOpen'
+  | 'isWeeklyOpen'
   | 'isPriorityListOpen'
   | 'isCalendarOpen';
 
@@ -615,6 +615,10 @@ function normalizeRightPanelState(value: unknown): RightPanelState {
       typeof partial.isTodayDueOpen === 'boolean'
         ? partial.isTodayDueOpen
         : DEFAULT_RIGHT_PANEL_STATE.isTodayDueOpen,
+    isWeeklyOpen:
+      typeof partial.isWeeklyOpen === 'boolean'
+        ? partial.isWeeklyOpen
+        : DEFAULT_RIGHT_PANEL_STATE.isWeeklyOpen,
     isPriorityListOpen:
       typeof partial.isPriorityListOpen === 'boolean'
         ? partial.isPriorityListOpen
@@ -623,7 +627,6 @@ function normalizeRightPanelState(value: unknown): RightPanelState {
       typeof partial.isCalendarOpen === 'boolean'
         ? partial.isCalendarOpen
         : DEFAULT_RIGHT_PANEL_STATE.isCalendarOpen,
-    calendarMode: partial.calendarMode === 'monthly' ? 'monthly' : 'weekly',
   };
 }
 
@@ -780,6 +783,35 @@ export type AppState = {
   endCopyMode: () => void;
   pasteCopiedNodesInto: (projectId: string, targetNodeId: string) => void;
 
+  // デモ録画用の操作可視化演出（キー入力ポップ＋クリック波紋）のON/OFF。
+  // 録画時だけ使う一時的な見た目のトグルなので永続化しない
+  isDemoEffectsEnabled: boolean;
+  toggleDemoEffects: () => void;
+
+  // ──── 優先タスクの一括操作（複数ノードを選択→登録/達成/削除を一括適用） ─────
+  // コピー機能(isCopyModeActive等)と同じ選択UXをツリー上で行う。ドロワーの
+  // 「優先タスク」見出しの「登録」「削除」ボタンから開始し、選択完了は
+  // コピー機能と同様にHeader.tsxの外部ボタン（ドロワーが閉じている間の唯一の操作口）
+  // から行う
+  priorityBulkActionType: 'register' | 'delete' | null;
+  priorityBulkSelectionIds: string[];
+  startPriorityBulkAction: (type: 'register' | 'delete') => void;
+  togglePriorityBulkSelection: (nodeId: string) => void;
+  endPriorityBulkAction: () => void;
+
+  // ──── 期限の一括登録（カレンダーで日付を選択→複数ノードへ一括適用） ────────
+  // カレンダー見出しの「期限を一括登録」ボタンで開始。他の一括操作と違い、まず
+  // （ドロワーを開いたまま）カレンダー上で対象日を選ぶフェーズがあり、日付選択後に
+  // 初めてドロワーが閉じてノード選択フェーズに入る。既に期限が設定済みのノードも
+  // 上書きする
+  isDueDateBulkActive: boolean;
+  dueDateBulkTargetDate: string | null;
+  dueDateBulkSelectionIds: string[];
+  startDueDateBulkAction: () => void;
+  pickDueDateBulkTargetDate: (date: string) => void;
+  toggleDueDateBulkSelection: (nodeId: string) => void;
+  endDueDateBulkAction: () => void;
+
   // ナビゲーション
   selectNode: (nodeId: string) => void;
   navigateToPath: (path: string[]) => void;
@@ -797,7 +829,6 @@ export type AppState = {
   closeRightPanel: () => void;
   toggleRightPanel: () => void;
   toggleRightPanelSection: (section: RightPanelSectionKey) => void;
-  setRightPanelCalendarMode: (mode: CalendarViewMode) => void;
 
   // ゲスト向け誘導ガイド(第2段)。「操作方法」ノードの誘導([[TreePage.tsx]]のnodeGuideStep)が
   // 終わった後、サイドドロワー・パッチノートへ誘導する。ドロワー開閉やモーダル開閉は
@@ -841,6 +872,11 @@ export const useAppStore = create<AppState>()(
           rightPanel: { ...state.rightPanel, isOpen: false },
           isCopyModeActive: false,
           copySelectionIds: [],
+          priorityBulkActionType: null,
+          priorityBulkSelectionIds: [],
+          isDueDateBulkActive: false,
+          dueDateBulkTargetDate: null,
+          dueDateBulkSelectionIds: [],
         }));
 
         const hasSampleProject = get().projects.some(
@@ -900,6 +936,11 @@ export const useAppStore = create<AppState>()(
             rightPanel: { ...state.rightPanel, isOpen: false },
             isCopyModeActive: false,
             copySelectionIds: [],
+            priorityBulkActionType: null,
+            priorityBulkSelectionIds: [],
+            isDueDateBulkActive: false,
+            dueDateBulkTargetDate: null,
+            dueDateBulkSelectionIds: [],
           }));
           return;
         }
@@ -910,6 +951,11 @@ export const useAppStore = create<AppState>()(
           rightPanel: { ...state.rightPanel, isOpen: false },
           isCopyModeActive: false,
           copySelectionIds: [],
+          priorityBulkActionType: null,
+          priorityBulkSelectionIds: [],
+          isDueDateBulkActive: false,
+          dueDateBulkTargetDate: null,
+          dueDateBulkSelectionIds: [],
         }));
         await supabase.auth.signOut();
       },
@@ -1492,15 +1538,6 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      setRightPanelCalendarMode: (mode) => {
-        set((state) => ({
-          rightPanel: {
-            ...state.rightPanel,
-            calendarMode: mode,
-          },
-        }));
-      },
-
       // ──── コピー機能 ──────────────────────────────────────────────────
 
       isCopyModeActive: false,
@@ -1564,6 +1601,117 @@ export const useAppStore = create<AppState>()(
             return updateProjectRoot(project, nextRoot);
           }),
         }));
+      },
+
+      // ──── デモ演出 ──────────────────────────────────────────────────
+
+      isDemoEffectsEnabled: false,
+      toggleDemoEffects: () => {
+        set((state) => ({ isDemoEffectsEnabled: !state.isDemoEffectsEnabled }));
+      },
+
+      // ──── 優先タスクの一括操作 ────────────────────────────────────────
+
+      priorityBulkActionType: null,
+      priorityBulkSelectionIds: [],
+
+      startPriorityBulkAction: (type) => {
+        set({ priorityBulkActionType: type, priorityBulkSelectionIds: [] });
+        get().closeRightPanel();
+      },
+
+      togglePriorityBulkSelection: (nodeId) => {
+        set((state) => ({
+          priorityBulkSelectionIds: state.priorityBulkSelectionIds.includes(nodeId)
+            ? state.priorityBulkSelectionIds.filter((id) => id !== nodeId)
+            : [...state.priorityBulkSelectionIds, nodeId],
+        }));
+      },
+
+      endPriorityBulkAction: () => {
+        const { priorityBulkActionType, priorityBulkSelectionIds, currentProjectId } = get();
+
+        if (priorityBulkActionType && currentProjectId) {
+          for (const nodeId of priorityBulkSelectionIds) {
+            if (priorityBulkActionType === 'register') {
+              get().setNodePriority(currentProjectId, nodeId, true);
+            } else {
+              get().deleteNode(currentProjectId, nodeId);
+            }
+          }
+        }
+
+        set({ priorityBulkActionType: null, priorityBulkSelectionIds: [] });
+        get().openRightPanel();
+      },
+
+      // ──── 期限の一括登録 ──────────────────────────────────────────────
+
+      isDueDateBulkActive: false,
+      dueDateBulkTargetDate: null,
+      dueDateBulkSelectionIds: [],
+
+      startDueDateBulkAction: () => {
+        // 既に進行中（まだ日付を選んでいないフェーズ）に再度押した場合はキャンセル扱い
+        if (get().isDueDateBulkActive) {
+          set({
+            isDueDateBulkActive: false,
+            dueDateBulkTargetDate: null,
+            dueDateBulkSelectionIds: [],
+          });
+          return;
+        }
+
+        set({
+          isDueDateBulkActive: true,
+          dueDateBulkTargetDate: null,
+          dueDateBulkSelectionIds: [],
+        });
+      },
+
+      pickDueDateBulkTargetDate: (date) => {
+        set({ dueDateBulkTargetDate: date });
+        get().closeRightPanel();
+      },
+
+      toggleDueDateBulkSelection: (nodeId) => {
+        set((state) => ({
+          dueDateBulkSelectionIds: state.dueDateBulkSelectionIds.includes(nodeId)
+            ? state.dueDateBulkSelectionIds.filter((id) => id !== nodeId)
+            : [...state.dueDateBulkSelectionIds, nodeId],
+        }));
+      },
+
+      endDueDateBulkAction: () => {
+        const { dueDateBulkTargetDate, dueDateBulkSelectionIds, currentProjectId, projects } =
+          get();
+
+        if (dueDateBulkTargetDate && currentProjectId) {
+          const project = projects.find((item) => item.id === currentProjectId);
+
+          if (project) {
+            // 親ノードを選択した場合は、その子孫ノードにも同じ期限が一括で付くようにする
+            // （子孫を1つずつ選ばなくても済むようにし、工数を削減する）。Setで集約する
+            // ことで、選択した複数ノードの子孫が重なっても二重に処理しない
+            const targetIds = new Set<string>();
+            for (const nodeId of dueDateBulkSelectionIds) {
+              const node = findNode(project.rootTask, nodeId);
+              if (!node) continue;
+              collectNodes(node).forEach((descendant) => targetIds.add(descendant.id));
+            }
+
+            for (const nodeId of targetIds) {
+              get().updateNodeDueDate(currentProjectId, nodeId, dueDateBulkTargetDate);
+            }
+          }
+        }
+
+        set({
+          isDueDateBulkActive: false,
+          dueDateBulkTargetDate: null,
+          dueDateBulkSelectionIds: [],
+        });
+        get().openRightPanel();
       },
 
       // ──── ゲスト向け誘導ガイド第2段 ────────────────────────────────────

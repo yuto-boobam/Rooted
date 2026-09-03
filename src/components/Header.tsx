@@ -90,6 +90,13 @@ export default function Header({
   const toggleRightPanel = useAppStore((state) => state.toggleRightPanel);
   const isCopyModeActive = useAppStore((state) => state.isCopyModeActive);
   const endCopyMode = useAppStore((state) => state.endCopyMode);
+  const priorityBulkActionType = useAppStore((state) => state.priorityBulkActionType);
+  const endPriorityBulkAction = useAppStore((state) => state.endPriorityBulkAction);
+  const isDueDateBulkActive = useAppStore((state) => state.isDueDateBulkActive);
+  const dueDateBulkTargetDate = useAppStore((state) => state.dueDateBulkTargetDate);
+  const endDueDateBulkAction = useAppStore((state) => state.endDueDateBulkAction);
+  const isDemoEffectsEnabled = useAppStore((state) => state.isDemoEffectsEnabled);
+  const toggleDemoEffects = useAppStore((state) => state.toggleDemoEffects);
   const resetSampleTutorial = useAppStore((state) => state.resetSampleTutorial);
   const drawerGuideStep = useAppStore((state) => state.drawerGuideStep);
   const showGuideClosingMessage = useAppStore((state) => state.showGuideClosingMessage);
@@ -264,6 +271,24 @@ export default function Header({
     }
   };
 
+  // コピー/優先タスク一括操作/期限一括登録のうち、ドロワーが閉じていて
+  // ノード選択フェーズに入っているものがあれば、外部の⚡ボタンをその終了ボタンに
+  // 差し替える（同時に複数が該当することはない）。期限一括登録は「まだ日付を
+  // 選んでいない」フェーズではドロワーが開いたままなので対象外
+  const activeBulkMode = isCopyModeActive
+    ? { onEnd: endCopyMode, title: 'コピーを終了する', label: 'コピー終了' }
+    : priorityBulkActionType === 'register'
+      ? { onEnd: endPriorityBulkAction, title: '選択した内容で登録する', label: '登録終了' }
+      : priorityBulkActionType === 'delete'
+        ? { onEnd: endPriorityBulkAction, title: '選択した内容を削除する', label: '削除終了' }
+        : isDueDateBulkActive && dueDateBulkTargetDate
+          ? {
+              onEnd: endDueDateBulkAction,
+              title: '選択したノードへ期限を一括登録する',
+              label: '期限登録終了',
+            }
+          : null;
+
   const breadcrumbItems =
     breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs : title ? [title] : [];
 
@@ -435,6 +460,22 @@ export default function Header({
               </button>
             )}
 
+            <button
+              type="button"
+              style={{
+                ...styles.demoEffectsButton,
+                ...(isDemoEffectsEnabled ? styles.demoEffectsButtonActive : {}),
+              }}
+              onClick={toggleDemoEffects}
+              title="デモ録画用の操作可視化演出（キー入力ポップ・クリック波紋）を切り替えます"
+              aria-pressed={isDemoEffectsEnabled}
+            >
+              <span>🎬</span>
+              <span style={styles.compactButtonText}>
+                演出{isDemoEffectsEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+
             <div
               style={{
                 position: 'relative',
@@ -460,18 +501,16 @@ export default function Header({
                 }
                 style={{
                   ...styles.rightPanelButton,
-                  ...(isCopyModeActive || isRightPanelOpen
-                    ? styles.rightPanelButtonActive
-                    : {}),
+                  ...(activeBulkMode || isRightPanelOpen ? styles.rightPanelButtonActive : {}),
                 }}
-                onClick={isCopyModeActive ? endCopyMode : toggleRightPanel}
-                title={isCopyModeActive ? 'コピーを終了する' : 'タスクパネルを開閉'}
-                aria-pressed={isCopyModeActive ? true : isRightPanelOpen}
+                onClick={activeBulkMode ? activeBulkMode.onEnd : toggleRightPanel}
+                title={activeBulkMode ? activeBulkMode.title : 'タスクパネルを開閉'}
+                aria-pressed={activeBulkMode ? true : isRightPanelOpen}
               >
                 <span>⚡</span>
                 <span style={styles.compactButtonText}>
-                  {isCopyModeActive
-                    ? 'コピー終了'
+                  {activeBulkMode
+                    ? activeBulkMode.label
                     : isRightPanelOpen
                       ? 'パネル閉じる'
                       : 'タスクパネル'}
@@ -792,6 +831,26 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
+  },
+  demoEffectsButton: {
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 11,
+    border: '1px solid var(--border)',
+    background: 'var(--bg-elevated)',
+    color: 'var(--text-primary)',
+    padding: '0 9px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  demoEffectsButtonActive: {
+    borderColor: 'var(--accent-rose-border)',
+    background: 'var(--accent-rose-bg)',
+    color: 'var(--accent-rose-text)',
   },
   rightPanelButton: {
     height: 32,

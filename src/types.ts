@@ -4,9 +4,6 @@
 /** 優先度の数値（1位, 2位, 3位...）または未設定 */
 export type PriorityOrder = number | null;
 
-/** カレンダーの表示モード */
-export type CalendarViewMode = 'weekly' | 'monthly';
-
 /** 表示するページ */
 export type View = 'dashboard' | 'tree';
 
@@ -57,9 +54,11 @@ export type Project = {
 export type RightPanelState = {
   isOpen: boolean;
   isTodayDueOpen: boolean;
+  // 「週間」は元はカレンダーセクション内のタブだったが、期限切れタスクと優先タスクの
+  // 間に独立したセクションとして配置し直したため、開閉状態も専用に持つ
+  isWeeklyOpen: boolean;
   isPriorityListOpen: boolean;
   isCalendarOpen: boolean;
-  calendarMode: CalendarViewMode;
 };
 
 /** プロジェクトカードのカラーパレット */

@@ -1,5 +1,65 @@
 [
   {
+    "id": "2026-09-03-9a0dedd2",
+    "date": "2026-09-03",
+    "buildNumber": 26,
+    "type": "spec-change",
+    "title": "優先タスクに登録されているノードの枠線が緑色になるように変更",
+    "description": "期限の色はそのままなので、期限が近いタスクも見逃さない。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/09/20260903-build26-after.png?v=1788406882312"
+  },
+  {
+    "id": "2026-09-03-a7937501",
+    "date": "2026-09-03",
+    "buildNumber": 25,
+    "type": "feature",
+    "title": "期限の一括登録",
+    "description": "一括で期限を登録できるようにした。また、親ノードを選択することで、子ノードをまとめて期限付与できるようにした。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/09/20260903-build25-after.png?v=1788405526830"
+  },
+  {
+    "id": "2026-09-03-cc1bff25",
+    "date": "2026-09-03",
+    "buildNumber": 24,
+    "type": "spec-change",
+    "title": "週間の項目を独立させ、配色を変更",
+    "description": "直近七日分のタスクをもっと見やすくしたかった。\nそして期限が迫るほどに赤色に近づく配色にすることで、視覚的にわかりやすくしたかった。",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/09/20260903-build24-after.png?v=1788405433883"
+  },
+  {
+    "id": "2026-09-03-64a3f5fb",
+    "date": "2026-09-03",
+    "buildNumber": 23,
+    "type": "spec-change",
+    "title": "ルートノードをもっと目立つようにした",
+    "description": "兄弟タスクのようなものも存在していないので、もっと目立っていても構わないものだから",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/09/20260903-build23-after.png?v=1788405348455"
+  },
+  {
+    "id": "2026-09-03-3a9a9451",
+    "date": "2026-09-03",
+    "buildNumber": 22,
+    "type": "spec-change",
+    "title": "優先タスクに一斉追加を可能にした",
+    "description": "コピー機能の一括選択を流用して、一括で優先登録する機能を実装した。そして優先タスクの色も変更した。",
+    "beforeImageUrl": "/images/patch-notes/2026/09/20260903-build22-before.png?v=1788405237106",
+    "afterImageUrl": "/images/patch-notes/2026/09/20260903-build22-after.png?v=1788405590613"
+  },
+  {
+    "id": "2026-09-03-e5b507fc",
+    "date": "2026-09-03",
+    "buildNumber": 21,
+    "type": "feature",
+    "title": "操作内容に対する演出を作成",
+    "description": "クリックした箇所に波紋を発生させ、キー入力は画面表示する",
+    "beforeImageUrl": null,
+    "afterImageUrl": "/images/patch-notes/2026/09/20260903-build21-after.png?v=1788405147911"
+  },
+  {
     "id": "2026-09-02-e777c2f7",
     "date": "2026-09-02",
     "buildNumber": 20,

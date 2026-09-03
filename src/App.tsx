@@ -3,6 +3,7 @@ import { useAppStore } from './store';
 import { DashboardPage } from './pages/DashboardPage';
 import { TreePage } from './pages/TreePage';
 import { AuthPage } from './pages/AuthPage';
+import DemoEffectsOverlay from './components/DemoEffectsOverlay';
 import { supabase } from './utils/supabaseClient';
 
 /**
@@ -87,6 +88,7 @@ function App() {
   return (
     <div style={{ height: '100vh', overflow: 'hidden' }}>
       {view === 'dashboard' ? <DashboardPage /> : <TreePage />}
+      <DemoEffectsOverlay />
     </div>
   );
 }

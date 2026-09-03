@@ -5,6 +5,8 @@ import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
 import { COPY_PASTE_MIME_TYPE } from '../types';
 import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
+import { getDueUrgencyColors } from '../utils/dueDateColor';
+import { daysUntil } from '../utils/dueDate';
 import AccordionSection from './AccordionSection';
 import DrawerLogoutFooter from './DrawerLogoutFooter';
 
@@ -33,11 +35,13 @@ export default function RightDrawerPanel() {
     const openRightPanel = useAppStore((state) => state.openRightPanel);
     const startCopyMode = useAppStore((state) => state.startCopyMode);
     const copiedNodes = useAppStore((state) => state.copiedNodes);
+    const startPriorityBulkAction = useAppStore((state) => state.startPriorityBulkAction);
+    const isDueDateBulkActive = useAppStore((state) => state.isDueDateBulkActive);
+    const dueDateBulkTargetDate = useAppStore((state) => state.dueDateBulkTargetDate);
+    const startDueDateBulkAction = useAppStore((state) => state.startDueDateBulkAction);
+    const pickDueDateBulkTargetDate = useAppStore((state) => state.pickDueDateBulkTargetDate);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
-    );
-    const setRightPanelCalendarMode = useAppStore(
-        (state) => state.setRightPanelCalendarMode,
     );
 
     const selectNode = useAppStore((state) => state.selectNode);
@@ -237,7 +241,7 @@ export default function RightDrawerPanel() {
                             disabled={!currentProject}
                             title="複数のノードを選んでコピーします"
                         >
-                            📋 コピー開始
+                            📋 コピー
                         </button>
                     </div>
 
@@ -335,7 +339,25 @@ export default function RightDrawerPanel() {
                         </AccordionSection>
 
                         <AccordionSection
-                            title="優先的タスク"
+                            title="直近一週間が期限のタスク"
+                            icon="🗓️"
+                            count={weeklyGroups.reduce((sum, group) => sum + group.tasks.length, 0)}
+                            isOpen={rightPanel.isWeeklyOpen}
+                            onToggle={() => toggleRightPanelSection('isWeeklyOpen')}
+                            isGuideTarget={drawerGuideStep === 'calendarInfo'}
+                            guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
+                            onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
+                        >
+                            <WeeklyCalendar
+                                groups={weeklyGroups}
+                                pendingCompleteIds={pendingCompleteIds}
+                                onComplete={handleDelayedComplete}
+                                onSelect={handleSelectTask}
+                            />
+                        </AccordionSection>
+
+                        <AccordionSection
+                            title="優先タスク"
                             icon="🔥"
                             count={priorityTasks.length}
                             isOpen={rightPanel.isPriorityListOpen}
@@ -350,6 +372,28 @@ export default function RightDrawerPanel() {
                                 }
                                 setDrawerGuideStep('calendarInfo');
                             }}
+                            headerActions={
+                                <>
+                                    <button
+                                        type="button"
+                                        style={styles.priorityBulkActionButton}
+                                        onClick={() => startPriorityBulkAction('register')}
+                                        disabled={!currentProject}
+                                        title="複数のノードを選んで優先タスクに一括登録します"
+                                    >
+                                        登録
+                                    </button>
+                                    <button
+                                        type="button"
+                                        style={styles.priorityBulkActionDeleteButton}
+                                        onClick={() => startPriorityBulkAction('delete')}
+                                        disabled={!currentProject}
+                                        title="複数のノードを選んで一括削除します"
+                                    >
+                                        削除
+                                    </button>
+                                </>
+                            }
                         >
                             {priorityTasks.length === 0 ? (
                                 <EmptyMessage text="優先登録された未完了タスクはありません。" />
@@ -391,13 +435,16 @@ export default function RightDrawerPanel() {
                                                     <span style={styles.taskTitle}>{task.node.title}</span>
                                                 </label>
 
-                                                <div style={styles.taskMeta}>
+                                                <div style={styles.priorityTaskMeta}>
                                                     {task.node.dueDate
                                                         ? `期限: ${formatDateLabel(task.node.dueDate)}`
                                                         : '期限未設定'}
                                                 </div>
 
-                                                <div style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                                                <div
+                                                    style={styles.priorityPathText}
+                                                    title={task.pathTitles.join(' / ')}
+                                                >
                                                     {formatCompactPath(task.pathTitles)}
                                                 </div>
                                             </div>
@@ -449,54 +496,36 @@ export default function RightDrawerPanel() {
                             count={tasks.filter((task) => task.node.completedAt).length}
                             isOpen={rightPanel.isCalendarOpen}
                             onToggle={() => toggleRightPanelSection('isCalendarOpen')}
-                            isGuideTarget={drawerGuideStep === 'calendarInfo'}
-                            guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
-                            onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
+                            headerActions={
+                                <button
+                                    type="button"
+                                    style={{
+                                        ...styles.dueDateBulkActionButton,
+                                        ...(isDueDateBulkActive ? styles.dueDateBulkActionButtonActive : {}),
+                                    }}
+                                    onClick={startDueDateBulkAction}
+                                    disabled={!currentProject}
+                                    title="カレンダーで日付を選び、複数のノードへ期限を一括登録します"
+                                >
+                                    期限を一括登録
+                                </button>
+                            }
                         >
-                            <div style={styles.calendarTabs}>
-                                <button
-                                    type="button"
-                                    style={{
-                                        ...styles.calendarTab,
-                                        ...(rightPanel.calendarMode === 'weekly'
-                                            ? styles.calendarTabActive
-                                            : {}),
-                                    }}
-                                    onClick={() => setRightPanelCalendarMode('weekly')}
-                                >
-                                    週間
-                                </button>
-
-                                <button
-                                    type="button"
-                                    style={{
-                                        ...styles.calendarTab,
-                                        ...(rightPanel.calendarMode === 'monthly'
-                                            ? styles.calendarTabActive
-                                            : {}),
-                                    }}
-                                    onClick={() => setRightPanelCalendarMode('monthly')}
-                                >
-                                    月間
-                                </button>
-                            </div>
-
-                            {rightPanel.calendarMode === 'weekly' ? (
-                                <WeeklyCalendar
-                                    groups={weeklyGroups}
-                                    pendingCompleteIds={pendingCompleteIds}
-                                    onComplete={handleDelayedComplete}
-                                    onSelect={handleSelectTask}
-                                />
-                            ) : (
-                                <MonthlyCalendar
-                                    tasks={tasks}
-                                    onUncomplete={(task) =>
-                                        setNodeCompletion(task.projectId, task.node.id, false)
-                                    }
-                                    onSelect={handleSelectTask}
-                                />
+                            {isDueDateBulkActive && !dueDateBulkTargetDate && (
+                                <div style={styles.dueDateBulkHint}>
+                                    📅 期限にしたい日付をカレンダーからクリックしてください
+                                </div>
                             )}
+
+                            <MonthlyCalendar
+                                tasks={tasks}
+                                onUncomplete={(task) =>
+                                    setNodeCompletion(task.projectId, task.node.id, false)
+                                }
+                                onSelect={handleSelectTask}
+                                isPickingDueDateTarget={isDueDateBulkActive && !dueDateBulkTargetDate}
+                                onPickDueDateTarget={pickDueDateBulkTargetDate}
+                            />
                         </AccordionSection>
 
                         {copiedNodes.length > 0 && (
@@ -684,14 +713,32 @@ function TaskRow({
     pending,
     onComplete,
     onSelect,
+    showUrgencyColor = false,
 }: {
     task: FlatTask;
     pending: boolean;
     onComplete: () => void;
     onSelect: () => void;
+    // 週間セクションでのみ、木本体のノードと同じ期限グラデーション（黄→橙）を
+    // 適用する。今日・期限切れのタスクは既存の「期限切れ」バッジで十分伝わるため
+    // 対象外のまま（見た目を変えない）
+    showUrgencyColor?: boolean;
 }) {
+    const urgency =
+        showUrgencyColor && task.node.dueDate
+            ? getDueUrgencyColors(daysUntil(task.node.dueDate))
+            : null;
+
     return (
-        <article style={{ ...styles.taskRow, opacity: pending ? 0.55 : 1 }}>
+        <article
+            style={{
+                ...styles.taskRow,
+                opacity: pending ? 0.55 : 1,
+                ...(urgency
+                    ? { borderColor: urgency.accent, background: urgency.background }
+                    : {}),
+            }}
+        >
             <label style={styles.checkboxRow}>
                 <input
                     type="checkbox"
@@ -702,7 +749,7 @@ function TaskRow({
                 <span style={styles.taskTitle}>{task.node.title}</span>
             </label>
 
-            <div style={styles.taskMeta}>
+            <div style={{ ...styles.taskMeta, ...(urgency ? { color: urgency.accent } : {}) }}>
                 {task.node.dueDate && task.node.dueDate < todayDateKey() && (
                     <span style={styles.overdueBadge}>期限切れ</span>
                 )}
@@ -712,7 +759,13 @@ function TaskRow({
             </div>
 
             <div style={styles.taskFooter}>
-                <span style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                <span
+                    style={{
+                        ...styles.pathText,
+                        ...(urgency ? { color: urgency.accent, opacity: 0.85 } : {}),
+                    }}
+                    title={task.pathTitles.join(' / ')}
+                >
                     {formatCompactPath(task.pathTitles)}
                 </span>
 
@@ -755,6 +808,7 @@ function WeeklyCalendar({
                                 pending={pendingCompleteIds.has(task.node.id)}
                                 onComplete={() => onComplete(task)}
                                 onSelect={() => onSelect(task)}
+                                showUrgencyColor
                             />
                         ))}
                     </div>
@@ -768,10 +822,16 @@ function MonthlyCalendar({
     tasks,
     onUncomplete,
     onSelect,
+    isPickingDueDateTarget = false,
+    onPickDueDateTarget,
 }: {
     tasks: FlatTask[];
     onUncomplete: (task: FlatTask) => void;
     onSelect: (task: FlatTask) => void;
+    // 期限一括登録の「日付を選ぶ」フェーズ中はtrue。この間は日付セルのクリックが
+    // 通常の「達成したタスクを見る」選択ではなく、一括登録の対象日決定として扱われる
+    isPickingDueDateTarget?: boolean;
+    onPickDueDateTarget?: (date: string) => void;
 }) {
     const [monthCursor, setMonthCursor] = useState(() => {
         const now = new Date();
@@ -883,8 +943,15 @@ function MonthlyCalendar({
                                 ...styles.monthCell,
                                 ...(selectedDate === cell.date ? styles.monthCellSelected : {}),
                                 ...(cell.completedCount > 0 ? styles.monthCellHasCompleted : {}),
+                                ...(isPickingDueDateTarget ? styles.monthCellPickable : {}),
                             }}
-                            onClick={() => setSelectedDate(cell.date)}
+                            onClick={() => {
+                                if (isPickingDueDateTarget) {
+                                    onPickDueDateTarget?.(cell.date);
+                                    return;
+                                }
+                                setSelectedDate(cell.date);
+                            }}
                         >
                             <span>{cell.day}</span>
 
@@ -1060,6 +1127,69 @@ const styles: Record<string, CSSProperties> = {
         alignItems: 'center',
         gap: 4,
         whiteSpace: 'nowrap',
+    },
+
+    priorityBulkActionButton: {
+        flex: '0 0 auto',
+        height: 24,
+        padding: '0 8px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-green-border)',
+        background: 'var(--accent-green-bg)',
+        color: 'var(--accent-green-text)',
+        cursor: 'pointer',
+        fontSize: 10.5,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+    },
+
+    priorityBulkActionDeleteButton: {
+        flex: '0 0 auto',
+        height: 24,
+        padding: '0 8px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+        cursor: 'pointer',
+        fontSize: 10.5,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+    },
+
+    // 期限一括登録: 通常時はカード選択時の水色バッジ(dueDate)と揃える
+    dueDateBulkActionButton: {
+        flex: '0 0 auto',
+        height: 24,
+        padding: '0 8px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-blue-border)',
+        background: 'var(--accent-blue-bg)',
+        color: 'var(--accent-blue-text)',
+        cursor: 'pointer',
+        fontSize: 10.5,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+    },
+
+    // 進行中は「対象日を選んでください」と分かるようローズ（他の一括操作の
+    // 進行中表示と同じ配色）で強調する
+    dueDateBulkActionButtonActive: {
+        borderColor: 'var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+    },
+
+    dueDateBulkHint: {
+        marginBottom: 8,
+        padding: '7px 10px',
+        borderRadius: 10,
+        border: '1px solid var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+        fontSize: 11.5,
+        fontWeight: 800,
+        lineHeight: 1.5,
     },
 
     copyPreviewSectionTitle: {
@@ -1318,10 +1448,12 @@ const styles: Record<string, CSSProperties> = {
         gridTemplateColumns: '30px minmax(0, 1fr) auto',
         gap: 8,
         alignItems: 'center',
-        border: '1px solid rgba(251, 113, 133, 0.24)',
+        // 「期限切れ」（--accent-rose-*）とも、期限が近いタスクの黄〜橙グラデーション
+        // （getDueUrgencyColors）とも見分けられるよう緑系の配色にする
+        border: '1px solid var(--accent-green-border)',
         borderRadius: 13,
         padding: 9,
-        background: 'rgba(127, 29, 29, 0.12)',
+        background: 'var(--accent-green-bg)',
         cursor: 'grab',
     },
 
@@ -1331,14 +1463,33 @@ const styles: Record<string, CSSProperties> = {
         display: 'grid',
         placeItems: 'center',
         borderRadius: 9,
-        background: 'rgba(251, 113, 133, 0.18)',
-        color: 'var(--accent-rose-text)',
+        background: 'var(--accent-green-border)',
+        color: 'var(--accent-green-text)',
         fontSize: 12,
         fontWeight: 950,
     },
 
     priorityContent: {
         minWidth: 0,
+    },
+
+    // taskMeta/pathText（今日・期限切れのタスク用、var(--text-secondary)/var(--text-muted)の
+    // 淡いグレー）は緑背景では文字が沈んで見えにくくなるため、優先タスクの
+    // カードだけ専用スタイルにしてrank番号と同じ緑系のテキスト色にする
+    priorityTaskMeta: {
+        marginTop: 5,
+        color: 'var(--accent-green-text)',
+        fontSize: 11,
+    },
+
+    priorityPathText: {
+        minWidth: 0,
+        color: 'var(--accent-green-text)',
+        opacity: 0.85,
+        fontSize: 11,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
     },
 
     priorityActions: {
@@ -1355,30 +1506,6 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 800,
-    },
-
-    calendarTabs: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 8,
-        marginBottom: 10,
-    },
-
-    calendarTab: {
-        border: '1px solid var(--border)',
-        background: 'var(--bg-elevated)',
-        color: 'var(--text-muted)',
-        borderRadius: 10,
-        padding: '8px 10px',
-        cursor: 'pointer',
-        fontSize: 12,
-        fontWeight: 900,
-    },
-
-    calendarTabActive: {
-        borderColor: 'rgba(96, 165, 250, 0.42)',
-        background: 'rgba(37, 99, 235, 0.18)',
-        color: 'var(--accent-blue-text)',
     },
 
     weeklyList: {
@@ -1465,6 +1592,13 @@ const styles: Record<string, CSSProperties> = {
 
     monthCellHasCompleted: {
         borderColor: 'rgba(34, 197, 94, 0.38)',
+    },
+
+    // 期限一括登録の対象日選択中は、どのセルも「クリックすれば選べる」ことが
+    // 分かるようアンバー(達成日ハイライト)と別の水色で全体を軽く強調する
+    monthCellPickable: {
+        borderColor: 'rgba(56, 189, 248, 0.55)',
+        background: 'rgba(56, 189, 248, 0.1)',
     },
 
     monthCount: {

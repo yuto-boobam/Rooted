@@ -19,6 +19,10 @@ type AccordionSectionProps = {
   isGuideTarget?: boolean;
   guideHintText?: string;
   onGuideNext?: () => void;
+
+  // 見出しの右側（件数バッジの左）に追加のアクションボタン等を差し込みたい場合に使う。
+  // 開いている時だけ表示する（閉じた見出しは開閉トグルのみのシンプルな行に保つ）
+  headerActions?: ReactNode;
 };
 
 export default function AccordionSection({
@@ -31,19 +35,27 @@ export default function AccordionSection({
   isGuideTarget = false,
   guideHintText,
   onGuideNext,
+  headerActions,
 }: AccordionSectionProps) {
   return (
     <section
       style={styles.section}
       className={isGuideTarget ? 'tutorial-spotlight-ring' : undefined}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         style={{
           ...styles.sectionHeader,
           borderRadius: isOpen ? '13px 13px 0 0' : 13,
         }}
         onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
       >
         <span style={styles.sectionTitle}>
           <span>{icon}</span>
@@ -51,6 +63,15 @@ export default function AccordionSection({
         </span>
 
         <span style={styles.sectionRight}>
+          {isOpen && headerActions && (
+            <span
+              style={styles.headerActions}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {headerActions}
+            </span>
+          )}
+
           <span style={styles.countBadge}>{count}</span>
           <span
             style={{
@@ -61,7 +82,7 @@ export default function AccordionSection({
             ⌄
           </span>
         </span>
-      </button>
+      </div>
 
       {isGuideTarget && guideHintText && (
         <div style={styles.guideBanner}>
@@ -147,6 +168,13 @@ const styles: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 7,
+  },
+
+  headerActions: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    cursor: 'default',
   },
 
   countBadge: {

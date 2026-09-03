@@ -32,9 +32,12 @@ export default function RightDrawerPanel() {
     const closeRightPanel = useAppStore((state) => state.closeRightPanel);
     const openRightPanel = useAppStore((state) => state.openRightPanel);
     const startCopyMode = useAppStore((state) => state.startCopyMode);
-    const isDemoEffectsEnabled = useAppStore((state) => state.isDemoEffectsEnabled);
-    const toggleDemoEffects = useAppStore((state) => state.toggleDemoEffects);
     const copiedNodes = useAppStore((state) => state.copiedNodes);
+    const startPriorityBulkAction = useAppStore((state) => state.startPriorityBulkAction);
+    const isDueDateBulkActive = useAppStore((state) => state.isDueDateBulkActive);
+    const dueDateBulkTargetDate = useAppStore((state) => state.dueDateBulkTargetDate);
+    const startDueDateBulkAction = useAppStore((state) => state.startDueDateBulkAction);
+    const pickDueDateBulkTargetDate = useAppStore((state) => state.pickDueDateBulkTargetDate);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
     );
@@ -241,18 +244,6 @@ export default function RightDrawerPanel() {
                         >
                             📋 コピー
                         </button>
-
-                        <button
-                            type="button"
-                            style={{
-                                ...styles.copyStartButton,
-                                ...(isDemoEffectsEnabled ? styles.demoEffectsButtonActive : {}),
-                            }}
-                            onClick={toggleDemoEffects}
-                            title="デモ録画用の操作可視化演出（キー入力ポップ・クリック波紋）を切り替えます"
-                        >
-                            🎬 演出 {isDemoEffectsEnabled ? 'ON' : 'OFF'}
-                        </button>
                     </div>
 
                     <button
@@ -349,7 +340,7 @@ export default function RightDrawerPanel() {
                         </AccordionSection>
 
                         <AccordionSection
-                            title="優先的タスク"
+                            title="優先タスク"
                             icon="🔥"
                             count={priorityTasks.length}
                             isOpen={rightPanel.isPriorityListOpen}
@@ -364,6 +355,28 @@ export default function RightDrawerPanel() {
                                 }
                                 setDrawerGuideStep('calendarInfo');
                             }}
+                            headerActions={
+                                <>
+                                    <button
+                                        type="button"
+                                        style={styles.priorityBulkActionButton}
+                                        onClick={() => startPriorityBulkAction('register')}
+                                        disabled={!currentProject}
+                                        title="複数のノードを選んで優先タスクに一括登録します"
+                                    >
+                                        登録
+                                    </button>
+                                    <button
+                                        type="button"
+                                        style={styles.priorityBulkActionDeleteButton}
+                                        onClick={() => startPriorityBulkAction('delete')}
+                                        disabled={!currentProject}
+                                        title="複数のノードを選んで一括削除します"
+                                    >
+                                        削除
+                                    </button>
+                                </>
+                            }
                         >
                             {priorityTasks.length === 0 ? (
                                 <EmptyMessage text="優先登録された未完了タスクはありません。" />
@@ -405,13 +418,16 @@ export default function RightDrawerPanel() {
                                                     <span style={styles.taskTitle}>{task.node.title}</span>
                                                 </label>
 
-                                                <div style={styles.taskMeta}>
+                                                <div style={styles.priorityTaskMeta}>
                                                     {task.node.dueDate
                                                         ? `期限: ${formatDateLabel(task.node.dueDate)}`
                                                         : '期限未設定'}
                                                 </div>
 
-                                                <div style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                                                <div
+                                                    style={styles.priorityPathText}
+                                                    title={task.pathTitles.join(' / ')}
+                                                >
                                                     {formatCompactPath(task.pathTitles)}
                                                 </div>
                                             </div>
@@ -466,7 +482,27 @@ export default function RightDrawerPanel() {
                             isGuideTarget={drawerGuideStep === 'calendarInfo'}
                             guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
                             onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
+                            headerActions={
+                                <button
+                                    type="button"
+                                    style={{
+                                        ...styles.dueDateBulkActionButton,
+                                        ...(isDueDateBulkActive ? styles.dueDateBulkActionButtonActive : {}),
+                                    }}
+                                    onClick={startDueDateBulkAction}
+                                    disabled={!currentProject}
+                                    title="カレンダーで日付を選び、複数のノードへ期限を一括登録します"
+                                >
+                                    期限を一括登録
+                                </button>
+                            }
                         >
+                            {isDueDateBulkActive && !dueDateBulkTargetDate && (
+                                <div style={styles.dueDateBulkHint}>
+                                    📅 期限にしたい日付をカレンダーからクリックしてください
+                                </div>
+                            )}
+
                             <div style={styles.calendarTabs}>
                                 <button
                                     type="button"
@@ -509,6 +545,8 @@ export default function RightDrawerPanel() {
                                         setNodeCompletion(task.projectId, task.node.id, false)
                                     }
                                     onSelect={handleSelectTask}
+                                    isPickingDueDateTarget={isDueDateBulkActive && !dueDateBulkTargetDate}
+                                    onPickDueDateTarget={pickDueDateBulkTargetDate}
                                 />
                             )}
                         </AccordionSection>
@@ -782,10 +820,16 @@ function MonthlyCalendar({
     tasks,
     onUncomplete,
     onSelect,
+    isPickingDueDateTarget = false,
+    onPickDueDateTarget,
 }: {
     tasks: FlatTask[];
     onUncomplete: (task: FlatTask) => void;
     onSelect: (task: FlatTask) => void;
+    // 期限一括登録の「日付を選ぶ」フェーズ中はtrue。この間は日付セルのクリックが
+    // 通常の「達成したタスクを見る」選択ではなく、一括登録の対象日決定として扱われる
+    isPickingDueDateTarget?: boolean;
+    onPickDueDateTarget?: (date: string) => void;
 }) {
     const [monthCursor, setMonthCursor] = useState(() => {
         const now = new Date();
@@ -897,8 +941,15 @@ function MonthlyCalendar({
                                 ...styles.monthCell,
                                 ...(selectedDate === cell.date ? styles.monthCellSelected : {}),
                                 ...(cell.completedCount > 0 ? styles.monthCellHasCompleted : {}),
+                                ...(isPickingDueDateTarget ? styles.monthCellPickable : {}),
                             }}
-                            onClick={() => setSelectedDate(cell.date)}
+                            onClick={() => {
+                                if (isPickingDueDateTarget) {
+                                    onPickDueDateTarget?.(cell.date);
+                                    return;
+                                }
+                                setSelectedDate(cell.date);
+                            }}
                         >
                             <span>{cell.day}</span>
 
@@ -1076,10 +1127,67 @@ const styles: Record<string, CSSProperties> = {
         whiteSpace: 'nowrap',
     },
 
-    demoEffectsButtonActive: {
-        borderColor: '#f472b6',
-        color: '#f472b6',
-        background: 'rgba(244, 114, 182, 0.12)',
+    priorityBulkActionButton: {
+        flex: '0 0 auto',
+        height: 24,
+        padding: '0 8px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-amber-border)',
+        background: 'var(--accent-amber-bg)',
+        color: 'var(--accent-amber-text)',
+        cursor: 'pointer',
+        fontSize: 10.5,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+    },
+
+    priorityBulkActionDeleteButton: {
+        flex: '0 0 auto',
+        height: 24,
+        padding: '0 8px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+        cursor: 'pointer',
+        fontSize: 10.5,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+    },
+
+    // 期限一括登録: 通常時はカード選択時の水色バッジ(dueDate)と揃える
+    dueDateBulkActionButton: {
+        flex: '0 0 auto',
+        height: 24,
+        padding: '0 8px',
+        borderRadius: 999,
+        border: '1px solid var(--accent-blue-border)',
+        background: 'var(--accent-blue-bg)',
+        color: 'var(--accent-blue-text)',
+        cursor: 'pointer',
+        fontSize: 10.5,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+    },
+
+    // 進行中は「対象日を選んでください」と分かるようローズ（他の一括操作の
+    // 進行中表示と同じ配色）で強調する
+    dueDateBulkActionButtonActive: {
+        borderColor: 'var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+    },
+
+    dueDateBulkHint: {
+        marginBottom: 8,
+        padding: '7px 10px',
+        borderRadius: 10,
+        border: '1px solid var(--accent-rose-border)',
+        background: 'var(--accent-rose-bg)',
+        color: 'var(--accent-rose-text)',
+        fontSize: 11.5,
+        fontWeight: 800,
+        lineHeight: 1.5,
     },
 
     copyPreviewSectionTitle: {
@@ -1338,10 +1446,13 @@ const styles: Record<string, CSSProperties> = {
         gridTemplateColumns: '30px minmax(0, 1fr) auto',
         gap: 8,
         alignItems: 'center',
-        border: '1px solid rgba(251, 113, 133, 0.24)',
+        // 「期限切れ」（--accent-rose-*）と見分けられるよう、見出しの🔥アイコンに
+        // 合わせたアンバー系の配色にする（優先=赤 という以前の配色は期限切れの
+        // 警告色と混同しやすいというユーザー指摘への対応）
+        border: '1px solid var(--accent-amber-border)',
         borderRadius: 13,
         padding: 9,
-        background: 'rgba(127, 29, 29, 0.12)',
+        background: 'var(--accent-amber-bg)',
         cursor: 'grab',
     },
 
@@ -1351,14 +1462,33 @@ const styles: Record<string, CSSProperties> = {
         display: 'grid',
         placeItems: 'center',
         borderRadius: 9,
-        background: 'rgba(251, 113, 133, 0.18)',
-        color: 'var(--accent-rose-text)',
+        background: 'var(--accent-amber-border)',
+        color: 'var(--accent-amber-text)',
         fontSize: 12,
         fontWeight: 950,
     },
 
     priorityContent: {
         minWidth: 0,
+    },
+
+    // taskMeta/pathText（今日・期限切れのタスク用、var(--text-secondary)/var(--text-muted)の
+    // 淡いグレー）はアンバー背景では文字が沈んで見えにくくなるため、優先タスクの
+    // カードだけ専用スタイルにしてrank番号と同じアンバー系のテキスト色にする
+    priorityTaskMeta: {
+        marginTop: 5,
+        color: 'var(--accent-amber-text)',
+        fontSize: 11,
+    },
+
+    priorityPathText: {
+        minWidth: 0,
+        color: 'var(--accent-amber-text)',
+        opacity: 0.85,
+        fontSize: 11,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
     },
 
     priorityActions: {
@@ -1485,6 +1615,13 @@ const styles: Record<string, CSSProperties> = {
 
     monthCellHasCompleted: {
         borderColor: 'rgba(34, 197, 94, 0.38)',
+    },
+
+    // 期限一括登録の対象日選択中は、どのセルも「クリックすれば選べる」ことが
+    // 分かるようアンバー(達成日ハイライト)と別の水色で全体を軽く強調する
+    monthCellPickable: {
+        borderColor: 'rgba(56, 189, 248, 0.55)',
+        background: 'rgba(56, 189, 248, 0.1)',
     },
 
     monthCount: {

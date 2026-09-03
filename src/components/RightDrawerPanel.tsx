@@ -5,6 +5,8 @@ import type { CSSProperties } from 'react';
 import { useAppStore } from '../store';
 import { COPY_PASTE_MIME_TYPE } from '../types';
 import { flattenProjectTasks, formatCompactPath, type FlatTask } from '../utils/taskTree';
+import { getDueUrgencyColors } from '../utils/dueDateColor';
+import { daysUntil } from '../utils/dueDate';
 import AccordionSection from './AccordionSection';
 import DrawerLogoutFooter from './DrawerLogoutFooter';
 
@@ -40,9 +42,6 @@ export default function RightDrawerPanel() {
     const pickDueDateBulkTargetDate = useAppStore((state) => state.pickDueDateBulkTargetDate);
     const toggleRightPanelSection = useAppStore(
         (state) => state.toggleRightPanelSection,
-    );
-    const setRightPanelCalendarMode = useAppStore(
-        (state) => state.setRightPanelCalendarMode,
     );
 
     const selectNode = useAppStore((state) => state.selectNode);
@@ -340,6 +339,24 @@ export default function RightDrawerPanel() {
                         </AccordionSection>
 
                         <AccordionSection
+                            title="直近一週間が期限のタスク"
+                            icon="🗓️"
+                            count={weeklyGroups.reduce((sum, group) => sum + group.tasks.length, 0)}
+                            isOpen={rightPanel.isWeeklyOpen}
+                            onToggle={() => toggleRightPanelSection('isWeeklyOpen')}
+                            isGuideTarget={drawerGuideStep === 'calendarInfo'}
+                            guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
+                            onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
+                        >
+                            <WeeklyCalendar
+                                groups={weeklyGroups}
+                                pendingCompleteIds={pendingCompleteIds}
+                                onComplete={handleDelayedComplete}
+                                onSelect={handleSelectTask}
+                            />
+                        </AccordionSection>
+
+                        <AccordionSection
                             title="優先タスク"
                             icon="🔥"
                             count={priorityTasks.length}
@@ -479,9 +496,6 @@ export default function RightDrawerPanel() {
                             count={tasks.filter((task) => task.node.completedAt).length}
                             isOpen={rightPanel.isCalendarOpen}
                             onToggle={() => toggleRightPanelSection('isCalendarOpen')}
-                            isGuideTarget={drawerGuideStep === 'calendarInfo'}
-                            guideHintText="週間カレンダーで、直近1週間の期限を一覧できます"
-                            onGuideNext={() => setDrawerGuideStep('openPatchNotes')}
                             headerActions={
                                 <button
                                     type="button"
@@ -503,52 +517,15 @@ export default function RightDrawerPanel() {
                                 </div>
                             )}
 
-                            <div style={styles.calendarTabs}>
-                                <button
-                                    type="button"
-                                    style={{
-                                        ...styles.calendarTab,
-                                        ...(rightPanel.calendarMode === 'weekly'
-                                            ? styles.calendarTabActive
-                                            : {}),
-                                    }}
-                                    onClick={() => setRightPanelCalendarMode('weekly')}
-                                >
-                                    週間
-                                </button>
-
-                                <button
-                                    type="button"
-                                    style={{
-                                        ...styles.calendarTab,
-                                        ...(rightPanel.calendarMode === 'monthly'
-                                            ? styles.calendarTabActive
-                                            : {}),
-                                    }}
-                                    onClick={() => setRightPanelCalendarMode('monthly')}
-                                >
-                                    月間
-                                </button>
-                            </div>
-
-                            {rightPanel.calendarMode === 'weekly' ? (
-                                <WeeklyCalendar
-                                    groups={weeklyGroups}
-                                    pendingCompleteIds={pendingCompleteIds}
-                                    onComplete={handleDelayedComplete}
-                                    onSelect={handleSelectTask}
-                                />
-                            ) : (
-                                <MonthlyCalendar
-                                    tasks={tasks}
-                                    onUncomplete={(task) =>
-                                        setNodeCompletion(task.projectId, task.node.id, false)
-                                    }
-                                    onSelect={handleSelectTask}
-                                    isPickingDueDateTarget={isDueDateBulkActive && !dueDateBulkTargetDate}
-                                    onPickDueDateTarget={pickDueDateBulkTargetDate}
-                                />
-                            )}
+                            <MonthlyCalendar
+                                tasks={tasks}
+                                onUncomplete={(task) =>
+                                    setNodeCompletion(task.projectId, task.node.id, false)
+                                }
+                                onSelect={handleSelectTask}
+                                isPickingDueDateTarget={isDueDateBulkActive && !dueDateBulkTargetDate}
+                                onPickDueDateTarget={pickDueDateBulkTargetDate}
+                            />
                         </AccordionSection>
 
                         {copiedNodes.length > 0 && (
@@ -736,14 +713,32 @@ function TaskRow({
     pending,
     onComplete,
     onSelect,
+    showUrgencyColor = false,
 }: {
     task: FlatTask;
     pending: boolean;
     onComplete: () => void;
     onSelect: () => void;
+    // 週間セクションでのみ、木本体のノードと同じ期限グラデーション（黄→橙）を
+    // 適用する。今日・期限切れのタスクは既存の「期限切れ」バッジで十分伝わるため
+    // 対象外のまま（見た目を変えない）
+    showUrgencyColor?: boolean;
 }) {
+    const urgency =
+        showUrgencyColor && task.node.dueDate
+            ? getDueUrgencyColors(daysUntil(task.node.dueDate))
+            : null;
+
     return (
-        <article style={{ ...styles.taskRow, opacity: pending ? 0.55 : 1 }}>
+        <article
+            style={{
+                ...styles.taskRow,
+                opacity: pending ? 0.55 : 1,
+                ...(urgency
+                    ? { borderColor: urgency.accent, background: urgency.background }
+                    : {}),
+            }}
+        >
             <label style={styles.checkboxRow}>
                 <input
                     type="checkbox"
@@ -754,7 +749,7 @@ function TaskRow({
                 <span style={styles.taskTitle}>{task.node.title}</span>
             </label>
 
-            <div style={styles.taskMeta}>
+            <div style={{ ...styles.taskMeta, ...(urgency ? { color: urgency.accent } : {}) }}>
                 {task.node.dueDate && task.node.dueDate < todayDateKey() && (
                     <span style={styles.overdueBadge}>期限切れ</span>
                 )}
@@ -764,7 +759,13 @@ function TaskRow({
             </div>
 
             <div style={styles.taskFooter}>
-                <span style={styles.pathText} title={task.pathTitles.join(' / ')}>
+                <span
+                    style={{
+                        ...styles.pathText,
+                        ...(urgency ? { color: urgency.accent, opacity: 0.85 } : {}),
+                    }}
+                    title={task.pathTitles.join(' / ')}
+                >
                     {formatCompactPath(task.pathTitles)}
                 </span>
 
@@ -807,6 +808,7 @@ function WeeklyCalendar({
                                 pending={pendingCompleteIds.has(task.node.id)}
                                 onComplete={() => onComplete(task)}
                                 onSelect={() => onSelect(task)}
+                                showUrgencyColor
                             />
                         ))}
                     </div>
@@ -1132,9 +1134,9 @@ const styles: Record<string, CSSProperties> = {
         height: 24,
         padding: '0 8px',
         borderRadius: 999,
-        border: '1px solid var(--accent-amber-border)',
-        background: 'var(--accent-amber-bg)',
-        color: 'var(--accent-amber-text)',
+        border: '1px solid var(--accent-green-border)',
+        background: 'var(--accent-green-bg)',
+        color: 'var(--accent-green-text)',
         cursor: 'pointer',
         fontSize: 10.5,
         fontWeight: 900,
@@ -1446,13 +1448,12 @@ const styles: Record<string, CSSProperties> = {
         gridTemplateColumns: '30px minmax(0, 1fr) auto',
         gap: 8,
         alignItems: 'center',
-        // 「期限切れ」（--accent-rose-*）と見分けられるよう、見出しの🔥アイコンに
-        // 合わせたアンバー系の配色にする（優先=赤 という以前の配色は期限切れの
-        // 警告色と混同しやすいというユーザー指摘への対応）
-        border: '1px solid var(--accent-amber-border)',
+        // 「期限切れ」（--accent-rose-*）とも、期限が近いタスクの黄〜橙グラデーション
+        // （getDueUrgencyColors）とも見分けられるよう緑系の配色にする
+        border: '1px solid var(--accent-green-border)',
         borderRadius: 13,
         padding: 9,
-        background: 'var(--accent-amber-bg)',
+        background: 'var(--accent-green-bg)',
         cursor: 'grab',
     },
 
@@ -1462,8 +1463,8 @@ const styles: Record<string, CSSProperties> = {
         display: 'grid',
         placeItems: 'center',
         borderRadius: 9,
-        background: 'var(--accent-amber-border)',
-        color: 'var(--accent-amber-text)',
+        background: 'var(--accent-green-border)',
+        color: 'var(--accent-green-text)',
         fontSize: 12,
         fontWeight: 950,
     },
@@ -1473,17 +1474,17 @@ const styles: Record<string, CSSProperties> = {
     },
 
     // taskMeta/pathText（今日・期限切れのタスク用、var(--text-secondary)/var(--text-muted)の
-    // 淡いグレー）はアンバー背景では文字が沈んで見えにくくなるため、優先タスクの
-    // カードだけ専用スタイルにしてrank番号と同じアンバー系のテキスト色にする
+    // 淡いグレー）は緑背景では文字が沈んで見えにくくなるため、優先タスクの
+    // カードだけ専用スタイルにしてrank番号と同じ緑系のテキスト色にする
     priorityTaskMeta: {
         marginTop: 5,
-        color: 'var(--accent-amber-text)',
+        color: 'var(--accent-green-text)',
         fontSize: 11,
     },
 
     priorityPathText: {
         minWidth: 0,
-        color: 'var(--accent-amber-text)',
+        color: 'var(--accent-green-text)',
         opacity: 0.85,
         fontSize: 11,
         overflow: 'hidden',
@@ -1505,30 +1506,6 @@ const styles: Record<string, CSSProperties> = {
         cursor: 'pointer',
         fontSize: 11,
         fontWeight: 800,
-    },
-
-    calendarTabs: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 8,
-        marginBottom: 10,
-    },
-
-    calendarTab: {
-        border: '1px solid var(--border)',
-        background: 'var(--bg-elevated)',
-        color: 'var(--text-muted)',
-        borderRadius: 10,
-        padding: '8px 10px',
-        cursor: 'pointer',
-        fontSize: 12,
-        fontWeight: 900,
-    },
-
-    calendarTabActive: {
-        borderColor: 'rgba(96, 165, 250, 0.42)',
-        background: 'rgba(37, 99, 235, 0.18)',
-        color: 'var(--accent-blue-text)',
     },
 
     weeklyList: {

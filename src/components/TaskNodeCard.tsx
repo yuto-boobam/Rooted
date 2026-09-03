@@ -115,7 +115,7 @@ export function TaskNodeCard({
   // 期限一括登録=水色）
   const SELECTION_MODE_COLORS: Record<string, string> = {
     copy: '#22c55e',
-    priority: '#f59e0b',
+    priority: '#16a34a',
     dueDate: '#38bdf8',
   };
   const selectionModeColor = selectionMode ? SELECTION_MODE_COLORS[selectionMode] : null;
@@ -124,17 +124,23 @@ export function TaskNodeCard({
   // ルートは兄弟タスクが存在せず幅を気にする必要がないため、選択中でも期限警告中
   // でもない「平常時」だけ、プロジェクトのアクセントカラーで縁取り、目立たせる
   // （選択/一括選択/期限警告の色は従来通り最優先で表示する）
+  //
+  // 優先タスク登録中は枠線だけをドロワーの優先タスクと同じ緑にする（Combo-LABでも
+  // 使っていた方式）。期限が近い場合でも枠線は緑を優先し、「期限: a/b」の文字色は
+  // dueUrgency.accentのまま独立させることで、優先登録済みでも期限の逼迫度を見逃さない
   const borderColor = isBulkSelected && selectionModeColor
     ? selectionModeColor
     : isSelected
       ? accentColor
       : node.completed
         ? 'var(--border)'
-        : dueUrgency
-          ? dueUrgency.accent
-          : isRoot
-            ? `color-mix(in srgb, ${accentColor} 55%, transparent)`
-            : DEFAULT_BORDER_COLOR;
+        : node.isPriority
+          ? SELECTION_MODE_COLORS.priority
+          : dueUrgency
+            ? dueUrgency.accent
+            : isRoot
+              ? `color-mix(in srgb, ${accentColor} 55%, transparent)`
+              : DEFAULT_BORDER_COLOR;
   const glowStyle = isBulkSelected && selectionModeColor
     ? `0 0 0 2px ${selectionModeColor}55`
     : isSelected

@@ -4,7 +4,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@supabase/supabase-js';
 import type {
-  CalendarViewMode,
   Project,
   RightPanelState,
   TaskNode,
@@ -40,13 +39,14 @@ export type DrawerGuideStep =
 const DEFAULT_RIGHT_PANEL_STATE: RightPanelState = {
   isOpen: false,
   isTodayDueOpen: true,
+  isWeeklyOpen: true,
   isPriorityListOpen: true,
   isCalendarOpen: true,
-  calendarMode: 'weekly',
 };
 
 export type RightPanelSectionKey =
   | 'isTodayDueOpen'
+  | 'isWeeklyOpen'
   | 'isPriorityListOpen'
   | 'isCalendarOpen';
 
@@ -615,6 +615,10 @@ function normalizeRightPanelState(value: unknown): RightPanelState {
       typeof partial.isTodayDueOpen === 'boolean'
         ? partial.isTodayDueOpen
         : DEFAULT_RIGHT_PANEL_STATE.isTodayDueOpen,
+    isWeeklyOpen:
+      typeof partial.isWeeklyOpen === 'boolean'
+        ? partial.isWeeklyOpen
+        : DEFAULT_RIGHT_PANEL_STATE.isWeeklyOpen,
     isPriorityListOpen:
       typeof partial.isPriorityListOpen === 'boolean'
         ? partial.isPriorityListOpen
@@ -623,7 +627,6 @@ function normalizeRightPanelState(value: unknown): RightPanelState {
       typeof partial.isCalendarOpen === 'boolean'
         ? partial.isCalendarOpen
         : DEFAULT_RIGHT_PANEL_STATE.isCalendarOpen,
-    calendarMode: partial.calendarMode === 'monthly' ? 'monthly' : 'weekly',
   };
 }
 
@@ -826,7 +829,6 @@ export type AppState = {
   closeRightPanel: () => void;
   toggleRightPanel: () => void;
   toggleRightPanelSection: (section: RightPanelSectionKey) => void;
-  setRightPanelCalendarMode: (mode: CalendarViewMode) => void;
 
   // ゲスト向け誘導ガイド(第2段)。「操作方法」ノードの誘導([[TreePage.tsx]]のnodeGuideStep)が
   // 終わった後、サイドドロワー・パッチノートへ誘導する。ドロワー開閉やモーダル開閉は
@@ -1536,15 +1538,6 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      setRightPanelCalendarMode: (mode) => {
-        set((state) => ({
-          rightPanel: {
-            ...state.rightPanel,
-            calendarMode: mode,
-          },
-        }));
-      },
-
       // ──── コピー機能 ──────────────────────────────────────────────────
 
       isCopyModeActive: false,
@@ -1674,9 +1667,6 @@ export const useAppStore = create<AppState>()(
           dueDateBulkTargetDate: null,
           dueDateBulkSelectionIds: [],
         });
-        // 月間カレンダーでの利用を想定した機能のため、週間表示中だった場合は
-        // 自動的に切り替える
-        get().setRightPanelCalendarMode('monthly');
       },
 
       pickDueDateBulkTargetDate: (date) => {

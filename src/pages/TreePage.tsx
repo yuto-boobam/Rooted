@@ -447,13 +447,13 @@ export function TreePage() {
     if (drawerGuideStep === 'priorityInfo' && !rightPanel.isPriorityListOpen) {
       toggleRightPanelSection('isPriorityListOpen');
     }
-    if (drawerGuideStep === 'calendarInfo' && !rightPanel.isCalendarOpen) {
-      toggleRightPanelSection('isCalendarOpen');
+    if (drawerGuideStep === 'calendarInfo' && !rightPanel.isWeeklyOpen) {
+      toggleRightPanelSection('isWeeklyOpen');
     }
   }, [
     drawerGuideStep,
     rightPanel.isPriorityListOpen,
-    rightPanel.isCalendarOpen,
+    rightPanel.isWeeklyOpen,
     toggleRightPanelSection,
   ]);
 

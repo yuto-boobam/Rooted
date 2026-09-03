@@ -13,11 +13,14 @@ import type { TreeLayoutConfig } from '../lib/tree';
 /** カードサイズ・列間隔など、木構造レイアウト計算に渡す寸法設定（元の値の0.8倍） */
 export const TREE_LAYOUT_CONFIG: TreeLayoutConfig = {
   cardWidth: 196,
-  rootWidth: 176,
+  // ルートは兄弟が存在せず横方向の競合が起きないため、目立たせるために子カードより
+  // 広くしている。接続線(ConnectionsOverlay.tsx)は実測DOM座標ベースで描画されるため、
+  // ここを変えても線がずれることはない
+  rootWidth: 216,
   gapX: 40,
   dropZoneHeight: 14.4,
   defaultNodeHeight: 60.8,
-  defaultRootHeight: 88,
+  defaultRootHeight: 96,
 };
 
 /** キャンバス端の余白(px)（元の48pxの0.8倍） */

@@ -121,18 +121,27 @@ export function TaskNodeCard({
   const selectionModeColor = selectionMode ? SELECTION_MODE_COLORS[selectionMode] : null;
   const isBulkSelected = Boolean(selectionMode) && isSelectedInMode;
 
+  // ルートは兄弟タスクが存在せず幅を気にする必要がないため、選択中でも期限警告中
+  // でもない「平常時」だけ、プロジェクトのアクセントカラーで縁取り、目立たせる
+  // （選択/一括選択/期限警告の色は従来通り最優先で表示する）
   const borderColor = isBulkSelected && selectionModeColor
     ? selectionModeColor
     : isSelected
       ? accentColor
       : node.completed
         ? 'var(--border)'
-        : (dueUrgency?.accent ?? DEFAULT_BORDER_COLOR);
+        : dueUrgency
+          ? dueUrgency.accent
+          : isRoot
+            ? `color-mix(in srgb, ${accentColor} 55%, transparent)`
+            : DEFAULT_BORDER_COLOR;
   const glowStyle = isBulkSelected && selectionModeColor
     ? `0 0 0 2px ${selectionModeColor}55`
     : isSelected
       ? `0 0 0 1px ${accentColor}40`
-      : 'none';
+      : isRoot && !node.completed && !dueUrgency
+        ? `0 0 0 1px ${accentColor}25, 0 6px 22px ${accentColor}20`
+        : 'none';
 
   return (
     <div
@@ -181,10 +190,14 @@ export function TaskNodeCard({
       className={`animate-fadeIn flex flex-col cursor-pointer transition-all duration-150 select-none relative z-10${isGuideTarget ? ' tutorial-spotlight-ring' : ''}`}
       style={{
         gap: 6.4,
-        borderRadius: 9.6,
-        padding: '9.6px 11.2px',
-        background: isSelected ? `${accentColor}10` : 'var(--bg-surface)',
-        border: `1px solid ${isDragOver ? accentColor : borderColor}`,
+        borderRadius: isRoot ? 14 : 9.6,
+        padding: isRoot ? '13px 14px' : '9.6px 11.2px',
+        background: isSelected
+          ? `${accentColor}10`
+          : isRoot
+            ? `linear-gradient(135deg, ${accentColor}22, ${accentColor}05)`
+            : 'var(--bg-surface)',
+        border: `${isRoot ? 2 : 1}px solid ${isDragOver ? accentColor : borderColor}`,
         boxShadow: isDragOver ? `0 0 0 2px ${accentColor}30` : glowStyle,
         minHeight: node.completed ? undefined : isRoot ? ROOT_HEIGHT : NODE_HEIGHT,
         width: isRoot ? ROOT_WIDTH : '100%',
@@ -293,14 +306,15 @@ export function TaskNodeCard({
             onKeyDown={handleTitleKeyDown}
             onBlur={() => setIsEditingTitle(false)}
             onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: 9.6, lineHeight: 1.4 }}
+            style={{ fontSize: isRoot ? 13 : 9.6, lineHeight: 1.4 }}
           />
         ) : (
           <span
             className="font-medium flex-1"
             style={{
-              fontSize: 9.6,
-              lineHeight: 1.2,
+              fontSize: isRoot ? 13 : 9.6,
+              fontWeight: isRoot ? 800 : undefined,
+              lineHeight: 1.25,
               color: node.completed ? 'var(--text-muted)' : 'var(--text-primary)',
               textDecoration: node.completed ? 'line-through' : 'none',
               minWidth: 0,

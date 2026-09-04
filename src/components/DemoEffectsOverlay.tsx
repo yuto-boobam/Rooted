@@ -121,10 +121,11 @@ const styles: Record<string, CSSProperties> = {
 
   ripple: {
     position: 'fixed',
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     borderRadius: '50%',
-    border: '3px solid #fff',
-    background: 'rgba(255, 255, 255, 0.25)',
+    border: '4px solid #fde047',
+    background: 'rgba(253, 224, 71, 0.35)',
+    boxShadow: '0 0 18px 4px rgba(253, 224, 71, 0.55)',
   },
 };

@@ -1,5 +1,15 @@
 [
   {
+    "id": "2026-09-04-e625d019",
+    "date": "2026-09-04",
+    "buildNumber": 27,
+    "type": "spec-change",
+    "title": "ヘッダーのヒント追加",
+    "description": "色に関するヒントを追加",
+    "beforeImageUrl": "/images/patch-notes/2026/09/20260904-build27-before.png?v=1788509374821",
+    "afterImageUrl": "/images/patch-notes/2026/09/20260904-build27-after.png?v=1788509379649"
+  },
+  {
     "id": "2026-09-03-9a0dedd2",
     "date": "2026-09-03",
     "buildNumber": 26,

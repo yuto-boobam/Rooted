@@ -1629,13 +1629,31 @@ export const useAppStore = create<AppState>()(
       },
 
       endPriorityBulkAction: () => {
-        const { priorityBulkActionType, priorityBulkSelectionIds, currentProjectId } = get();
+        const { priorityBulkActionType, priorityBulkSelectionIds, currentProjectId, projects } =
+          get();
 
         if (priorityBulkActionType && currentProjectId) {
-          for (const nodeId of priorityBulkSelectionIds) {
-            if (priorityBulkActionType === 'register') {
+          if (priorityBulkActionType === 'register') {
+            // 期限一括登録と同様、親ノードを選んだ場合はその子孫にも一括で優先登録が
+            // 付くようにする（子孫を1つずつ選ばなくても済むようにし、工数を削減する）
+            const project = projects.find((item) => item.id === currentProjectId);
+            const targetIds = new Set<string>();
+
+            if (project) {
+              for (const nodeId of priorityBulkSelectionIds) {
+                const node = findNode(project.rootTask, nodeId);
+                if (!node) continue;
+                collectNodes(node).forEach((descendant) => targetIds.add(descendant.id));
+              }
+            }
+
+            for (const nodeId of targetIds) {
               get().setNodePriority(currentProjectId, nodeId, true);
-            } else {
+            }
+          } else {
+            // 削除はremoveNodeが対象ノード配下を丸ごと取り除くため、子孫を
+            // 個別に展開しなくても既に一括削除になっている
+            for (const nodeId of priorityBulkSelectionIds) {
               get().deleteNode(currentProjectId, nodeId);
             }
           }

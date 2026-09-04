@@ -578,6 +578,50 @@ export default function RightDrawerPanel() {
     );
 }
 
+// ネイティブの<input type="date">をReactで単純にvalue制御すると、年欄に1桁打った
+// 瞬間（月日がまだ未確定でinput.valueが""になる）にonChangeでストアへnullを反映してしまい、
+// その空文字が折り返してvalueに戻ることでブラウザ側の「年→月→日」の入力途中状態が
+// リセットされる（結果、年欄に何桁でも打ち込めてしまうように見える不具合になる）。
+// 入力中は見た目上の値をローカルstateで持ち、確定した日付（またはblur時の空欄）だけを
+// 呼び出し元へ伝えることでこれを回避する
+function DateField({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value: string | null;
+    onChange: (value: string | null) => void;
+}) {
+    const [draft, setDraft] = useState(value ?? '');
+    // レンダー中に外部由来のvalue変化を検知して同期する（useEffectだと1テンポ遅れて
+    // 余分な再描画が入るため、Reactが推奨する「レンダー中に調整する」形にしている）
+    const [prevValue, setPrevValue] = useState(value);
+    if (value !== prevValue) {
+        setPrevValue(value);
+        setDraft(value ?? '');
+    }
+
+    return (
+        <label style={{ ...styles.inputLabel, flex: 1 }}>
+            {label}
+            <input
+                type="date"
+                value={draft}
+                style={styles.dateInput}
+                onChange={(event) => {
+                    const next = event.target.value;
+                    setDraft(next);
+                    if (next) onChange(next);
+                }}
+                onBlur={() => {
+                    if (!draft) onChange(null);
+                }}
+            />
+        </label>
+    );
+}
+
 function SelectedTaskEditor({
     task,
     isPending,
@@ -639,28 +683,14 @@ function SelectedTaskEditor({
             <div style={styles.selectedControls}>
                 {/* 期限・達成日は横に並べて縦のスペースを節約する */}
                 <div style={styles.dateRow}>
-                    <label style={{ ...styles.inputLabel, flex: 1 }}>
-                        期限
-                        <input
-                            type="date"
-                            value={task.node.dueDate ?? ''}
-                            style={styles.dateInput}
-                            onChange={(event) => onChangeDueDate(event.target.value || null)}
-                        />
-                    </label>
+                    <DateField label="期限" value={task.node.dueDate} onChange={onChangeDueDate} />
 
                     {task.node.completed && (
-                        <label style={{ ...styles.inputLabel, flex: 1 }}>
-                            達成日
-                            <input
-                                type="date"
-                                value={task.node.completedAt ?? ''}
-                                style={styles.dateInput}
-                                onChange={(event) =>
-                                    onChangeCompletedAt(event.target.value || null)
-                                }
-                            />
-                        </label>
+                        <DateField
+                            label="達成日"
+                            value={task.node.completedAt}
+                            onChange={onChangeCompletedAt}
+                        />
                     )}
                 </div>
 

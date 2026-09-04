@@ -309,7 +309,7 @@ body {
 .demo-key-pop { animation: demoKeyPop 0.9s ease-out forwards; }
 
 @keyframes demoRippleExpand {
-  0%   { opacity: 0.6; transform: translate(-50%, -50%) scale(0); }
+  0%   { opacity: 0.95; transform: translate(-50%, -50%) scale(0); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
 }
 .demo-ripple { animation: demoRippleExpand 0.55s ease-out forwards; }

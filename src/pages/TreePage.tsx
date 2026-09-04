@@ -617,6 +617,50 @@ export function TreePage() {
         </span>
       </div>
 
+      {/* ── 枠線の色の意味（期限グラデーション・優先タスクは初見だと分かりにくいため） */}
+      <div
+        className="flex items-center gap-4 px-6 py-1.5 text-xs flex-shrink-0"
+        style={{
+          borderBottom: '1px solid var(--border)',
+          color: 'var(--text-muted)',
+        }}
+      >
+        <span>🎨 枠線の色:</span>
+        <span className="flex items-center" style={{ gap: 6 }}>
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: '50%',
+              background: 'linear-gradient(90deg, hsl(48, 85%, 55%), hsl(26, 85%, 55%))',
+            }}
+          />
+          期限が近い（7日以内、黄→橙）
+        </span>
+        <span className="flex items-center" style={{ gap: 6 }}>
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: '50%',
+              background: 'hsl(350, 88%, 46%)',
+            }}
+          />
+          期限切れ
+        </span>
+        <span className="flex items-center" style={{ gap: 6 }}>
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: '50%',
+              background: '#16a34a',
+            }}
+          />
+          優先タスクに登録済み
+        </span>
+      </div>
+
       {/* ── ツリービュー本体（縦横スクロール＋画面比率変更＋ドラッグでパン） */}
       <div
         ref={scrollRef}
@@ -884,7 +928,9 @@ export function TreePage() {
               ? '子タスク作成'
               : guidedModalKind === 'sibling'
                 ? '兄弟タスク作成'
-                : undefined
+                // デモ録画等でEnter/Tab追加をスムーズに行えるよう、通常時も
+                // タイトル未入力のまま追加ボタンが押せないという事態を避ける
+                : '新しいタスク'
           }
           defaultMemo={
             guidedModalKind === 'child'

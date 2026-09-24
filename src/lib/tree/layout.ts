@@ -124,10 +124,14 @@ export function computeTreeLayout<T extends TreeNodeLike>(
       cursorY += dropZoneHeight;
     });
 
-    // 直接の子どもたち（最初と最後）の中心に自分を合わせる。
+    // 子が奇数個なら真ん中の子の中心に、偶数個なら最初と最後の子の中心の中間に
+    // 自分を合わせる。奇数個のとき真ん中の子と親の中心が数pxずれると、両者を結ぶ
+    // ほぼ水平な線が小さくうねって「たるんで」見えるため、ぴったり水平に揃える。
     // ただし自分の持ち場（[topY, topY + required]）からはみ出さないよう安全域にクランプする。
     const rawCenter =
-      (childCenters[0] + childCenters[childCenters.length - 1]) / 2;
+      childCenters.length % 2 === 1
+        ? childCenters[(childCenters.length - 1) / 2]
+        : (childCenters[0] + childCenters[childCenters.length - 1]) / 2;
     const nodeY = Math.min(
       Math.max(rawCenter - own / 2, topY),
       topY + required - own,

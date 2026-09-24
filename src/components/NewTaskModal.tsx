@@ -33,6 +33,8 @@ type Props = {
   guideHintText?: string;
 };
 
+const DEFAULT_TASK_TITLE = '新しいタスク';
+
 export function NewTaskModal({
   mode,
   onConfirm,
@@ -48,21 +50,18 @@ export function NewTaskModal({
   const [dueDate, setDueDate] = useState('');
   const [isPriority, setIsPriority] = useState(false);
 
-  const canSubmit = title.trim().length >= 1;
-
   const heading = mode === 'child' ? '子タスクを追加' : '兄弟タスクを追加';
 
-  const placeholder =
-    mode === 'child'
-      ? '例: データ収集、レポート作成...'
-      : '例: テスト実施、デプロイ...';
+  // 未入力のときだけ薄く見えるプレースホルダーとして出し、入力すると消える。
+  // 未入力のまま追加した場合はこの名前でノードが作られる（デモ録画などで
+  // 入力なしでも素早く追加できるようにするため）
+  const placeholder = DEFAULT_TASK_TITLE;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canSubmit) return;
 
     onConfirm(
-      title.trim(),
+      title.trim() || DEFAULT_TASK_TITLE,
       memo.trim(),
       detailMemo.trim(),
       hasDueDate && dueDate ? dueDate : null,
@@ -123,7 +122,7 @@ export function NewTaskModal({
         <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.field}>
             <span style={styles.label}>
-              タイトル <span style={styles.required}>*</span>
+              タイトル <span style={styles.optional}>任意</span>
             </span>
 
             <input
@@ -249,12 +248,7 @@ export function NewTaskModal({
                 id="confirm-new-task"
                 type="submit"
                 className={guideHintText ? 'tutorial-spotlight-ring' : undefined}
-                style={{
-                  ...styles.primaryButton,
-                  opacity: canSubmit ? 1 : 0.45,
-                  cursor: canSubmit ? 'pointer' : 'not-allowed',
-                }}
-                disabled={!canSubmit}
+                style={styles.primaryButton}
               >
                 <span style={styles.plusIcon}>＋</span>
                 追加する

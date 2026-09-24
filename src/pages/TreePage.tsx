@@ -928,9 +928,7 @@ export function TreePage() {
               ? '子タスク作成'
               : guidedModalKind === 'sibling'
                 ? '兄弟タスク作成'
-                // デモ録画等でEnter/Tab追加をスムーズに行えるよう、通常時も
-                // タイトル未入力のまま追加ボタンが押せないという事態を避ける
-                : '新しいタスク'
+                : undefined
           }
           defaultMemo={
             guidedModalKind === 'child'

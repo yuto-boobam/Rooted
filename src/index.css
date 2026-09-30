@@ -314,6 +314,12 @@ body {
 }
 .demo-ripple { animation: demoRippleExpand 0.55s ease-out forwards; }
 
+@keyframes demoTrailFade {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+}
+.demo-trail-dot { animation: demoTrailFade 0.42s ease-out forwards; }
+
 /* ドラッグ中のスタイル */
 .drag-over {
   border-color: var(--accent) !important;

@@ -1,5 +1,15 @@
 [
   {
+    "id": "2026-09-24-9b0fc5f2",
+    "date": "2026-09-24",
+    "buildNumber": 28,
+    "type": "other",
+    "title": "ノード同士の中間線の弛みを補正",
+    "description": "子ノードの数によって線がたるんでまとまりがないように見えたため変更。",
+    "beforeImageUrl": "/images/patch-notes/2026/09/20260924-build28-before.png?v=1790233608092",
+    "afterImageUrl": "/images/patch-notes/2026/09/20260924-build28-after.png?v=1790233612152"
+  },
+  {
     "id": "2026-09-04-e625d019",
     "date": "2026-09-04",
     "buildNumber": 27,

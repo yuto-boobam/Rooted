@@ -191,7 +191,8 @@ const makeProject = (
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     progress: 0,
-    rootTask: makeNode(title, '', createdBy),
+    // プロジェクト作成時に入力した概要は、親（ルート）ノードの概要メモとしても使う
+    rootTask: makeNode(title, description, createdBy),
   };
 };
 
